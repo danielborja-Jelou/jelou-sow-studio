@@ -1,0 +1,32 @@
+{
+  "_nota": "Design tokens extracted from the Jelou SOW reference (Uanataca). Used by the Word template, the diagram renderer and the HTML simulator. Change here, not in the code.",
+  "fuentes": { "texto": "Poppins", "titulos": "Poppins SemiBold", "archivos": { "regular": "fonts/Poppins-Regular.ttf", "semibold": "fonts/Poppins-SemiBold.ttf" } },
+  "word": {
+    "pagina": "A4", "margenes_dxa": { "arriba": 1928, "abajo": 1474, "izquierda": 1361, "derecha": 1361 },
+    "tamanos_medios_puntos": { "titulo": 40, "subtitulo": 22, "h1": 26, "h2": 22, "cuerpo": 21, "tabla": 19 },
+    "color_texto": "1a1d24", "color_secundario": "555b66", "color_acento": "007582",
+    "tabla": { "borde": "bfc5ce", "fondo_cabecera": "f2f4f7", "margen_celda_dxa": { "vertical": 70, "horizontal": 110 }, "ancho_dxa": 9184 },
+    "color_pendiente": "FF0000"
+  },
+  "diagramas": {
+    "borde_trazo": 2, "radio": 14, "flecha": "7a8794",
+    "tipos": {
+      "usuario":  { "relleno": "f1fafc", "borde": "00b3c7", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Usuario" },
+      "mensaje":  { "relleno": "ffffff", "borde": "1a1d24", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Mensaje del agente" },
+      "router":   { "relleno": "00b3c7", "borde": "00b3c7", "texto": "ffffff", "forma": "redondeado", "leyenda": "Orquestación / router" },
+      "formulario": { "relleno": "d9f2f6", "borde": "0e7c8a", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Formulario (WhatsApp Flow / WebView)" },
+      "webview":  { "relleno": "d9f2f6", "borde": "0e7c8a", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Formulario (WhatsApp Flow / WebView)" },
+      "api":      { "relleno": "171e2d", "borde": "171e2d", "texto": "ffffff", "forma": "rectangulo", "leyenda": "API / sistema" },
+      "decision": { "relleno": "ffffff", "borde": "0e7c8a", "texto": "1a1d24", "forma": "hexagono", "leyenda": "Decisión" },
+      "asesor":   { "relleno": "eceff3", "borde": "6b7685", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Asesor humano" },
+      "tercero":  { "relleno": "ffffff", "borde": "6b7685", "texto": "1a1d24", "forma": "redondeado", "trazo": "punteado", "leyenda": "Proceso del cliente / tercero" },
+      "fin":      { "relleno": "ffffff", "borde": "6b7685", "texto": "555b66", "forma": "pildora", "leyenda": "Fin" },
+      "etapa":    { "relleno": "e6f6f8", "borde": "007582", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Etapa (su detalle está en la figura indicada)" },
+      "enlace":   { "relleno": "f7f8fa", "borde": "9aa3ae", "texto": "555b66", "forma": "pildora", "trazo": "punteado", "leyenda": "Enlace a otra figura" }
+    },
+    "etiqueta_arista": "0e7c8a"
+  },
+  "html": {
+    "fondo_pagina": "#16213e", "whatsapp": { "cabecera": "#128C7E", "avatar": "#25D366", "fondo_chat": "#E5DDD5", "burbuja_entrada": "#FFFFFF", "burbuja_salida": "#DCF8C6" }
+  }
+}

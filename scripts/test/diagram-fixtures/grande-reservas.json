@@ -1,0 +1,207 @@
+{
+  "titulo": "Agente de reservas (19 pasos): flujo E2E",
+  "pasos": [
+    {
+      "id": "P1",
+      "tipo": "usuario",
+      "diagrama": "El cliente escribe al WhatsApp del restaurante",
+      "siguiente": [
+        {
+          "a": "P2"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "tipo": "mensaje",
+      "diagrama": "Bienvenida + 3 botones: Reservar · Mi reserva · Hablar con asesor",
+      "siguiente": [
+        {
+          "a": "P3"
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "tipo": "router",
+      "diagrama": "Router de intención: botón o texto libre",
+      "siguiente": [
+        {
+          "a": "P4"
+        },
+        {
+          "a": "P10"
+        },
+        {
+          "a": "P16"
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "tipo": "mensaje",
+      "diagrama": "Reservar",
+      "siguiente": [
+        {
+          "a": "P5"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "P5",
+      "tipo": "webview",
+      "diagrama": "WebView: fecha, hora, personas, nombre y teléfono",
+      "siguiente": [
+        {
+          "a": "P6"
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "tipo": "decision",
+      "diagrama": "¿Hay mesa disponible?",
+      "siguiente": [
+        {
+          "a": "P7",
+          "si": "sí"
+        },
+        {
+          "a": "P8",
+          "si": "no"
+        }
+      ]
+    },
+    {
+      "id": "P7",
+      "tipo": "api",
+      "diagrama": "Crea la reserva en el sistema del restaurante",
+      "siguiente": [
+        {
+          "a": "P9"
+        }
+      ]
+    },
+    {
+      "id": "P8",
+      "tipo": "mensaje",
+      "diagrama": "Propone las 3 horas libres más cercanas",
+      "siguiente": [
+        {
+          "a": "P5",
+          "si": "elige otra hora"
+        }
+      ]
+    },
+    {
+      "id": "P9",
+      "tipo": "mensaje",
+      "diagrama": "Confirma la reserva con fecha, hora y número de personas",
+      "siguiente": [
+        {
+          "a": "P20"
+        }
+      ]
+    },
+    {
+      "id": "P10",
+      "tipo": "mensaje",
+      "diagrama": "Mi reserva",
+      "siguiente": [
+        {
+          "a": "P11"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "P11",
+      "tipo": "mensaje",
+      "diagrama": "Pide el teléfono con el que reservó",
+      "siguiente": [
+        {
+          "a": "P12"
+        }
+      ]
+    },
+    {
+      "id": "P12",
+      "tipo": "api",
+      "diagrama": "Consulta la reserva por teléfono",
+      "siguiente": [
+        {
+          "a": "P13"
+        }
+      ]
+    },
+    {
+      "id": "P13",
+      "tipo": "decision",
+      "diagrama": "¿Tiene reserva activa?",
+      "siguiente": [
+        {
+          "a": "P14",
+          "si": "sí"
+        },
+        {
+          "a": "P15",
+          "si": "no"
+        }
+      ]
+    },
+    {
+      "id": "P14",
+      "tipo": "mensaje",
+      "diagrama": "Muestra la reserva y ofrece cancelar",
+      "siguiente": [
+        {
+          "a": "P20"
+        }
+      ]
+    },
+    {
+      "id": "P15",
+      "tipo": "mensaje",
+      "diagrama": "Informa que no hay reservas y ofrece reservar",
+      "siguiente": [
+        {
+          "a": "P20"
+        }
+      ]
+    },
+    {
+      "id": "P16",
+      "tipo": "mensaje",
+      "diagrama": "Hablar con asesor",
+      "siguiente": [
+        {
+          "a": "P17"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "P17",
+      "tipo": "mensaje",
+      "diagrama": "Pide el motivo en un mensaje",
+      "siguiente": [
+        {
+          "a": "P18"
+        }
+      ]
+    },
+    {
+      "id": "P18",
+      "tipo": "asesor",
+      "diagrama": "Asesor recibe el motivo y los datos ya recogidos",
+      "siguiente": []
+    },
+    {
+      "id": "P20",
+      "tipo": "fin",
+      "diagrama": "Fin: si vuelve a escribir, lo recibe el menú",
+      "siguiente": []
+    }
+  ]
+}

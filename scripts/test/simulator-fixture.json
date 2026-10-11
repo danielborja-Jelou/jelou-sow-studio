@@ -1,0 +1,68 @@
+{
+  "meta": { "proyecto": "Pedidos mayoristas por WhatsApp", "bot": "Dani", "cliente": "Distribuidora Andina (ejemplo)", "version": "0.1", "fecha": "2026-10-05" },
+  "agentes": [
+    {
+      "id": "R1", "nombre": "Agente de pedidos", "fase": "Fase 1", "canal": "WhatsApp Distribuidora",
+      "persona": { "nombre": "Dani", "tono": "cercano y claro", "apelativo": "cliente" },
+      "pasos": [
+        { "id": "P1", "tipo": "usuario", "etapa": "Entrada", "diagrama": "El cliente escribe al WhatsApp", "mensaje": "Hola, quiero hacer un pedido", "siguiente": [{ "a": "P2" }] },
+        { "id": "P2", "tipo": "router", "etapa": "Orquestación", "diagrama": "Detecta la intención", "siguiente": [{ "a": "P3" }] },
+        { "id": "P3", "tipo": "mensaje", "etapa": "Bienvenida", "mensaje": "¡Hola! Soy Dani, tu asistente de Distribuidora Andina. ¿Qué necesitas hoy?", "botones": ["Nuevo pedido", "Estado de mi pedido", "Hablar con asesor"],
+          "siguiente": [{ "a": "P4", "si": "Nuevo pedido" }, { "a": "P9", "si": "Estado de mi pedido" }, { "a": "P12", "si": "Hablar con asesor" }] },
+        { "id": "P4", "tipo": "mensaje", "etapa": "Categoría", "mensaje": "Perfecto. ¿De qué categoría es tu pedido?", "lista": ["Abarrotes", "Bebidas", "Limpieza", "Lácteos"],
+          "siguiente": [{ "a": "P5", "si": "Abarrotes" }, { "a": "P5", "si": "Bebidas" }, { "a": "P5", "si": "Limpieza" }, { "a": "P5", "si": "Lácteos" }] },
+        { "id": "P5", "tipo": "webview", "etapa": "Datos del pedido", "diagrama": "El cliente completa el formulario",
+          "webview": { "titulo": "Datos del pedido", "boton": "Enviar pedido", "campos": [
+            { "etiqueta": "Razón social", "tipo": "texto", "obligatorio": true },
+            { "etiqueta": "Correo de facturación", "tipo": "correo", "obligatorio": true },
+            { "etiqueta": "Ciudad de entrega", "tipo": "selector", "opciones": ["Quito", "Guayaquil", "Cuenca"] },
+            { "etiqueta": "Cantidad de cajas", "tipo": "numero" },
+            { "etiqueta": "Orden de compra (PDF)", "tipo": "archivo" },
+            { "etiqueta": "Acepto los términos y condiciones", "tipo": "casilla", "obligatorio": true } ] },
+          "siguiente": [{ "a": "P6" }] },
+        { "id": "P6", "tipo": "api", "etapa": "Validar crédito", "diagrama": "Valida cupo del cliente", "integracion": "INT-1",
+          "siguiente": [{ "a": "P7", "si": "aprobado" }, { "a": "P8", "si": "crédito insuficiente" }, { "a": "P10", "si": "error de sistema" }] },
+        { "id": "P7", "tipo": "mensaje", "etapa": "Pedido confirmado", "mensaje": "¡Listo! Tu pedido N° [NÚMERO DE PEDIDO] quedó confirmado. Entrega estimada: POR DEFINIR.", "siguiente": [{ "a": "P11" }] },
+        { "id": "P8", "tipo": "mensaje", "etapa": "Crédito insuficiente", "mensaje": "Tu cupo de crédito no alcanza para este pedido. ¿Cómo prefieres continuar?", "botones": ["Pagar con transferencia", "Hablar con asesor"],
+          "siguiente": [{ "a": "P5", "si": "Pagar con transferencia" }, { "a": "P12", "si": "Hablar con asesor" }] },
+        { "id": "P9", "tipo": "decision", "etapa": "¿Existe el pedido?", "diagrama": "¿El pedido existe en el ERP?", "siguiente": [{ "a": "P14", "si": "sí" }, { "a": "P15", "si": "no" }] },
+        { "id": "P10", "tipo": "mensaje", "etapa": "Error técnico", "mensaje": "Tuvimos un problema técnico al validar tu pedido. Puedes reintentar o hablar con un asesor.", "botones": ["Reintentar", "Hablar con asesor"],
+          "siguiente": [{ "a": "P6", "si": "Reintentar" }, { "a": "P12", "si": "Hablar con asesor" }] },
+        { "id": "P11", "tipo": "tercero", "etapa": "Despacho en ERP", "diagrama": "El ERP del cliente programa el despacho", "siguiente": [{ "a": "P13" }] },
+        { "id": "P12", "tipo": "asesor", "etapa": "Asesor humano", "mensaje": "Te conecto con un asesor de ventas. Un momento, por favor.", "siguiente": [] },
+        { "id": "P13", "tipo": "fin", "etapa": "Fin", "mensaje": "Gracias por tu pedido. ¡Hasta pronto!", "siguiente": [] },
+        { "id": "P14", "tipo": "mensaje", "etapa": "Estado del pedido", "mensaje": "Tu pedido está en preparación. Salida estimada: mañana.", "botones": ["Entendido"], "siguiente": [{ "a": "P13", "si": "Entendido" }] },
+        { "id": "P15", "tipo": "mensaje", "etapa": "Pedido no encontrado", "mensaje": "No encontramos tu pedido. ¿Quieres intentar de nuevo?", "botones": ["Reintentar", "Hablar con asesor"],
+          "siguiente": [{ "a": "P3", "si": "Reintentar" }, { "a": "P12", "si": "Hablar con asesor" }] }
+      ]
+    },
+    {
+      "id": "R2", "nombre": "Agente de soporte posventa", "fase": "Fase 2", "canal": "WhatsApp Distribuidora",
+      "persona": { "nombre": "Dani", "tono": "empático", "apelativo": "cliente" },
+      "pasos": [
+        { "id": "Q1", "tipo": "usuario", "etapa": "Entrada", "diagrama": "El cliente pide ayuda", "mensaje": "Tengo un problema con mi pedido", "siguiente": [{ "a": "Q2" }] },
+        { "id": "Q2", "tipo": "router", "etapa": "Orquestación", "diagrama": "Detecta que es posventa", "siguiente": [{ "a": "Q3" }] },
+        { "id": "Q3", "tipo": "mensaje", "etapa": "Saludo", "mensaje": "Lamento el inconveniente. ¿Qué tipo de ayuda necesitas?", "botones": ["Reclamo", "Garantía", "Hablar con asesor"],
+          "siguiente": [{ "a": "Q4", "si": "Reclamo" }, { "a": "Q4", "si": "Garantía" }, { "a": "Q12", "si": "Hablar con asesor" }] },
+        { "id": "Q4", "tipo": "mensaje", "etapa": "Pedir número", "mensaje": "Escríbeme el número de tu pedido (solo dígitos).", "siguiente": [{ "a": "Q5" }] },
+        { "id": "Q5", "tipo": "usuario", "etapa": "Número de pedido", "diagrama": "El cliente escribe su número de pedido", "mensaje": "100234", "siguiente": [{ "a": "Q6" }] },
+        { "id": "Q6", "tipo": "api", "etapa": "Consultar pedido", "diagrama": "Consulta el pedido en el ERP", "integracion": "INT-2",
+          "siguiente": [{ "a": "Q7", "si": "encontrado" }, { "a": "Q11", "si": "no encontrado" }] },
+        { "id": "Q7", "tipo": "decision", "etapa": "¿En garantía?", "diagrama": "¿El pedido sigue en garantía?", "siguiente": [{ "a": "Q8", "si": "sí" }, { "a": "Q9", "si": "no" }] },
+        { "id": "Q8", "tipo": "webview", "etapa": "Registrar reclamo", "diagrama": "Formulario de reclamo",
+          "webview": { "titulo": "Registrar reclamo", "boton": "Enviar reclamo", "campos": [
+            { "etiqueta": "Motivo del reclamo", "tipo": "selector", "opciones": ["Producto dañado", "Faltante", "Otro"], "obligatorio": true },
+            { "etiqueta": "Describe lo ocurrido", "tipo": "texto", "obligatorio": true },
+            { "etiqueta": "Foto del producto", "tipo": "archivo" } ] },
+          "siguiente": [{ "a": "Q10" }] },
+        { "id": "Q9", "tipo": "mensaje", "etapa": "Fuera de garantía", "mensaje": "Tu pedido ya no está en garantía. Estas son tus opciones:", "lista": ["Cotizar reparación", "Comprar repuesto", "Hablar con asesor"],
+          "siguiente": [{ "a": "Q13", "si": "Cotizar reparación" }, { "a": "Q13", "si": "Comprar repuesto" }, { "a": "Q12", "si": "Hablar con asesor" }] },
+        { "id": "Q10", "tipo": "tercero", "etapa": "Sistema de tickets", "diagrama": "El sistema del cliente crea el ticket", "siguiente": [{ "a": "Q13", "si": "ticket creado" }, { "a": "Q12", "si": "error al crear ticket" }] },
+        { "id": "Q11", "tipo": "mensaje", "etapa": "Pedido no encontrado", "mensaje": "No encontré ese pedido. Revisa el número e inténtalo de nuevo.", "botones": ["Reintentar", "Hablar con asesor"],
+          "siguiente": [{ "a": "Q4", "si": "Reintentar" }, { "a": "Q12", "si": "Hablar con asesor" }] },
+        { "id": "Q12", "tipo": "asesor", "etapa": "Asesor humano", "mensaje": "Te paso con una persona del equipo de posventa.", "siguiente": [] },
+        { "id": "Q13", "tipo": "fin", "etapa": "Fin", "mensaje": "Registramos tu solicitud. Te escribiremos por este mismo chat.", "siguiente": [] }
+      ]
+    }
+  ]
+}

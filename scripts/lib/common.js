@@ -1,0 +1,184 @@
+// Shared helpers for the SOW scripts: business-day dates, graph helpers, effort model.
+const fs = require("fs");
+const path = require("path");
+
+const arr = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
+
+// ---------- pending markers ----------
+const PENDING_RE = /(POR COMPLETAR|POR DEFINIR)/g;
+const hasPending = (s) => /POR COMPLETAR|POR DEFINIR/.test(String(s || ""));
+
+// ---------- status ----------
+// Versioning follows the template convention: 1.0 is the initial version, corrections are 1.1/1.2, new baselines 2.0/3.0.
+// Approval is a status, never a number: meta.estado is "en_revision" (default) or "aprobado".
+const ESTADOS = ["en_revision", "aprobado"];
+const estadoOf = (sow) => String(((sow && sow.meta) || {}).estado || "en_revision").toLowerCase();
+const isDraft = (sow) => estadoOf(sow) !== "aprobado";
+
+// ---------- dates (UTC, business days) ----------
+function parseDate(s) { const [y, m, d] = String(s).split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); }
+function fmtIso(d) { return d.toISOString().slice(0, 10); }
+function fmtLong(d) {
+  const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  return `${d.getUTCDate()} de ${meses[d.getUTCMonth()]} de ${d.getUTCFullYear()}`;
+}
+function fmtShort(d) { return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`; }
+function makeCalendar(festivos) {
+  const fest = new Set(arr(festivos));
+  const habil = (d) => { const w = d.getUTCDay(); return w !== 0 && w !== 6 && !fest.has(fmtIso(d)); };
+  const nextBusiness = (d) => { const x = new Date(d); while (!habil(x)) x.setUTCDate(x.getUTCDate() + 1); return x; };
+  const prevBusiness = (d) => { const x = new Date(d); x.setUTCDate(x.getUTCDate() - 1); while (!habil(x)) x.setUTCDate(x.getUTCDate() - 1); return x; };
+  const endOfBlock = (from, n) => {
+    let d = nextBusiness(from), c = 1;
+    while (c < n) { d.setUTCDate(d.getUTCDate() + 1); if (habil(d)) c++; }
+    return d;
+  };
+  return { habil, nextBusiness, prevBusiness, endOfBlock };
+}
+// Returns [{hito, inicio, fin}] for the milestones, consecutive business days.
+function scheduleDates(cronograma) {
+  const cr = cronograma || {};
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cr.inicio || "")) return arr(cr.hitos).map((h) => ({ hito: h, inicio: null, fin: null }));
+  const cal = makeCalendar(cr.festivos);
+  let cursor = parseDate(cr.inicio);
+  return arr(cr.hitos).map((h) => {
+    const ini = cal.nextBusiness(cursor);
+    const fin = cal.endOfBlock(ini, Math.max(1, h.dias_habiles || 1));
+    cursor = new Date(fin); cursor.setUTCDate(cursor.getUTCDate() + 1);
+    return { hito: h, inicio: ini, fin };
+  });
+}
+const totalBusinessDays = (cronograma) => arr((cronograma || {}).hitos).reduce((a, h) => a + (h.dias_habiles || 0), 0);
+
+// ---------- step types ----------
+// `webview` is kept as a backward-compatible alias of `formulario` (WhatsApp Flow or WebView, decision pending).
+const canonType = (t) => (t === "webview" ? "formulario" : t);
+const FORM_TOOLS = ["flows", "webview", "por_definir"];
+const FORM_TOOL_LABEL = { flows: "WhatsApp Flow", webview: "WebView", por_definir: "WhatsApp Flow o WebView (por definir)" };
+// The form definition lives in `formulario` (preferred) or `webview` (legacy): {titulo, boton, campos, herramienta}.
+const formOf = (p) => (p && (p.formulario || p.webview)) || null;
+const formTool = (p) => { const f = formOf(p) || {}; const h = String(p.herramienta || f.herramienta || "por_definir").toLowerCase(); return FORM_TOOLS.includes(h) ? h : "por_definir"; };
+
+// ---------- agents and conversation graphs ----------
+// Backward compatible: a v1 `flujo` becomes a single agent.
+function getAgents(sow) {
+  if (arr(sow.agentes).length) return sow.agentes;
+  if (sow.flujo && arr(sow.flujo.pasos).length) {
+    return [{ id: "A1", nombre: sow.meta && sow.meta.bot ? sow.meta.bot : "Agente", pasos: sow.flujo.pasos.map((p, i) => ({ id: "P" + (p.n || i + 1), tipo: p.tipo || "mensaje", etapa: p.accion, mensaje: p.resultado, integracion: p.integracion, reglas: p.reglas, siguiente: i < sow.flujo.pasos.length - 1 ? [{ a: "P" + (sow.flujo.pasos[i + 1].n || i + 2) }] : [] })) }];
+  }
+  return [];
+}
+const nodeById = (agent) => new Map(arr(agent.pasos).map((p) => [p.id, p]));
+function mainPath(agent) {
+  const byId = nodeById(agent);
+  const out = []; const seen = new Set();
+  let cur = arr(agent.pasos)[0];
+  while (cur && !seen.has(cur.id)) {
+    out.push(cur); seen.add(cur.id);
+    const nx = arr(cur.siguiente)[0];
+    cur = nx ? byId.get(nx.a) : null;
+  }
+  return out;
+}
+const botMessagesOnMainPath = (agent) => mainPath(agent).filter((p) => p.tipo === "mensaje").length;
+
+// Counts the steps of the main path by kind: what the user actually goes through (not only bot messages).
+function mainPathCounts(agent) {
+  const c = { mensajes: 0, formularios: 0, sistemas: 0, decisiones: 0, pasos: 0 };
+  for (const p of mainPath(agent)) {
+    const t = canonType(p.tipo);
+    c.pasos++;
+    if (t === "mensaje") c.mensajes++;
+    else if (t === "formulario") c.formularios++;
+    else if (t === "api") c.sistemas++;
+    else if (t === "decision") c.decisiones++;
+  }
+  return c;
+}
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function describeCounts(c) {
+  const parts = [];
+  if (c.mensajes) parts.push(plural(c.mensajes, "mensaje del bot", "mensajes del bot"));
+  if (c.formularios) parts.push(plural(c.formularios, "formulario", "formularios"));
+  if (c.sistemas) parts.push(plural(c.sistemas, "consulta a un sistema", "consultas a sistemas"));
+  return parts.length ? parts.join(", ") : "sin pasos";
+}
+
+// ---------- client dependencies and the milestone that needs them ----------
+const normTxt = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const dateOk = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ""));
+// Milestone that needs a dependency: explicit `hito` (id or name) or inferred from the wording (default: the build milestone).
+function milestoneFor(dep, hitos) {
+  const hs = arr(hitos);
+  if (!hs.length) return null;
+  if (dep && dep.hito) {
+    const k = normTxt(dep.hito);
+    const f = hs.find((h) => normTxt(h.id) === k || normTxt(h.nombre) === k || normTxt(h.nombre).includes(k));
+    if (f) return f;
+  }
+  const t = normTxt(`${(dep && dep.item) || ""}`);
+  const byName = (re) => hs.find((h) => re.test(normTxt(h.nombre)));
+  if (/(^|[^a-z])(uat|aprobacion|validacion final|acta)([^a-z]|$)/.test(t)) return byName(/uat|aceptaci/) || hs[hs.length - 1];
+  if (/produccion|go.?live|pase a produccion/.test(t)) return byName(/producci|salida|activaci/) || hs[hs.length - 1];
+  if (/firma|textos|contenido|definicion|alcance/.test(t)) return hs[0];
+  return byName(/construcci/) || hs[0];
+}
+// For every dependency: the milestone that needs it and (when it has no date) a PROPOSED date: the last business day
+// before that milestone starts (never earlier than cronograma.inicio). It is a suggestion for the lint report only.
+function dependencyPlan(sow) {
+  const cr = (sow && sow.cronograma) || {};
+  const sched = scheduleDates(cr);
+  const cal = makeCalendar(cr.festivos);
+  const out = arr(sow && sow.dependencias_cliente).map((d, i) => {
+    const h = milestoneFor(d, cr.hitos);
+    const row = sched.find((x) => x.hito === h);
+    const sinFecha = !dateOk(d.fecha_limite);
+    let propuesta = null;
+    if (sinFecha && row && row.inicio) {
+      const ini = parseDate(cr.inicio);
+      const prev = cal.prevBusiness(row.inicio);
+      propuesta = fmtIso(prev < ini ? cal.nextBusiness(ini) : prev);
+    }
+    return { index: i, item: d.item, hito: h ? { id: h.id, nombre: h.nombre, dias: h.dias_habiles || 0 } : null, sinFecha, propuesta };
+  });
+  const total = totalBusinessDays(cr);
+  const dep = new Map();
+  out.filter((x) => x.sinFecha && x.hito).forEach((x) => dep.set(x.hito.id || x.hito.nombre, x.hito));
+  const diasDependientes = [...dep.values()].reduce((a, h) => a + h.dias, 0);
+  return { deps: out, total, sinHolgura: total >= 20, diasDependientes, hitosDependientes: [...dep.values()], sinFecha: out.filter((x) => x.sinFecha).length };
+}
+
+// ---------- effort model ----------
+const DEFAULT_RATES = {
+  workflow_simple: [2, 4], workflow_medio: [6, 12], workflow_complejo: [16, 32], function: [3, 8],
+  webview_simple: [4, 10], webview_backend: [6, 16], flow_whatsapp: [3, 8], formulario: [3, 10], plantilla_hsm: [0.5, 1.5], kyc: [3, 8], pagos: [3, 8],
+};
+function loadRates() {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(__dirname, "effort-rates.json"), "utf8"));
+    const r = {};
+    const labels = {};
+    for (const [k, v] of Object.entries(j.rangos || {})) { r[k] = [v.min, v.max]; labels[k] = v.etiqueta || k.replace(/_/g, " "); }
+    return { rangos: r, etiquetas: labels, gestion: j.gestion_pct || { min: 15, max: 25 } };
+  } catch (e) {
+    return { rangos: DEFAULT_RATES, etiquetas: {}, gestion: { min: 15, max: 25 } };
+  }
+}
+function computeEffort(esfuerzo) {
+  const { rangos, etiquetas } = loadRates();
+  const e = esfuerzo || {};
+  let min = 0, max = 0; const rows = []; const unknown = [];
+  for (const it of arr(e.items)) {
+    const r = rangos[it.tipo];
+    if (!r) { unknown.push(it.tipo); continue; }
+    const q = it.cantidad || 1;
+    rows.push({ entregable: it.entregable, tipo: it.tipo, etiqueta: (etiquetas && etiquetas[it.tipo]) || String(it.tipo).replace(/_/g, " "), cantidad: q, min: r[0] * q, max: r[1] * q, nota: it.nota });
+    min += r[0] * q; max += r[1] * q;
+  }
+  const g = (e.gestion_pct == null ? 20 : e.gestion_pct) / 100;
+  const personas = e.personas || 1, horasDia = e.horas_dia || 6;
+  const totalMin = min * (1 + g), totalMax = max * (1 + g);
+  return { rows, unknown, subMin: min, subMax: max, gestionPct: g * 100, totalMin, totalMax, personas, horasDia, diasMin: Math.ceil(totalMin / (personas * horasDia)), diasMax: Math.ceil(totalMax / (personas * horasDia)) };
+}
+
+module.exports = { canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };

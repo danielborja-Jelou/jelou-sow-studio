@@ -1,0 +1,735 @@
+{
+ "meta": {
+  "proyecto": "Afiliación digital de ejemplo",
+  "cliente": "Fondo Ejemplo",
+  "version": "1.0",
+  "estado": "en_revision",
+  "fecha": "2026-10-05"
+ },
+ "agentes": [
+  {
+   "id": "F1",
+   "nombre": "Flujo_1: Afiliación",
+   "fase": "Fase única (POC)",
+   "canal": "WhatsApp Fondo Ejemplo",
+   "persona": {
+    "nombre": "POR DEFINIR",
+    "tono": "formal y cercano",
+    "apelativo": "usted"
+   },
+   "titulo_diagrama": "Flujo_1: Cesantías - afiliación E2E",
+   "pasos": [
+    {
+     "id": "P1",
+     "tipo": "usuario",
+     "etapa": "Entrada",
+     "diagrama": "La persona escribe al WhatsApp de Fondo Ejemplo para afiliarse a cesantías",
+     "mensaje": "Hola, quiero afiliarme a cesantías",
+     "siguiente": [
+      {
+       "a": "P2"
+      }
+     ]
+    },
+    {
+     "id": "P2",
+     "tipo": "mensaje",
+     "etapa": "Autorización de datos",
+     "componente": "Determinístico",
+     "diagrama": "Saludo y solicitud de autorización de datos (Ley 1581)",
+     "mensaje": "Hola, soy el asistente virtual de Fondo Ejemplo. Le ayudo a afiliarse a cesantías por este chat. Antes de empezar, ¿autoriza el tratamiento de sus datos personales conforme a la Ley 1581 de 2012?",
+     "botones": [
+      "Acepto",
+      "No acepto",
+      "Hablar con asesor"
+     ],
+     "reglas": [
+      "RN-06"
+     ],
+     "siguiente": [
+      {
+       "a": "P3"
+      }
+     ]
+    },
+    {
+     "id": "P3",
+     "tipo": "decision",
+     "diagrama": "¿Autoriza el tratamiento de datos?",
+     "siguiente": [
+      {
+       "a": "P4",
+       "si": "Acepto"
+      },
+      {
+       "a": "P30",
+       "si": "No acepto"
+      },
+      {
+       "a": "P28",
+       "si": "Hablar con asesor"
+      }
+     ]
+    },
+    {
+     "id": "P4",
+     "tipo": "formulario",
+     "etapa": "Propósito y salario",
+     "diagrama": "Formulario: propósito de las cesantías y salario mensual",
+     "reglas": [
+      "RN-01"
+     ],
+     "siguiente": [
+      {
+       "a": "P5"
+      }
+     ],
+     "formulario": {
+      "titulo": "Sus cesantías",
+      "boton": "Continuar",
+      "campos": [
+       {
+        "etiqueta": "Propósito de sus cesantías",
+        "tipo": "selector",
+        "obligatorio": true,
+        "opciones": [
+         "Vivienda",
+         "Educación",
+         "Otro"
+        ],
+        "ejemplo": "Vivienda"
+       },
+       {
+        "etiqueta": "Salario mensual",
+        "tipo": "numero",
+        "obligatorio": true,
+        "ejemplo": "3500000"
+       }
+      ]
+     },
+     "herramienta": "flows"
+    },
+    {
+     "id": "P5",
+     "tipo": "decision",
+     "diagrama": "¿Salario igual o superior a 4 SMMLV?",
+     "reglas": [
+      "RN-01"
+     ],
+     "siguiente": [
+      {
+       "a": "P7",
+       "si": "sí"
+      },
+      {
+       "a": "P6",
+       "si": "no"
+      }
+     ]
+    },
+    {
+     "id": "P6",
+     "tipo": "mensaje",
+     "etapa": "Canales de atención",
+     "componente": "Determinístico",
+     "diagrama": "Informa canales de atención masiva y red de oficinas",
+     "mensaje": "Con su nivel de ingresos puede afiliarse por nuestros canales de atención masiva y nuestras oficinas. Consulte los canales en el enlace POR DEFINIR.",
+     "botones": [
+      "Hablar con asesor",
+      "Finalizar"
+     ],
+     "reglas": [
+      "RN-01"
+     ],
+     "siguiente": [
+      {
+       "a": "P28",
+       "si": "Hablar con asesor"
+      },
+      {
+       "a": "P31",
+       "si": "Finalizar"
+      }
+     ]
+    },
+    {
+     "id": "P7",
+     "tipo": "formulario",
+     "etapa": "Documento",
+     "diagrama": "Formulario: tipo y número de documento",
+     "siguiente": [
+      {
+       "a": "P8"
+      }
+     ],
+     "formulario": {
+      "titulo": "Su documento",
+      "boton": "Continuar",
+      "campos": [
+       {
+        "etiqueta": "Tipo de documento",
+        "tipo": "selector",
+        "obligatorio": true
+       },
+       {
+        "etiqueta": "Número de documento",
+        "tipo": "numero",
+        "obligatorio": true,
+        "ejemplo": "1234567890"
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P8",
+     "tipo": "api",
+     "etapa": "Envío del OTP",
+     "componente": "API identidad Proveedor (WS#4)",
+     "diagrama": "Envía el OTP por SMS (servicio de identidad)",
+     "integracion": "INT-4",
+     "reglas": [
+      "RN-02"
+     ],
+     "siguiente": [
+      {
+       "a": "P9",
+       "si": "OTP enviado"
+      },
+      {
+       "a": "P27",
+       "si": "falla del servicio"
+      }
+     ]
+    },
+    {
+     "id": "P9",
+     "tipo": "formulario",
+     "etapa": "Validación del OTP",
+     "diagrama": "El usuario ingresa el OTP recibido por SMS",
+     "mensaje": "Le enviamos un código por SMS. Ingréselo para validar su identidad.",
+     "reglas": [
+      "RN-02"
+     ],
+     "siguiente": [
+      {
+       "a": "P10"
+      }
+     ],
+     "formulario": {
+      "titulo": "Código de verificación",
+      "boton": "Validar",
+      "campos": [
+       {
+        "etiqueta": "Código recibido por SMS",
+        "tipo": "numero",
+        "obligatorio": true
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P10",
+     "tipo": "decision",
+     "diagrama": "¿Código correcto?",
+     "reglas": [
+      "RN-02"
+     ],
+     "siguiente": [
+      {
+       "a": "P11",
+       "si": "sí"
+      },
+      {
+       "a": "P9",
+       "si": "no, quedan intentos"
+      },
+      {
+       "a": "P29",
+       "si": "3 fallos"
+      }
+     ]
+    },
+    {
+     "id": "P11",
+     "tipo": "api",
+     "etapa": "Consulta de identidad",
+     "componente": "API de identidad (WS#4) / Flows",
+     "diagrama": "Consulta la identidad y prellena los datos del usuario",
+     "integracion": "INT-4",
+     "reglas": [
+      "RN-08"
+     ],
+     "siguiente": [
+      {
+       "a": "P12",
+       "si": "datos recuperados"
+      },
+      {
+       "a": "P27",
+       "si": "falla del servicio"
+      }
+     ]
+    },
+    {
+     "id": "P12",
+     "tipo": "formulario",
+     "etapa": "Confirmación de datos",
+     "diagrama": "Confirma datos prellenados: correo, edad, género, documento",
+     "reglas": [
+      "RN-08"
+     ],
+     "siguiente": [
+      {
+       "a": "P13"
+      }
+     ],
+     "formulario": {
+      "titulo": "Confirme sus datos",
+      "boton": "Confirmar",
+      "campos": [
+       {
+        "etiqueta": "Correo electrónico",
+        "tipo": "correo",
+        "obligatorio": true
+       },
+       {
+        "etiqueta": "Edad",
+        "tipo": "numero"
+       },
+       {
+        "etiqueta": "Género",
+        "tipo": "selector"
+       },
+       {
+        "etiqueta": "Fecha y lugar de expedición del documento",
+        "tipo": "texto"
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P13",
+     "tipo": "formulario",
+     "etapa": "Datos de contacto y residencia",
+     "diagrama": "Completa correo, ciudad de residencia y fecha de nacimiento",
+     "siguiente": [
+      {
+       "a": "P14"
+      }
+     ],
+     "formulario": {
+      "titulo": "Complete sus datos",
+      "boton": "Continuar",
+      "campos": [
+       {
+        "etiqueta": "Correo electrónico",
+        "tipo": "correo",
+        "obligatorio": true
+       },
+       {
+        "etiqueta": "Ciudad de residencia",
+        "tipo": "selector",
+        "obligatorio": true
+       },
+       {
+        "etiqueta": "Fecha de nacimiento",
+        "tipo": "texto",
+        "obligatorio": true
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P14",
+     "tipo": "formulario",
+     "etapa": "Cesantías en otro fondo",
+     "diagrama": "Indica si tiene cesantías en otro fondo y cuál",
+     "reglas": [
+      "RN-04"
+     ],
+     "siguiente": [
+      {
+       "a": "P15"
+      }
+     ],
+     "formulario": {
+      "titulo": "Otro fondo",
+      "boton": "Continuar",
+      "campos": [
+       {
+        "etiqueta": "¿Tiene cesantías en otro fondo?",
+        "tipo": "casilla"
+       },
+       {
+        "etiqueta": "Fondo de origen",
+        "tipo": "selector"
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P15",
+     "tipo": "formulario",
+     "etapa": "Empleador",
+     "diagrama": "Ingresa el NIT o la razón social del empleador",
+     "reglas": [
+      "RN-05"
+     ],
+     "siguiente": [
+      {
+       "a": "P16"
+      }
+     ],
+     "formulario": {
+      "titulo": "Su empleador",
+      "boton": "Buscar",
+      "campos": [
+       {
+        "etiqueta": "NIT o razón social del empleador",
+        "tipo": "texto",
+        "obligatorio": true
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P16",
+     "tipo": "api",
+     "etapa": "Consulta del empleador",
+     "componente": "API consulta de empleador (WS#5) / Flows",
+     "diagrama": "Consulta el empleador por NIT o razón social",
+     "integracion": "INT-5",
+     "reglas": [
+      "RN-05"
+     ],
+     "siguiente": [
+      {
+       "a": "P17",
+       "si": "encontrado"
+      },
+      {
+       "a": "P15",
+       "si": "no encontrado, quedan intentos"
+      },
+      {
+       "a": "P26",
+       "si": "3 intentos sin resultado"
+      },
+      {
+       "a": "P27",
+       "si": "falla del servicio"
+      }
+     ]
+    },
+    {
+     "id": "P17",
+     "tipo": "formulario",
+     "etapa": "Confirmación del empleador",
+     "diagrama": "El usuario confirma los datos del empleador recuperados",
+     "siguiente": [
+      {
+       "a": "P18"
+      }
+     ],
+     "formulario": {
+      "titulo": "Confirme su empleador",
+      "boton": "Confirmar",
+      "campos": [
+       {
+        "etiqueta": "Razón social y NIT",
+        "tipo": "texto"
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P18",
+     "tipo": "mensaje",
+     "etapa": "Video de asesoría",
+     "componente": "Determinístico",
+     "diagrama": "Envía el video de asesoría sobre cesantías y portafolios",
+     "mensaje": "Antes de elegir, vea este video sobre cesantías y portafolios de corto y largo plazo: enlace POR DEFINIR.",
+     "botones": [
+      "Continuar",
+      "Hablar con asesor"
+     ],
+     "reglas": [
+      "RN-07"
+     ],
+     "siguiente": [
+      {
+       "a": "P19",
+       "si": "Continuar"
+      },
+      {
+       "a": "P28",
+       "si": "Hablar con asesor"
+      }
+     ]
+    },
+    {
+     "id": "P19",
+     "tipo": "formulario",
+     "etapa": "Distribución del portafolio",
+     "diagrama": "Elige la distribución entre corto y largo plazo",
+     "reglas": [
+      "RN-07"
+     ],
+     "siguiente": [
+      {
+       "a": "P20"
+      }
+     ],
+     "formulario": {
+      "titulo": "Su portafolio",
+      "boton": "Continuar",
+      "campos": [
+       {
+        "etiqueta": "Distribución entre corto y largo plazo",
+        "tipo": "selector",
+        "obligatorio": true
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P20",
+     "tipo": "api",
+     "etapa": "Envío del OTP de firma",
+     "componente": "API de firma digital Proveedor de firma (WS#6)",
+     "diagrama": "Envía el 2.º OTP para firmar (sujeto a decisión de Fondo Ejemplo)",
+     "integracion": "INT-6",
+     "reglas": [
+      "RN-03"
+     ],
+     "siguiente": [
+      {
+       "a": "P21",
+       "si": "OTP enviado"
+      },
+      {
+       "a": "P27",
+       "si": "falla del servicio"
+      }
+     ]
+    },
+    {
+     "id": "P21",
+     "tipo": "formulario",
+     "etapa": "Ingreso del OTP de firma",
+     "diagrama": "El usuario ingresa el OTP de firma",
+     "mensaje": "Para firmar su contrato, ingrese el código que le enviamos por SMS.",
+     "reglas": [
+      "RN-03"
+     ],
+     "siguiente": [
+      {
+       "a": "P22"
+      }
+     ],
+     "formulario": {
+      "titulo": "Firma del contrato",
+      "boton": "Firmar",
+      "campos": [
+       {
+        "etiqueta": "Código de firma",
+        "tipo": "numero",
+        "obligatorio": true
+       }
+      ]
+     },
+     "herramienta": "por_definir"
+    },
+    {
+     "id": "P22",
+     "tipo": "decision",
+     "diagrama": "¿Código de firma correcto?",
+     "reglas": [
+      "RN-03"
+     ],
+     "siguiente": [
+      {
+       "a": "P23",
+       "si": "sí"
+      },
+      {
+       "a": "P21",
+       "si": "no, quedan intentos"
+      },
+      {
+       "a": "P29",
+       "si": "3 fallos"
+      }
+     ]
+    },
+    {
+     "id": "P23",
+     "tipo": "api",
+     "etapa": "Firma del contrato",
+     "componente": "API de firma digital Proveedor de firma (WS#6)",
+     "diagrama": "Firma electrónicamente el contrato (Proveedor de firma vía Fondo Ejemplo)",
+     "integracion": "INT-6",
+     "siguiente": [
+      {
+       "a": "P24",
+       "si": "contrato firmado"
+      },
+      {
+       "a": "P27",
+       "si": "falla del servicio"
+      }
+     ]
+    },
+    {
+     "id": "P24",
+     "tipo": "api",
+     "etapa": "Registro de la afiliación",
+     "componente": "API de afiliación en Core (WS#7) / Determinístico",
+     "diagrama": "Registra la afiliación en el sistema central de Fondo Ejemplo",
+     "integracion": "INT-7",
+     "siguiente": [
+      {
+       "a": "P25",
+       "si": "afiliación registrada"
+      },
+      {
+       "a": "P27",
+       "si": "falla del servicio"
+      }
+     ]
+    },
+    {
+     "id": "P25",
+     "tipo": "mensaje",
+     "etapa": "Confirmación",
+     "componente": "Determinístico",
+     "diagrama": "Confirma al usuario que su afiliación quedó registrada",
+     "mensaje": "Su afiliación a cesantías quedó registrada. Gracias por elegir a Fondo Ejemplo.",
+     "siguiente": [
+      {
+       "a": "P31"
+      }
+     ]
+    },
+    {
+     "id": "P26",
+     "tipo": "mensaje",
+     "etapa": "Empleador no encontrado",
+     "componente": "Determinístico",
+     "diagrama": "No encontró el empleador y conecta con un asesor",
+     "mensaje": "No encontramos su empleador. Lo conecto con un asesor para ayudarle.",
+     "reglas": [
+      "RN-05"
+     ],
+     "siguiente": [
+      {
+       "a": "P28"
+      }
+     ]
+    },
+    {
+     "id": "P27",
+     "tipo": "mensaje",
+     "etapa": "Falla del servicio",
+     "componente": "Determinístico",
+     "diagrama": "Informa la falla del servicio y conecta con un asesor",
+     "mensaje": "No pude completar este paso. Lo conecto con un asesor para ayudarle; no tendrá que repetir sus datos.",
+     "reglas": [
+      "RN-09"
+     ],
+     "siguiente": [
+      {
+       "a": "P28"
+      }
+     ]
+    },
+    {
+     "id": "P28",
+     "tipo": "asesor",
+     "etapa": "Derivación al PMA",
+     "componente": "PMA",
+     "diagrama": "Un asesor del PMA recibe al usuario con los datos capturados",
+     "siguiente": [
+      {
+       "a": "P31"
+      }
+     ]
+    },
+    {
+     "id": "P29",
+     "tipo": "mensaje",
+     "etapa": "Bloqueo temporal",
+     "componente": "Determinístico",
+     "diagrama": "Bloqueo temporal tras 3 códigos incorrectos y oferta de asesor",
+     "mensaje": "Por su seguridad, bloqueamos este paso por un tiempo. Si lo desea, puede hablar con un asesor.",
+     "botones": [
+      "Hablar con asesor",
+      "Finalizar"
+     ],
+     "reglas": [
+      "RN-02",
+      "RN-03"
+     ],
+     "siguiente": [
+      {
+       "a": "P28",
+       "si": "Hablar con asesor"
+      },
+      {
+       "a": "P31",
+       "si": "Finalizar"
+      }
+     ]
+    },
+    {
+     "id": "P30",
+     "tipo": "mensaje",
+     "etapa": "Sin autorización",
+     "componente": "Determinístico",
+     "diagrama": "Informa que no puede continuar sin la autorización",
+     "mensaje": "Entendido. Sin su autorización no podemos continuar con la afiliación. Si cambia de opinión, escríbanos de nuevo.",
+     "reglas": [
+      "RN-06"
+     ],
+     "siguiente": [
+      {
+       "a": "P31"
+      }
+     ]
+    },
+    {
+     "id": "P31",
+     "tipo": "fin",
+     "diagrama": "Fin del flujo",
+     "siguiente": []
+    }
+   ]
+  }
+ ],
+ "integraciones": [
+  {
+   "id": "INT-4",
+   "nombre": "WS#4 · API de identidad Proveedor"
+  },
+  {
+   "id": "INT-5",
+   "nombre": "WS#5 · API consulta de empleador"
+  },
+  {
+   "id": "INT-6",
+   "nombre": "WS#6 · API de firma digital Proveedor de firma"
+  },
+  {
+   "id": "INT-7",
+   "nombre": "WS#7 · API de afiliación en Core"
+  }
+ ]
+}

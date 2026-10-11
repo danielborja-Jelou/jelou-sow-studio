@@ -1,0 +1,1229 @@
+{
+  "meta": {
+    "proyecto": "Pedidos mayoristas por WhatsApp",
+    "bot": "Dani",
+    "cliente": "Distribuidora Andina (ejemplo)",
+    "pais": "Ecuador",
+    "tipo": "nuevo",
+    "version": "1.0",
+    "estado": "en_revision",
+    "fecha": "2026-10-05",
+    "autor": "POR COMPLETAR",
+    "proveedor": "Jelou",
+    "prioridad": "Fase única: agente de pedidos mayoristas",
+    "codigo": "EC-00-000-01 (ejemplo)",
+    "equipo_confirmado": true
+  },
+  "brief": [
+    "Distribuidora Andina atiende hoy los pedidos de sus clientes mayoristas por teléfono y correo, lo que genera demoras y errores de digitación. El proyecto implementa un agente en WhatsApp que valida al cliente, consulta su cupo de crédito y crea el pedido directamente en el ERP, con catálogo en webview y stock actualizado.",
+    "Los pedidos que no cumplen las condiciones de crédito se derivan a un agente del panel multiagente (PMA), que los aprueba o rechaza. El resultado esperado es reducir el tiempo de toma de pedidos y liberar al equipo comercial para casos complejos."
+  ],
+  "objetivos": {
+    "general": "Automatizar la toma de pedidos mayoristas por WhatsApp con validación de cupo y creación del pedido en el ERP.",
+    "especificos": [
+      "Crear pedidos sin intervención humana cuando cumplan las condiciones de crédito.",
+      "Reducir los errores de captura de productos y cantidades.",
+      "Derivar a un agente solo los pedidos que requieren aprobación."
+    ],
+    "por_agente": [
+      {
+        "agente": "R1",
+        "objetivos": [
+          "Cerrar el pedido en 8 mensajes del bot o menos en el camino principal.",
+          "Derivar al PMA solo los pedidos que no cumplen las condiciones de crédito."
+        ]
+      }
+    ]
+  },
+  "equipo": [
+    {
+      "rol": "AM",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Account Manager (AM)",
+      "responsabilidad": "Relación comercial, alcance y costos de Meta"
+    },
+    {
+      "rol": "PM",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Project Manager (PM)",
+      "responsabilidad": "Implementación hasta el acta de cierre; seguimiento semanal"
+    },
+    {
+      "rol": "Implementador",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Implementador / Bot builder",
+      "responsabilidad": "Construcción del agente, formularios e integraciones"
+    },
+    {
+      "rol": "Cliente funcional",
+      "nombre": "Responsable Comercial",
+      "organizacion": "Distribuidora Andina",
+      "cargo": "Gerente Comercial",
+      "responsabilidad": "Validación de flujos y textos finales"
+    },
+    {
+      "rol": "Cliente técnico",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Distribuidora Andina",
+      "cargo": "Jefe de Sistemas",
+      "responsabilidad": "Accesos y documentación del ERP"
+    }
+  ],
+  "alcance": {
+    "incluido_usuario": [
+      {
+        "id": "F-U1",
+        "texto": "Validar al cliente con su cédula o RUC y consultar su cupo de crédito disponible.",
+        "agente": "R1"
+      },
+      {
+        "id": "F-U2",
+        "texto": "Confirmar la identidad con un código OTP enviado al correo registrado.",
+        "agente": "R1"
+      },
+      {
+        "id": "F-U3",
+        "texto": "Consultar el catálogo en un webview y buscar productos por SKU o palabra clave.",
+        "agente": "R1"
+      },
+      {
+        "id": "F-U4",
+        "texto": "Armar un carrito persistente, con validación de stock y de la cantidad mínima de venta.",
+        "agente": "R1"
+      },
+      {
+        "id": "F-U5",
+        "texto": "Crear el pedido en el ERP y recibir el número de orden.",
+        "agente": "R1"
+      },
+      {
+        "id": "F-U6",
+        "texto": "Hablar con un asesor humano en cualquier momento.",
+        "agente": "R1"
+      }
+    ],
+    "incluido_admin": [
+      {
+        "id": "F-A1",
+        "texto": "El agente del PMA aprueba o rechaza los pedidos derivados y registra el motivo de cierre."
+      },
+      {
+        "id": "F-A2",
+        "texto": "El equipo del cliente descarga los pedidos y las ventas perdidas desde la base de datos de Jelou (Excel o CSV)."
+      }
+    ],
+    "fuera_de_alcance": [
+      {
+        "id": "OOS-1",
+        "texto": "Seguimiento del estado de pedidos ya creados.",
+        "terminos": [
+          "seguimiento del pedido",
+          "estado del pedido",
+          "tracking"
+        ]
+      },
+      {
+        "id": "OOS-2",
+        "texto": "Consulta o validación de facturas pendientes.",
+        "terminos": [
+          "factura"
+        ]
+      },
+      {
+        "id": "OOS-3",
+        "texto": "Pagos dentro del chat, pasarela de pagos o link de pago.",
+        "terminos": [
+          "pasarela",
+          "link de pago",
+          "pago in-chat",
+          "cobro"
+        ]
+      },
+      {
+        "id": "OOS-4",
+        "texto": "Promociones y cálculo de descuentos.",
+        "terminos": [
+          "promocion",
+          "descuento"
+        ]
+      }
+    ],
+    "supuestos": [
+      "Los precios son los mismos en todas las bodegas; solo cambia el stock.",
+      "El ERP expone vistas de lectura y un servicio de escritura de pedidos."
+    ],
+    "fases": [
+      {
+        "fase": "Fase única",
+        "requerimiento": "R1 · Agente de pedidos mayoristas (Dani)",
+        "publico": "Clientes mayoristas de Distribuidora Andina",
+        "canal": "WhatsApp Pedidos"
+      }
+    ]
+  },
+  "parametros": {
+    "horario_bot": "24/7",
+    "horario_agentes": "Lunes a viernes de 09:00 a 18:00",
+    "festivos": "Feriados nacionales de Ecuador",
+    "fuera_de_horario": "El bot informa el horario de atención y deja el pedido en cola para el siguiente día hábil",
+    "zona_horaria": "America/Guayaquil",
+    "idioma_tono": "Español de Ecuador, trato formal de usted",
+    "moneda": "USD",
+    "impuestos": "IVA de 0 %, 5 % o 15 % según el producto, calculado por línea",
+    "reintentos": "3 intentos para el código OTP; el código vence a los 10 minutos",
+    "retencion_datos": "Datos del cliente: mientras sea cliente activo; conversaciones: 12 meses",
+    "identificacion_telefono": "Si el número de WhatsApp no llega resuelto, el bot pide compartir el contacto antes de validar la cédula",
+    "datos_de_prueba": "El cliente entrega 5 clientes de prueba y los números de WhatsApp de sandbox hasta el 2026-10-16"
+  },
+  "flujo": {
+    "descripcion": "Flujo principal de creación de pedido.",
+    "mapa_url": "https://ejemplo.com/mapa-conversaciones",
+    "pasos": [
+      {
+        "n": 1,
+        "actor": "Usuario",
+        "accion": "Escribe al bot.",
+        "resultado": "El bot saluda y pide cédula o RUC."
+      },
+      {
+        "n": 2,
+        "actor": "Sistema",
+        "accion": "Valida al cliente y consulta su cupo en el ERP.",
+        "resultado": "Cliente validado y cupo disponible; si falla, el flujo termina y se deriva.",
+        "integracion": "INT-1",
+        "reglas": [
+          "RN-04"
+        ]
+      },
+      {
+        "n": 3,
+        "actor": "Bot",
+        "accion": "Envía un OTP al correo registrado y pide el código.",
+        "resultado": "Identidad verificada o flujo cerrado tras 3 intentos fallidos.",
+        "reglas": [
+          "RN-03"
+        ]
+      },
+      {
+        "n": 4,
+        "actor": "Usuario",
+        "accion": "Elige productos en el webview o por SKU.",
+        "resultado": "El carrito queda guardado.",
+        "integracion": "INT-1",
+        "reglas": [
+          "RN-05"
+        ]
+      },
+      {
+        "n": 5,
+        "actor": "Usuario",
+        "accion": "Selecciona Crear orden.",
+        "resultado": "El bot valida stock y monto antes de continuar.",
+        "integracion": "INT-1",
+        "reglas": [
+          "RN-01",
+          "RN-02"
+        ]
+      },
+      {
+        "n": 6,
+        "actor": "Sistema",
+        "accion": "Evalúa las condiciones de crédito.",
+        "resultado": "Si cumple, el pedido se crea; si no, pasa al PMA.",
+        "reglas": [
+          "RN-02"
+        ]
+      },
+      {
+        "n": 7,
+        "actor": "Agente",
+        "accion": "Aprueba o rechaza el pedido derivado.",
+        "resultado": "Motivo de cierre registrado.",
+        "reglas": [
+          "RN-02"
+        ]
+      },
+      {
+        "n": 8,
+        "actor": "Sistema",
+        "accion": "Crea el pedido en el ERP.",
+        "resultado": "El usuario recibe el número de orden.",
+        "integracion": "INT-1"
+      }
+    ]
+  },
+  "reglas": [
+    {
+      "id": "RN-01",
+      "titulo": "Monto mínimo del pedido",
+      "descripcion": "El total del pedido, incluido el IVA, debe ser mayor o igual al mínimo; si es menor, el bot informa y no permite confirmar.",
+      "parametros": {
+        "minimo": 100,
+        "moneda": "USD"
+      },
+      "fuente": "cliente",
+      "si_no_cumple": "El bot informa el mínimo y no permite confirmar; el usuario puede agregar productos"
+    },
+    {
+      "id": "RN-02",
+      "titulo": "Aprobación directa o por agente",
+      "descripcion": "El pedido se crea directo si el total está entre el mínimo y el máximo, el cupo restante es mayor o igual a 0 y el cliente no está bloqueado. Si no cumple alguna condición, pasa al PMA. Un pedido mayor al máximo siempre pasa al PMA.",
+      "parametros": {
+        "total_desde": 100,
+        "total_hasta": 5000,
+        "cupo_restante_minimo": 0,
+        "bloqueo_pedido": "N"
+      },
+      "fuente": "cliente",
+      "si_no_cumple": "El pedido pasa al PMA para aprobación; el cliente recibe aviso de que está en revisión"
+    },
+    {
+      "id": "RN-03",
+      "titulo": "Verificación de identidad",
+      "descripcion": "Antes de crear pedidos se valida un OTP enviado al correo registrado. Tras 3 intentos fallidos o a los 10 minutos de vigencia el flujo se cierra.",
+      "parametros": {
+        "intentos": 3,
+        "vigencia_minutos": 10
+      },
+      "fuente": "cliente",
+      "si_no_cumple": "El flujo se cierra y el bot ofrece hablar con un asesor"
+    },
+    {
+      "id": "RN-04",
+      "titulo": "Cliente válido",
+      "descripcion": "Un cliente no registrado, con datos incompletos o bloqueado se deriva al PMA.",
+      "fuente": "cliente",
+      "si_no_cumple": "Se deriva automáticamente al PMA"
+    },
+    {
+      "id": "RN-05",
+      "titulo": "Cantidad mínima de venta",
+      "descripcion": "Cada artículo tiene una unidad mínima de venta; solo se aceptan múltiplos (con mínimo 5: 5, 10, 15).",
+      "parametros": {
+        "ejemplo_minimo": 5
+      },
+      "fuente": "cliente",
+      "si_no_cumple": "El bot rechaza la cantidad y sugiere el múltiplo anterior y siguiente; no ajusta solo"
+    }
+  ],
+  "escalamiento": [
+    {
+      "id": "ESC-1",
+      "disparador": "Cliente no registrado, bloqueado o con datos incompletos",
+      "modo": "automatico",
+      "destino": "PMA",
+      "horario": "Lunes a viernes 09:00–18:00",
+      "fuera_de_horario": "El bot informa el horario y registra la solicitud"
+    },
+    {
+      "id": "ESC-2",
+      "disparador": "Pedido que no cumple las condiciones de crédito o supera el máximo",
+      "modo": "automatico",
+      "destino": "PMA",
+      "horario": "Lunes a viernes 09:00–18:00",
+      "fuera_de_horario": "El pedido queda pendiente para el siguiente día hábil"
+    },
+    {
+      "id": "ESC-3",
+      "disparador": "El usuario pide hablar con un asesor",
+      "modo": "automatico",
+      "destino": "PMA",
+      "horario": "Lunes a viernes 09:00–18:00",
+      "fuera_de_horario": "El bot informa el horario"
+    },
+    {
+      "id": "ESC-4",
+      "disparador": "Cambio de dirección o datos fiscales, devoluciones o reclamos",
+      "modo": "automatico",
+      "destino": "PMA",
+      "horario": "Lunes a viernes 09:00–18:00",
+      "fuera_de_horario": "El bot informa el horario"
+    }
+  ],
+  "datos": [
+    {
+      "entidad": "Carrito",
+      "uso": "Guardar el pedido en construcción",
+      "campos": [
+        "cliente",
+        "SKU",
+        "cantidad",
+        "fecha"
+      ],
+      "retencion": "30 días"
+    },
+    {
+      "entidad": "Pedido",
+      "uso": "Trazabilidad y reporte de ventas",
+      "campos": [
+        "cliente",
+        "líneas",
+        "total",
+        "número de orden",
+        "estado"
+      ],
+      "retencion": "24 meses"
+    }
+  ],
+  "integraciones": [
+    {
+      "id": "INT-1",
+      "nombre": "ERP del cliente",
+      "sistema": "ERP (ejemplo)",
+      "proposito": "Validar clientes, leer stock y crear pedidos.",
+      "operaciones": [
+        {
+          "tipo": "lectura",
+          "descripcion": "Clientes, direcciones y cupo de crédito"
+        },
+        {
+          "tipo": "lectura",
+          "descripcion": "Productos, precios y stock por bodega"
+        },
+        {
+          "tipo": "escritura",
+          "descripcion": "Crear el pedido y devolver el número de orden"
+        }
+      ],
+      "autenticacion": "Usuario de integración con permisos mínimos (lectura en vistas, escritura solo de pedidos)",
+      "documentacion": "pendiente",
+      "ambiente_pruebas": "si",
+      "responsable_cliente": "Jefe de Sistemas",
+      "disponibilidad": "Horario comercial, 99 %",
+      "restricciones_red": "El cliente habilita la IP pública de salida de Jelou",
+      "conexion": "middleware_jelou",
+      "quien_hospeda": "Jelou construye y hospeda la capa intermedia en Jelou Functions; el cliente solo expone las vistas y el servicio de pedidos"
+    }
+  ],
+  "historias": [
+    {
+      "id": "HU-R1-01",
+      "perfil": "cliente mayorista",
+      "quiero": "validar mi cupo antes de pedir",
+      "para": "saber cuánto puedo comprar",
+      "reglas": [
+        "RN-04"
+      ],
+      "criterios": [
+        {
+          "dado": "un cliente registrado y no bloqueado",
+          "cuando": "ingresa su cédula o RUC",
+          "entonces": "el bot muestra su cupo disponible en USD"
+        },
+        {
+          "dado": "un cliente bloqueado o no registrado",
+          "cuando": "ingresa su cédula o RUC",
+          "entonces": "el bot lo deriva al PMA"
+        }
+      ],
+      "agente": "R1",
+      "titulo": "Validar cupo antes de pedir"
+    },
+    {
+      "id": "HU-R1-02",
+      "perfil": "cliente mayorista",
+      "quiero": "confirmar mi identidad con un código",
+      "para": "proteger mis pedidos",
+      "reglas": [
+        "RN-03"
+      ],
+      "criterios": [
+        {
+          "dado": "un código OTP enviado al correo registrado",
+          "cuando": "el usuario falla 3 veces",
+          "entonces": "el flujo se cierra y el bot informa el motivo"
+        }
+      ],
+      "agente": "R1",
+      "titulo": "Verificar identidad con código"
+    },
+    {
+      "id": "HU-R1-03",
+      "perfil": "cliente mayorista",
+      "quiero": "crear mi pedido desde el catálogo",
+      "para": "comprar sin llamar",
+      "reglas": [
+        "RN-01",
+        "RN-02",
+        "RN-05"
+      ],
+      "criterios": [
+        {
+          "dado": "un carrito con total de 99.99 USD",
+          "cuando": "el usuario selecciona Crear orden",
+          "entonces": "el bot informa que el mínimo es 100 USD y no permite confirmar"
+        },
+        {
+          "dado": "un carrito de 1200 USD, cupo restante mayor a 0 y cliente no bloqueado",
+          "cuando": "el usuario confirma",
+          "entonces": "el pedido se crea en el ERP y el bot muestra el número de orden"
+        },
+        {
+          "dado": "un carrito de 6000 USD",
+          "cuando": "el usuario confirma",
+          "entonces": "el pedido se deriva al PMA para aprobación"
+        },
+        {
+          "dado": "un artículo con unidad mínima de 5",
+          "cuando": "el usuario ingresa 7 unidades",
+          "entonces": "el bot rechaza la cantidad y sugiere 5 o 10"
+        }
+      ],
+      "agente": "R1",
+      "titulo": "Crear el pedido desde el catálogo"
+    },
+    {
+      "id": "HU-R1-04",
+      "perfil": "agente del PMA",
+      "quiero": "aprobar o rechazar un pedido derivado",
+      "para": "decidir los casos fuera de política",
+      "reglas": [
+        "RN-02"
+      ],
+      "criterios": [
+        {
+          "dado": "un pedido derivado al PMA",
+          "cuando": "el agente lo aprueba con motivo de cierre Aprobado",
+          "entonces": "el pedido se crea en el ERP y el cliente recibe el número de orden"
+        }
+      ],
+      "agente": "R1",
+      "titulo": "Aprobar o rechazar pedidos derivados"
+    }
+  ],
+  "pruebas": [
+    {
+      "id": "PR-1",
+      "tipo": "Conectividad",
+      "descripcion": "Autenticación al ERP, lectura de vistas con filtros y creación de un pedido de prueba.",
+      "cubre": [
+        "HU-R1-01",
+        "HU-R1-03"
+      ]
+    },
+    {
+      "id": "PR-2",
+      "tipo": "Funcional",
+      "descripcion": "Casos de validación de cliente, OTP, montos y cantidades mínimas.",
+      "cubre": [
+        "HU-R1-01",
+        "HU-R1-02",
+        "HU-R1-03"
+      ]
+    },
+    {
+      "id": "PR-3",
+      "tipo": "Extremo a extremo",
+      "descripcion": "Validar cliente, consultar stock, crear pedido y confirmar el número de orden en el ERP.",
+      "cubre": [
+        "HU-R1-03",
+        "HU-R1-04"
+      ]
+    }
+  ],
+  "dependencias_cliente": [
+    {
+      "item": "Accesos y usuario de integración al ERP de pruebas",
+      "responsable": "Sistemas del cliente",
+      "fecha_limite": "2026-10-16",
+      "integracion": "INT-1",
+      "hito": "Construcción del agente"
+    },
+    {
+      "item": "Documentación de las vistas y del servicio de pedidos",
+      "responsable": "Sistemas del cliente",
+      "fecha_limite": "2026-10-16",
+      "integracion": "INT-1",
+      "hito": "Construcción del agente"
+    },
+    {
+      "item": "Whitelist de la IP de Jelou",
+      "responsable": "Sistemas del cliente",
+      "fecha_limite": "2026-10-23",
+      "hito": "Construcción del agente"
+    },
+    {
+      "item": "Clientes de prueba y números de WhatsApp de sandbox",
+      "responsable": "Comercial del cliente",
+      "fecha_limite": "2026-10-16",
+      "hito": "Construcción del agente"
+    }
+  ],
+  "cronograma": {
+    "inicio": "2026-10-12",
+    "festivos": [
+      "2026-11-02",
+      "2026-11-03"
+    ],
+    "hitos": [
+      {
+        "id": "H0",
+        "fase": "0",
+        "nombre": "Planificación y definiciones",
+        "descripcion": "Firma del SOW, textos finales, accesos y ambiente de pruebas del ERP",
+        "dias_habiles": 2,
+        "entregable": "SOW firmado"
+      },
+      {
+        "id": "H1",
+        "fase": "1",
+        "nombre": "Construcción del agente",
+        "descripcion": "Flujos, formulario de pedido e integración con el ERP",
+        "dias_habiles": 8,
+        "entregable": "Agente en ambiente de pruebas"
+      },
+      {
+        "id": "H2",
+        "fase": "1",
+        "nombre": "Pruebas internas",
+        "descripcion": "Ejecución del Test Plan y corrección de hallazgos",
+        "dias_habiles": 2,
+        "entregable": "Informe de pruebas"
+      },
+      {
+        "id": "H3",
+        "fase": "1",
+        "nombre": "UAT del cliente",
+        "descripcion": "Validación por el cliente",
+        "dias_habiles": 3,
+        "entregable": "Acta de UAT"
+      },
+      {
+        "id": "H4",
+        "fase": "1",
+        "nombre": "Producción",
+        "descripcion": "Publicación en el canal y acompañamiento inicial",
+        "dias_habiles": 2,
+        "entregable": "Agente en producción"
+      },
+      {
+        "id": "H5",
+        "fase": "Cierre",
+        "nombre": "Cierre",
+        "descripcion": "Entrega de documentación y acta de cierre",
+        "dias_habiles": 1,
+        "entregable": "Acta de cierre"
+      }
+    ]
+  },
+  "riesgos": [
+    {
+      "riesgo": "Accesos o documentación del ERP entregados tarde",
+      "probabilidad": "Alta",
+      "impacto": "Alto",
+      "mitigacion": "Solicitar accesos en la semana 1 y validarlos con una prueba de conectividad antes de construir."
+    },
+    {
+      "riesgo": "Latencia alta en la consulta de stock en tiempo real",
+      "probabilidad": "Media",
+      "impacto": "Medio",
+      "mitigacion": "Medir en pruebas; si supera 30 segundos, acordar con el cliente una actualización periódica."
+    },
+    {
+      "riesgo": "Cambio de requisitos durante la construcción",
+      "probabilidad": "Media",
+      "impacto": "Medio",
+      "mitigacion": "Evaluar todo cambio como control de cambios con aprobación formal."
+    },
+    {
+      "riesgo": "Indisponibilidad del ERP",
+      "probabilidad": "Baja",
+      "impacto": "Alto",
+      "mitigacion": "El bot informa la indisponibilidad y deriva al PMA; monitoreo en pruebas QA."
+    }
+  ],
+  "versiones": [
+    {
+      "fecha": "2026-10-05",
+      "version": "1.0",
+      "descripcion": "Generación del documento",
+      "autor": "Equipo Jelou"
+    }
+  ],
+  "preguntas_abiertas": [
+    {
+      "id": "Q-1",
+      "pregunta": "¿Qué ocurre con un pedido de más de 5000 USD cuando el cupo alcanza? Se asume que siempre pasa al PMA.",
+      "bloquea": false,
+      "responsable": "Cliente"
+    },
+    {
+      "id": "Q-2",
+      "pregunta": "¿Cuánto tiempo se conserva el carrito guardado? Se asumen 30 días.",
+      "bloquea": false,
+      "responsable": "Cliente"
+    }
+  ],
+  "solucion": {
+    "descripcion": "La solución se compone de workflows de WhatsApp en la plataforma Jelou, tools de integración con el ERP y una base de datos Datum para sesiones, carritos y pedidos.",
+    "componentes": [
+      {
+        "id": "C-1",
+        "capacidad": "Validación de cliente y cupo",
+        "componente": "Tool HTTP + capa intermedia (Jelou Functions)",
+        "detalle": "Consulta el cliente, su bloqueo y su cupo en el ERP; si falla, deriva al PMA.",
+        "cubre": [
+          "F-U1"
+        ],
+        "reglas": [
+          "RN-04"
+        ],
+        "ejecucion": "determinista"
+      },
+      {
+        "id": "C-2",
+        "capacidad": "Verificación de identidad",
+        "componente": "OTP por correo (app del marketplace)",
+        "detalle": "Envío y validación del código con 3 intentos y vigencia de 10 minutos.",
+        "cubre": [
+          "F-U2"
+        ],
+        "reglas": [
+          "RN-03"
+        ],
+        "ejecucion": "determinista"
+      },
+      {
+        "id": "C-3",
+        "capacidad": "Catálogo y carrito",
+        "componente": "Jelou Shop (webview) + sincronización por cron",
+        "detalle": "Catálogo sincronizado desde el ERP 3 veces al día; carrito persistente por cliente.",
+        "cubre": [
+          "F-U3",
+          "F-U4"
+        ],
+        "reglas": [
+          "RN-05"
+        ],
+        "ejecucion": "mixto"
+      },
+      {
+        "id": "C-4",
+        "capacidad": "Creación de pedido",
+        "componente": "Tool HTTP + capa intermedia",
+        "detalle": "Valida stock y monto, evalúa condiciones de crédito y crea el pedido en el ERP.",
+        "cubre": [
+          "F-U5"
+        ],
+        "reglas": [
+          "RN-01",
+          "RN-02"
+        ],
+        "ejecucion": "determinista"
+      },
+      {
+        "id": "C-5",
+        "capacidad": "Atención por asesor",
+        "componente": "Derivación a PMA (CONNECT)",
+        "detalle": "Equipos, horario y mensaje fuera de horario definidos en Escalamiento.",
+        "cubre": [
+          "F-U6",
+          "F-A1"
+        ],
+        "ejecucion": "determinista"
+      },
+      {
+        "id": "C-6",
+        "capacidad": "Reportes de pedidos y ventas perdidas",
+        "componente": "Datum + exportación",
+        "detalle": "Colecciones de pedidos y de ventas perdidas, descargables en Excel o CSV.",
+        "cubre": [
+          "F-A2"
+        ],
+        "ejecucion": "determinista"
+      }
+    ]
+  },
+  "principios_diseno": [
+    {
+      "titulo": "Un toque, no teclear",
+      "texto": "botones, listas y un catálogo en webview en lugar de menús numerados, sin perder la opción de escribir."
+    },
+    {
+      "titulo": "Pedir una sola vez",
+      "texto": "el cliente elige productos y cantidades en un solo formulario que valida al momento."
+    },
+    {
+      "titulo": "Ningún callejón sin salida",
+      "texto": "si algo no se puede hacer, se explica por qué y qué sigue, con salida a un asesor."
+    }
+  ],
+  "seguimiento": "Seguimiento semanal: reunión los jueves a las 09h30 por Microsoft Teams, para revisar avances, decisiones y pendientes.",
+  "agentes": [
+    {
+      "id": "R1",
+      "nombre": "Agente de pedidos mayoristas",
+      "fase": "Fase única",
+      "canal": "WhatsApp Pedidos",
+      "persona": {
+        "nombre": "Dani",
+        "tono": "formal y cercano",
+        "apelativo": "usted"
+      },
+      "titulo_diagrama": "Agente de pedidos mayoristas: flujo E2E",
+      "pasos": [
+        {
+          "id": "P1",
+          "tipo": "usuario",
+          "diagrama": "El cliente mayorista escribe al WhatsApp de pedidos",
+          "mensaje": "Hola, quiero hacer un pedido",
+          "etapa": "Entrada",
+          "siguiente": [
+            {
+              "a": "P2"
+            }
+          ]
+        },
+        {
+          "id": "P2",
+          "tipo": "mensaje",
+          "diagrama": "Bienvenida: pide cédula o RUC",
+          "etapa": "Bienvenida y cédula",
+          "mensaje": "¡Hola! Soy Dani, el asistente de pedidos de Distribuidora Andina. Para empezar, escriba su cédula o RUC.",
+          "siguiente": [
+            {
+              "a": "P3"
+            }
+          ]
+        },
+        {
+          "id": "P3",
+          "tipo": "usuario",
+          "diagrama": "Escribe su cédula o RUC",
+          "mensaje": "0102030405",
+          "siguiente": [
+            {
+              "a": "P4"
+            }
+          ]
+        },
+        {
+          "id": "P4",
+          "tipo": "api",
+          "etapa": "Validación del cliente",
+          "diagrama": "Valida cliente, bloqueo y cupo en el ERP",
+          "integracion": "INT-1",
+          "componente": "API (WS#1) / Determinístico",
+          "reglas": [
+            "RN-04"
+          ],
+          "siguiente": [
+            {
+              "a": "P5"
+            }
+          ]
+        },
+        {
+          "id": "P5",
+          "tipo": "decision",
+          "diagrama": "¿Cliente válido y sin bloqueo?",
+          "siguiente": [
+            {
+              "a": "P6",
+              "si": "sí"
+            },
+            {
+              "a": "P16",
+              "si": "no"
+            }
+          ]
+        },
+        {
+          "id": "P6",
+          "tipo": "mensaje",
+          "diagrama": "Envía el código OTP al correo registrado",
+          "etapa": "Verificación OTP",
+          "mensaje": "Le enviamos un código al correo registrado (c***@correo.com). Escríbalo aquí.",
+          "reglas": [
+            "RN-03"
+          ],
+          "siguiente": [
+            {
+              "a": "P7"
+            }
+          ]
+        },
+        {
+          "id": "P7",
+          "tipo": "decision",
+          "diagrama": "¿Código correcto?",
+          "siguiente": [
+            {
+              "a": "P8",
+              "si": "sí"
+            },
+            {
+              "a": "P6",
+              "si": "no, reintenta"
+            },
+            {
+              "a": "P16",
+              "si": "3 fallos"
+            }
+          ]
+        },
+        {
+          "id": "P8",
+          "tipo": "formulario",
+          "diagrama": "Catálogo en webview: productos y cantidades",
+          "etapa": "Catálogo y carrito",
+          "integracion": "INT-1",
+          "reglas": [
+            "RN-05"
+          ],
+          "siguiente": [
+            {
+              "a": "P9"
+            }
+          ],
+          "formulario": {
+            "titulo": "Su pedido",
+            "boton": "Crear orden",
+            "campos": [
+              {
+                "etiqueta": "Buscar por SKU o palabra clave",
+                "tipo": "texto"
+              },
+              {
+                "etiqueta": "Producto",
+                "tipo": "selector",
+                "obligatorio": true,
+                "opciones": [
+                  "Abarrotes",
+                  "Bebidas",
+                  "Limpieza"
+                ],
+                "ejemplo": "Bebidas"
+              },
+              {
+                "etiqueta": "Cantidad",
+                "tipo": "numero",
+                "obligatorio": true
+              }
+            ]
+          },
+          "herramienta": "webview"
+        },
+        {
+          "id": "P9",
+          "tipo": "api",
+          "diagrama": "Valida stock y monto; evalúa crédito",
+          "integracion": "INT-1",
+          "reglas": [
+            "RN-01",
+            "RN-02"
+          ],
+          "siguiente": [
+            {
+              "a": "P10"
+            }
+          ]
+        },
+        {
+          "id": "P10",
+          "tipo": "decision",
+          "diagrama": "¿Cumple monto mínimo y condiciones de crédito?",
+          "siguiente": [
+            {
+              "a": "P11",
+              "si": "sí"
+            },
+            {
+              "a": "P13",
+              "si": "no"
+            }
+          ]
+        },
+        {
+          "id": "P11",
+          "tipo": "mensaje",
+          "diagrama": "Crea la orden y entrega el número de orden",
+          "etapa": "Orden creada",
+          "mensaje": "¡Listo! Su orden N.º 12345 fue creada. Recibirá la confirmación en su correo.",
+          "botones": [
+            "Nuevo pedido",
+            "Hablar con asesor"
+          ],
+          "siguiente": [
+            {
+              "a": "P12"
+            }
+          ]
+        },
+        {
+          "id": "P12",
+          "tipo": "fin",
+          "diagrama": "Fin: si vuelve a escribir, recibe el menú",
+          "siguiente": []
+        },
+        {
+          "id": "P13",
+          "tipo": "mensaje",
+          "diagrama": "Informa que el pedido pasa a revisión",
+          "etapa": "Pedido en revisión",
+          "mensaje": "Su pedido necesita la aprobación de un asesor. Ya le pasé los datos; no tiene que repetirlos.",
+          "siguiente": [
+            {
+              "a": "P14"
+            }
+          ]
+        },
+        {
+          "id": "P14",
+          "tipo": "asesor",
+          "diagrama": "El agente del PMA recibe cliente, cupo y carrito",
+          "etapa": "Derivación al PMA",
+          "reglas": [
+            "RN-02"
+          ],
+          "siguiente": [
+            {
+              "a": "P15"
+            }
+          ],
+          "recibe": [
+            "Cédula y nombre del cliente validado",
+            "Pedido en revisión con su total y los motivos de la revisión"
+          ]
+        },
+        {
+          "id": "P15",
+          "tipo": "decision",
+          "diagrama": "¿El asesor aprueba el pedido?",
+          "siguiente": [
+            {
+              "a": "P11",
+              "si": "aprueba"
+            },
+            {
+              "a": "P17",
+              "si": "rechaza"
+            }
+          ]
+        },
+        {
+          "id": "P16",
+          "tipo": "mensaje",
+          "diagrama": "Informa que no pudo validar la cuenta y ofrece asesor",
+          "etapa": "Sin acceso",
+          "mensaje": "No pude validar su cuenta. Lo conecto con un asesor para ayudarle.",
+          "siguiente": [
+            {
+              "a": "P14"
+            }
+          ]
+        },
+        {
+          "id": "P17",
+          "tipo": "mensaje",
+          "diagrama": "Informa el rechazo con el motivo",
+          "etapa": "Pedido rechazado",
+          "mensaje": "El asesor no aprobó el pedido. Motivo: cupo insuficiente. Puede hacer un nuevo pedido cuando quiera.",
+          "siguiente": [
+            {
+              "a": "P12"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagrama_general": {
+    "titulo": "Orquestación E2E del agente de pedidos",
+    "descripcion": "Un solo canal de WhatsApp abre el agente; la capa de orquestación de Jelou entiende botón, lista o texto libre y la palabra «menú» vuelve al inicio en cualquier momento.",
+    "pasos": [
+      {
+        "id": "G1",
+        "tipo": "usuario",
+        "diagrama": "Cliente mayorista que escribe a diario",
+        "siguiente": [
+          {
+            "a": "G2"
+          }
+        ]
+      },
+      {
+        "id": "G2",
+        "tipo": "mensaje",
+        "diagrama": "WhatsApp · canal Pedidos",
+        "siguiente": [
+          {
+            "a": "G3"
+          }
+        ]
+      },
+      {
+        "id": "G3",
+        "tipo": "router",
+        "diagrama": "Orquestación Jelou: el router entiende botón, lista o texto libre; «menú» vuelve al inicio",
+        "siguiente": [
+          {
+            "a": "G4"
+          }
+        ]
+      },
+      {
+        "id": "G4",
+        "tipo": "mensaje",
+        "diagrama": "Agente de pedidos mayoristas (Dani)",
+        "siguiente": [
+          {
+            "a": "G5"
+          },
+          {
+            "a": "G6"
+          },
+          {
+            "a": "G7"
+          }
+        ]
+      },
+      {
+        "id": "G5",
+        "tipo": "api",
+        "diagrama": "ERP del cliente: clientes, stock y pedidos (INT-1)",
+        "integracion": "INT-1",
+        "siguiente": []
+      },
+      {
+        "id": "G6",
+        "tipo": "asesor",
+        "diagrama": "PMA: aprueba o rechaza pedidos derivados",
+        "siguiente": []
+      },
+      {
+        "id": "G7",
+        "tipo": "webview",
+        "diagrama": "Catálogo en webview + OTP por correo",
+        "siguiente": []
+      }
+    ]
+  },
+  "mapeo_datos": [
+    {
+      "agente": "R1",
+      "campos": [
+        {
+          "campo": "cedula_ruc",
+          "aplica": "Todas",
+          "descripcion": "10 o 13 dígitos; el agente limpia el formato",
+          "obligatorio": "Sí"
+        },
+        {
+          "campo": "otp",
+          "aplica": "Verificación",
+          "descripcion": "Código de 6 dígitos enviado al correo registrado",
+          "obligatorio": "Sí"
+        },
+        {
+          "campo": "sku / cantidad",
+          "aplica": "Pedido",
+          "descripcion": "Producto y unidades (múltiplos de la unidad mínima)",
+          "obligatorio": "Sí"
+        },
+        {
+          "campo": "total_pedido",
+          "aplica": "Pedido",
+          "descripcion": "Total con IVA, calculado por línea",
+          "obligatorio": "Automático"
+        }
+      ]
+    }
+  ],
+  "validaciones": [
+    {
+      "campo": "Cédula o RUC",
+      "validacion": "Se eliminan espacios y guiones; 10 o 13 dígitos; dígito verificador",
+      "mensaje": "Revise la cédula o el RUC: debe tener 10 o 13 dígitos válidos.",
+      "aplica": "R1"
+    },
+    {
+      "campo": "Cantidad",
+      "validacion": "Entero positivo múltiplo de la unidad mínima de venta",
+      "mensaje": "La cantidad debe ser múltiplo de la unidad mínima. Pruebe con 5 o 10.",
+      "aplica": "R1"
+    },
+    {
+      "campo": "Código OTP",
+      "validacion": "6 dígitos; vigencia de 10 minutos; hasta 3 intentos",
+      "mensaje": "El código no es correcto. Intente de nuevo.",
+      "aplica": "R1"
+    }
+  ],
+  "esfuerzo": {
+    "personas": 2,
+    "horas_dia": 6,
+    "gestion_pct": 20,
+    "items": [
+      {
+        "entregable": "Workflow del agente de pedidos (router, OTP, pedido, derivación)",
+        "tipo": "workflow_complejo",
+        "cantidad": 1
+      },
+      {
+        "entregable": "Workflows de verificación OTP y de aprobación en el PMA",
+        "tipo": "workflow_medio",
+        "cantidad": 2
+      },
+      {
+        "entregable": "Capa intermedia hacia el ERP (Jelou Functions)",
+        "tipo": "function",
+        "cantidad": 1
+      },
+      {
+        "entregable": "Formulario de pedido (webview con consulta al ERP)",
+        "tipo": "webview_backend",
+        "cantidad": 1
+      },
+      {
+        "entregable": "Formulario de ajuste de cantidades (WhatsApp Flow)",
+        "tipo": "flow_whatsapp",
+        "cantidad": 1
+      }
+    ]
+  },
+  "responsabilidades": {
+    "jelou": [
+      "Diseño conversacional y construcción del agente y los formularios",
+      "Integración con el ERP y capa intermedia",
+      "Plan de pruebas, pruebas internas y corrección de hallazgos",
+      "Pase a producción y acompañamiento inicial"
+    ],
+    "cliente": [
+      "Textos finales y manual de marca",
+      "Accesos, documentación y ambiente de pruebas del ERP",
+      "Ejecución y aprobación de la UAT en las fechas acordadas",
+      "Asesores del PMA y su horario"
+    ]
+  },
+  "revision_seguridad": [
+    {
+      "aspecto": "Robo de información (confidencialidad)",
+      "revisado": "Sí",
+      "mitigacion": "Credenciales como secretos de la organización; OTP previo a entregar información sensible; correos enmascarados."
+    },
+    {
+      "aspecto": "Seguridad de la información (integridad)",
+      "revisado": "Sí",
+      "mitigacion": "El pedido solo se crea tras validar stock, monto y crédito en el ERP."
+    },
+    {
+      "aspecto": "Indisponibilidad de servicios a integrar",
+      "revisado": "Sí",
+      "mitigacion": "Mensaje de contingencia y derivación a asesor si el ERP no responde."
+    }
+  ],
+  "firmas": {
+    "jelou": {
+      "nombre": "POR COMPLETAR",
+      "cargo": "Project Manager"
+    },
+    "cliente": {
+      "nombre": "POR COMPLETAR",
+      "cargo": "POR COMPLETAR"
+    }
+  }
+}

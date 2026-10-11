@@ -1,0 +1,118 @@
+{
+  "titulo": "Orquestación E2E de los dos agentes",
+  "leyendas": {
+    "tercero": "Proceso de Uanataca"
+  },
+  "pasos": [
+    {
+      "id": "U1",
+      "tipo": "usuario",
+      "diagrama": "Cliente final que compró su firma en un supermercado La Favorita",
+      "siguiente": [
+        {
+          "a": "W1"
+        }
+      ]
+    },
+    {
+      "id": "U2",
+      "tipo": "usuario",
+      "diagrama": "Distribuidor (mayorista o minorista) que escribe a diario",
+      "siguiente": [
+        {
+          "a": "W2"
+        }
+      ]
+    },
+    {
+      "id": "W1",
+      "tipo": "mensaje",
+      "diagrama": "WhatsApp · canal La Favorita (QR / número de la gift card)",
+      "siguiente": [
+        {
+          "a": "O"
+        }
+      ]
+    },
+    {
+      "id": "W2",
+      "tipo": "mensaje",
+      "diagrama": "WhatsApp · canal Soporte Uanataca",
+      "siguiente": [
+        {
+          "a": "O"
+        }
+      ]
+    },
+    {
+      "id": "O",
+      "tipo": "router",
+      "diagrama": "Capa de orquestación Jelou: el canal define el agente; el router de intención entiende botón, lista o texto libre y lleva a la gestión; \"menú\" vuelve al inicio en cualquier momento",
+      "siguiente": [
+        {
+          "a": "G1"
+        },
+        {
+          "a": "G2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "G1",
+      "tipo": "mensaje",
+      "diagrama": "Agente Firma La Favorita · Fase 1",
+      "siguiente": [
+        {
+          "a": "K"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "G2",
+      "tipo": "mensaje",
+      "diagrama": "Agente Soporte a Distribuidores · Fase 2",
+      "siguiente": [
+        {
+          "a": "K"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "K",
+      "tipo": "webview",
+      "diagrama": "Componentes compartidos: WebViews (formularios), limpieza y validación de cédula, consulta por cédula + perfil, estado en lenguaje claro, mensaje de cierre único, derivación a asesor con contexto",
+      "siguiente": [
+        {
+          "a": "X1"
+        },
+        {
+          "a": "X2"
+        },
+        {
+          "a": "X3"
+        }
+      ]
+    },
+    {
+      "id": "X1",
+      "tipo": "api",
+      "diagrama": "API Uanataca (api_wa_ua v1): consulta y gestiones por token",
+      "siguiente": []
+    },
+    {
+      "id": "X2",
+      "tipo": "asesor",
+      "diagrama": "Asesor: módulo de operadores Jelou o número de atención Uanataca (por confirmar)",
+      "siguiente": []
+    },
+    {
+      "id": "X3",
+      "tipo": "tercero",
+      "diagrama": "Uanataca valida la compra y envía correos al titular",
+      "siguiente": []
+    }
+  ]
+}

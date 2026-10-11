@@ -1,0 +1,129 @@
+{
+  "unidad": "horas",
+  "rangos": {
+    "workflow_simple": {
+      "etiqueta": "Workflow simple",
+      "min": 2,
+      "max": 4,
+      "descripcion": "Menú, FAQ o captura de 3-5 datos; la generación y validación por CLI es casi inmediata, el tiempo va en copy, ajustes y prueba de ramas."
+    },
+    "workflow_medio": {
+      "etiqueta": "Workflow de complejidad media",
+      "min": 6,
+      "max": 12,
+      "descripcion": "Varios pasos, 1-2 integraciones HTTP y condicionales; cada integración suma lectura de API, manejo de errores y pruebas con datos reales."
+    },
+    "workflow_complejo": {
+      "etiqueta": "Workflow complejo",
+      "min": 16,
+      "max": 32,
+      "descripcion": "Autoservicio o AI Agent con tools y escalamiento; el borrador es rápido, el costo está en iterar el prompt con conversaciones reales y casos borde."
+    },
+    "function": {
+      "etiqueta": "Jelou Function (adaptador a una API)",
+      "min": 3,
+      "max": 8,
+      "descripcion": "Adaptador a una API con scaffold y pruebas locales por IA; el tiempo va en credenciales, formatos reales y fallos del sistema del cliente (cron o diferidas: +2-4 h)."
+    },
+    "webview_simple": {
+      "etiqueta": "Webview simple",
+      "min": 4,
+      "max": 10,
+      "descripcion": "Formulario de 1-3 pantallas; la IA produce el front completo y el humano ajusta marca y prueba en móvil."
+    },
+    "webview_backend": {
+      "etiqueta": "Webview con backend",
+      "min": 6,
+      "max": 16,
+      "descripcion": "Varias pantallas con backend (agendamiento, checkout, portal); ajustado a la baja porque hay muchos webviews reutilizables como base."
+    },
+    "flow_whatsapp": {
+      "etiqueta": "WhatsApp Flow",
+      "min": 3,
+      "max": 8,
+      "descripcion": "JSON del Flow y validación rápidos; pruebas en teléfonos y posible reenvío a Meta (si tiene endpoint, sumar una function)."
+    },
+    "formulario": {
+      "etiqueta": "Formulario (WhatsApp Flow o WebView, por definir)",
+      "min": 3,
+      "max": 10,
+      "descripcion": "Formulario en WhatsApp cuando aún no se decidió entre WhatsApp Flow (3-8 h) y WebView (4-10 h): se estima el rango que cubre ambos; al decidir se cambia al tipo flow_whatsapp o webview_simple/webview_backend."
+    },
+    "plantilla_hsm": {
+      "etiqueta": "Plantilla HSM de WhatsApp",
+      "min": 0.5,
+      "max": 1.5,
+      "descripcion": "Redacción y `template validate` muy automatizables; la espera de Meta no cuenta, sumar margen por rechazos en MARKETING."
+    },
+    "kyc": {
+      "etiqueta": "Verificación de identidad (KYC)",
+      "min": 3,
+      "max": 8,
+      "descripcion": "Ajustado a la baja: existe tool en el marketplace y `kyc onboard`; queda afinar reglas con documentos reales y revisar cumplimiento."
+    },
+    "pagos": {
+      "etiqueta": "Pagos",
+      "min": 3,
+      "max": 8,
+      "descripcion": "Ajustado a la baja: existe tool del marketplace; queda cablear estados, certificar con el proveedor y probar con credenciales reales."
+    },
+    "integracion_api": {
+      "etiqueta": "Integración con API del cliente",
+      "min": 4,
+      "max": 10,
+      "descripcion": "Por endpoint o grupo de endpoints del cliente (HTTP/Lambda/API Gateway); depende de documentación, autenticación y ambiente de pruebas del cliente."
+    },
+    "datum": {
+      "etiqueta": "Base de datos (Datum)",
+      "min": 2,
+      "max": 4,
+      "descripcion": "Base más 3-5 colecciones: diseño del esquema y creación por CLI; importaciones grandes suman limpieza de datos."
+    },
+    "base_conocimiento": {
+      "etiqueta": "Base de conocimiento",
+      "min": 3,
+      "max": 8,
+      "descripcion": "Por conjunto de documentos: limpieza y partición asistida por IA, curaduría humana del contenido."
+    },
+    "campana": {
+      "etiqueta": "Campaña de mensajes",
+      "min": 2,
+      "max": 4,
+      "descripcion": "Configuración, CSV y prueba; el envío real requiere aprobación humana."
+    },
+    "handoff_asesor": {
+      "etiqueta": "Handoff a asesor humano",
+      "min": 2,
+      "max": 6,
+      "descripcion": "El nodo CONNECT es simple; equipos, horarios y reglas se configuran a mano en el dashboard."
+    },
+    "agente_faq": {
+      "etiqueta": "Agente de preguntas frecuentes",
+      "min": 4,
+      "max": 10,
+      "descripcion": "Razonado: AI Agent de preguntas frecuentes (prompt, guardrails, fallback, casos de prueba); la base de conocimiento va aparte."
+    },
+    "canal_whatsapp_activacion": {
+      "etiqueta": "Activación del canal de WhatsApp",
+      "min": 1,
+      "max": 3,
+      "descripcion": "Trabajo corto; la verificación en Meta y el acceso al Business Manager dominan el calendario y van como dependencia con fecha."
+    },
+    "capacitacion": {
+      "etiqueta": "Capacitación",
+      "min": 2,
+      "max": 4,
+      "descripcion": "Razonado: una sesión de capacitación a operadores/administradores más material generado con IA (guía y mapa con jelou-graph)."
+    },
+    "pruebas_qa": {
+      "etiqueta": "Pruebas y QA",
+      "min": 3,
+      "max": 8,
+      "descripcion": "Por agente (varios workflows): `jelou-test-workflows` en draft ejecuta los casos; el humano revisa y hace una pasada en WhatsApp real (catálogo: 1-3 h por workflow)."
+    }
+  },
+  "gestion_pct": {
+    "min": 15,
+    "max": 25
+  }
+}

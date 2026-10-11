@@ -1,0 +1,10 @@
+{
+  "name": "jelou-sow-studio-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Linter, Word, diagramas y simulador del SOW de Jelou",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "jszip": "^3.10.2"
+  }
+}

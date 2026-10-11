@@ -1,0 +1,230 @@
+{
+  "titulo": "Agente Firma La Favorita (fase 1): flujo E2E",
+  "leyendas": {
+    "tercero": "Proceso de Uanataca"
+  },
+  "pasos": [
+    {
+      "id": "P1",
+      "tipo": "usuario",
+      "diagrama": "El cliente escanea el QR o escribe al WhatsApp La Favorita (cualquier mensaje)",
+      "siguiente": [
+        {
+          "a": "P2"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "tipo": "mensaje",
+      "diagrama": "Un solo mensaje: bienvenida \"Activa tu firma La Favorita\" + 3 botones: Activar mi firma · Estado de mi firma · Hablar con asesor",
+      "siguiente": [
+        {
+          "a": "P3"
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "tipo": "router",
+      "diagrama": "Router de intención: botón pulsado o texto libre (\"quiero activar mi firma\" va directo)",
+      "siguiente": [
+        {
+          "a": "A1"
+        },
+        {
+          "a": "B1"
+        },
+        {
+          "a": "C1"
+        }
+      ]
+    },
+    {
+      "id": "A1",
+      "tipo": "mensaje",
+      "diagrama": "Activar mi firma",
+      "siguiente": [
+        {
+          "a": "A2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "A2",
+      "tipo": "webview",
+      "diagrama": "WebView en un paso: cédula, nombres, apellidos, correo x2, número de factura, foto de la factura, aceptación de datos",
+      "siguiente": [
+        {
+          "a": "A3"
+        }
+      ]
+    },
+    {
+      "id": "A3",
+      "tipo": "decision",
+      "diagrama": "¿Campos válidos? (se corrige en el campo)",
+      "siguiente": [
+        {
+          "a": "A4",
+          "si": "sí"
+        }
+      ]
+    },
+    {
+      "id": "A4",
+      "tipo": "api",
+      "diagrama": "Registro de la activación para validación de Uanataca (servicio por confirmar)",
+      "siguiente": [
+        {
+          "a": "A5"
+        }
+      ]
+    },
+    {
+      "id": "A5",
+      "tipo": "mensaje",
+      "diagrama": "Mensaje de cierre único: datos y factura recibidos, correo enmascarado, unos 30 min, revisar spam",
+      "siguiente": [
+        {
+          "a": "A6"
+        }
+      ]
+    },
+    {
+      "id": "A6",
+      "tipo": "tercero",
+      "diagrama": "Uanataca valida factura y compra, y envía el correo de activación",
+      "siguiente": [
+        {
+          "a": "FIN"
+        }
+      ]
+    },
+    {
+      "id": "B1",
+      "tipo": "mensaje",
+      "diagrama": "Estado de mi firma",
+      "siguiente": [
+        {
+          "a": "B2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "B2",
+      "tipo": "mensaje",
+      "diagrama": "Pide la cédula (el agente limpia guiones y espacios)",
+      "siguiente": [
+        {
+          "a": "B3"
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "tipo": "api",
+      "diagrama": "API Uanataca: consulta de estados por cédula + perfil",
+      "siguiente": [
+        {
+          "a": "B4"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "tipo": "decision",
+      "diagrama": "¿Cuántas solicitudes?",
+      "siguiente": [
+        {
+          "a": "B5",
+          "si": "1 o varias"
+        },
+        {
+          "a": "B6",
+          "si": "0"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "tipo": "mensaje",
+      "diagrama": "1: estado en lenguaje claro + siguiente paso. Varias: lista para elegir",
+      "siguiente": [
+        {
+          "a": "FIN"
+        }
+      ]
+    },
+    {
+      "id": "B6",
+      "tipo": "mensaje",
+      "diagrama": "0: \"Verifica que el número esté correcto y escríbelo nuevamente\"",
+      "siguiente": [
+        {
+          "a": "FIN"
+        }
+      ]
+    },
+    {
+      "id": "C1",
+      "tipo": "mensaje",
+      "diagrama": "Hablar con asesor",
+      "siguiente": [
+        {
+          "a": "C2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "C2",
+      "tipo": "mensaje",
+      "diagrama": "Pide la cédula y el motivo en un mensaje",
+      "siguiente": [
+        {
+          "a": "C3"
+        }
+      ]
+    },
+    {
+      "id": "C3",
+      "tipo": "decision",
+      "diagrama": "¿Dentro del horario de asesores?",
+      "siguiente": [
+        {
+          "a": "C4",
+          "si": "sí"
+        },
+        {
+          "a": "C5",
+          "si": "no"
+        }
+      ]
+    },
+    {
+      "id": "C4",
+      "tipo": "asesor",
+      "diagrama": "Asesor recibe cédula, paso y datos ya recogidos",
+      "siguiente": []
+    },
+    {
+      "id": "C5",
+      "tipo": "mensaje",
+      "diagrama": "Fuera de horario: informa el horario y deja la consulta registrada",
+      "siguiente": [
+        {
+          "a": "FIN"
+        }
+      ]
+    },
+    {
+      "id": "FIN",
+      "tipo": "fin",
+      "diagrama": "Fin: si vuelve a escribir, lo recibe el menú",
+      "siguiente": []
+    }
+  ]
+}

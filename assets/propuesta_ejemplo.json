@@ -1,0 +1,89 @@
+{
+  "titulo_pagina": "Propuesta — Agente de WhatsApp · Cliente Demo",
+  "hero": {
+    "chips": ["Jelou", "WhatsApp Business", "Brain Jelou"],
+    "eyebrow": "Propuesta de solución",
+    "titulo": "Atención y solicitudes de punta a punta en WhatsApp",
+    "lead": "Un agente conversacional sobre el **Brain de Jelou** que registra al cliente, resuelve sus consultas y gestiona sus solicitudes sin salir del chat.",
+    "meta": [
+      {"k": "Cliente", "v": "Cliente Demo"},
+      {"k": "Producto", "v": "Agente de atención y solicitudes"},
+      {"k": "Canal", "v": "WhatsApp"},
+      {"k": "Versión", "v": "1.0 · en revisión"}
+    ]
+  },
+  "reto": {
+    "sub": "Hoy las solicitudes llegan por varios canales y dependen de la disponibilidad de un asesor. El cliente espera y abandona.",
+    "cards": [
+      {"ico": "1", "titulo": "Abandono", "texto": "Las consultas sin respuesta inmediata se pierden antes de convertirse en solicitud."},
+      {"ico": "2", "titulo": "Sin atención fuera de horario", "texto": "Las dudas frecuentes esperan al siguiente día hábil."},
+      {"ico": "3", "titulo": "Proceso fragmentado", "texto": "Registro, consulta y solicitud ocurren en canales y sistemas distintos."}
+    ]
+  },
+  "solucion": {
+    "titulo": "La solución: el flujo funcional en WhatsApp",
+    "sub": "Los pasos salen del mismo grafo del SOW (`agentes[].pasos`). A la izquierda, las etapas; a la derecha, una conversación ilustrativa.",
+    "etapas": [
+      {"nombre": "R1 · Registro y consulta", "pasos": [
+        {"titulo": "Bienvenida e identificación", "texto": "El cliente se identifica y acepta el tratamiento de datos, que se almacena para trazabilidad."},
+        {"titulo": "Consulta", "texto": "La información se lee del **CRM del cliente**."}
+      ]},
+      {"nombre": "R2 · Solicitud y asesor", "pasos": [
+        {"titulo": "Solicitud", "texto": "Se registra la solicitud en la API del cliente.", "items": ["Validación de datos con reintento"]},
+        {"titulo": "Hablar con un asesor", "texto": "Derivación a un asesor humano en horario laboral."}
+      ]}
+    ],
+    "chat": {
+      "nombre": "Asistente",
+      "avatar": "A",
+      "mensajes": [
+        {"de": "bot", "texto": "¡Hola! Soy el asistente de **Cliente Demo**. ¿Qué deseas hacer?", "opciones": ["Consultar", "Hacer una solicitud", "Hablar con un asesor"]},
+        {"de": "user", "texto": "Hacer una solicitud", "hora": "10:22"},
+        {"de": "api", "texto": "Cliente registrado → sí"},
+        {"de": "bot", "texto": "Cuéntame qué necesitas y te ayudo a registrarlo."}
+      ],
+      "nota": "Conversación ilustrativa con datos ficticios. Los textos definitivos se afinan en la implementación."
+    },
+    "mapas": [
+      {"titulo": "Orquestación entre agentes", "id": "general"},
+      {"titulo": "R1 · Registro y consulta", "id": "R1"}
+    ]
+  },
+  "arquitectura": {
+    "sub": "Cada capacidad se resuelve con un componente nativo de la plataforma. No se construye infraestructura desde cero: se configura y se integra.",
+    "componentes": [
+      {"nombre": "IA conversacional", "texto": "Agente que responde dudas con base en el conocimiento del cliente."},
+      {"nombre": "WhatsApp Flows", "texto": "Captura de datos con validaciones."},
+      {"nombre": "Databases v2", "texto": "Aceptaciones de datos, usuarios y solicitudes."},
+      {"nombre": "Connect (PMA)", "texto": "Derivación a asesores humanos con horario."}
+    ]
+  },
+  "alcance": {
+    "titulo": "Alcance",
+    "sub": "Un alcance acotado que sale rápido a producción y sienta la base para crecer.",
+    "incluye": ["Los flujos descritos arriba, de punta a punta", "Integración con el **CRM** y la **API de solicitudes**", "Derivación a asesor humano", "QA, pruebas con el cliente y salida a producción"],
+    "no_incluye": ["Campañas salientes (HSM)", "Otros canales (web, Instagram)", "Integraciones no listadas en esta propuesta"],
+    "responsabilidad_cliente": "documentación y ambiente de pruebas de las APIs, textos legales y horarios del equipo de asesores (las credenciales se entregan por canal seguro)."
+  },
+  "integraciones": {
+    "sub": "Integraciones ordenadas por **paso del flujo**, para que flujo, propuesta y SOW coincidan.",
+    "etapas": [
+      {"nombre": "R1 · Registro y consulta", "filas": [
+        {"paso": "Consulta", "servicio": "CRM del cliente", "operaciones": "buscar cliente · leer datos", "que_hace": "Recupera la información del cliente."}
+      ]},
+      {"nombre": "R2 · Solicitud y asesor", "filas": [
+        {"paso": "Solicitud", "servicio": "API de solicitudes", "operaciones": "crear solicitud", "que_hace": "Registra la solicitud y devuelve su número."}
+      ]}
+    ],
+    "nota": "los ambientes de prueba se confirman en la revisión de APIs."
+  },
+  "ruta": {
+    "sub": "Estimación referencial en días hábiles, sujeta a la entrega de insumos del cliente (máximo 20 días hábiles)."
+  },
+  "cta": {
+    "titulo": "Convertimos el diseño en un chat que resuelve",
+    "texto": "Con la aprobación de este alcance arrancamos con el kickoff y los accesos.",
+    "pasos": ["1 · Aprobación del alcance", "2 · Kickoff + accesos", "3 · Construcción", "4 · UAT y producción"]
+  },
+  "footer": ["Jelou · Propuesta v1.0", "Documento de propuesta. Las estimaciones son referenciales y se formalizan en el SOW."]
+}

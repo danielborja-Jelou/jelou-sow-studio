@@ -1,0 +1,223 @@
+{
+  "titulo": "Agente Soporte a Distribuidores (fase 2): flujo E2E",
+  "pasos": [
+    {
+      "id": "P1",
+      "tipo": "usuario",
+      "diagrama": "El distribuidor escribe al WhatsApp Soporte Uanataca",
+      "siguiente": [
+        {
+          "a": "P2"
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "tipo": "api",
+      "diagrama": "Validación de distribuidor: RUC + código (validarCodigoDST). Reconocimiento por número: por confirmar",
+      "siguiente": [
+        {
+          "a": "P3",
+          "si": "válido"
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "tipo": "mensaje",
+      "diagrama": "\"¿Qué gestión necesitas hoy? Escoge una opción o escríbenos lo que necesitas\" + lista: reenvío email, cancelar, credenciales, estado, revocar, asesor",
+      "siguiente": [
+        {
+          "a": "P4"
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "tipo": "router",
+      "diagrama": "Router de intención: fila de la lista o texto libre",
+      "siguiente": [
+        {
+          "a": "A1"
+        },
+        {
+          "a": "B1"
+        },
+        {
+          "a": "R1"
+        },
+        {
+          "a": "H1"
+        }
+      ]
+    },
+    {
+      "id": "A1",
+      "tipo": "mensaje",
+      "diagrama": "Reenvío email · Reenvío credenciales · Estado",
+      "siguiente": [
+        {
+          "a": "A2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "A2",
+      "tipo": "webview",
+      "diagrama": "WebView: cédula o pasaporte + perfil (un solo envío)",
+      "siguiente": [
+        {
+          "a": "A3"
+        }
+      ]
+    },
+    {
+      "id": "A3",
+      "tipo": "api",
+      "diagrama": "Consulta por cédula + perfil: aprobadas / emitidas / todos los estados",
+      "siguiente": [
+        {
+          "a": "A4"
+        }
+      ]
+    },
+    {
+      "id": "A4",
+      "tipo": "webview",
+      "diagrama": "WebView: lista de solicitudes elegibles (si hay una sola, se omite)",
+      "siguiente": [
+        {
+          "a": "A5"
+        }
+      ]
+    },
+    {
+      "id": "A5",
+      "tipo": "api",
+      "diagrama": "Acción por token: reenviar email, reenviar credenciales o consultar estado",
+      "siguiente": [
+        {
+          "a": "A6"
+        }
+      ]
+    },
+    {
+      "id": "A6",
+      "tipo": "mensaje",
+      "diagrama": "Resultado (correo enmascarado) + siguiente gestión probable",
+      "siguiente": []
+    },
+    {
+      "id": "B1",
+      "tipo": "mensaje",
+      "diagrama": "Cancelar solicitud",
+      "siguiente": [
+        {
+          "a": "B2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "B2",
+      "tipo": "webview",
+      "diagrama": "WebView: cédula + estatus (Nuevo / Aprobado) + perfil",
+      "siguiente": [
+        {
+          "a": "B3"
+        }
+      ]
+    },
+    {
+      "id": "B3",
+      "tipo": "api",
+      "diagrama": "Consulta de solicitudes nuevas y aprobadas",
+      "siguiente": [
+        {
+          "a": "B4"
+        },
+        {
+          "a": "S1",
+          "si": "sin solicitudes"
+        }
+      ]
+    },
+    {
+      "id": "B4",
+      "tipo": "webview",
+      "diagrama": "Elegir solicitud y motivo según su estado (\"No cancelar\" disponible)",
+      "siguiente": [
+        {
+          "a": "B5"
+        }
+      ]
+    },
+    {
+      "id": "B5",
+      "tipo": "api",
+      "diagrama": "Cancelación de la solicitud por token",
+      "siguiente": [
+        {
+          "a": "B6"
+        }
+      ]
+    },
+    {
+      "id": "B6",
+      "tipo": "mensaje",
+      "diagrama": "Confirmación: solicitud, perfil, fecha y motivo",
+      "siguiente": []
+    },
+    {
+      "id": "S1",
+      "tipo": "mensaje",
+      "diagrama": "Sin solicitudes (aplica a todas las consultas): \"Verifica que el número esté correcto y escríbelo nuevamente\" y reabre el WebView",
+      "siguiente": []
+    },
+    {
+      "id": "R1",
+      "tipo": "mensaje",
+      "diagrama": "Revocar firma",
+      "siguiente": [
+        {
+          "a": "R2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "R2",
+      "tipo": "mensaje",
+      "diagrama": "Un mensaje con 2 vías: 1) en línea 24/7 desde el correo de Uanataca; 2) carta firmada enviada a Uanataca, con el formato descargable. Jelou no revoca",
+      "siguiente": []
+    },
+    {
+      "id": "H1",
+      "tipo": "mensaje",
+      "diagrama": "Hablar con asesor",
+      "siguiente": [
+        {
+          "a": "H2"
+        }
+      ],
+      "negrita": true
+    },
+    {
+      "id": "H2",
+      "tipo": "mensaje",
+      "diagrama": "Pide el requerimiento en un mensaje",
+      "siguiente": [
+        {
+          "a": "H3"
+        }
+      ]
+    },
+    {
+      "id": "H3",
+      "tipo": "asesor",
+      "diagrama": "Asesor recibe resumen: cédula, perfil, solicitud y gestión",
+      "siguiente": []
+    }
+  ]
+}

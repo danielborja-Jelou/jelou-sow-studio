@@ -1,0 +1,23 @@
+{
+  "cliente": "Cliente Demo",
+  "proyecto": "Agente de WhatsApp",
+  "version": "1.0",
+  "inicio": "2026-10-12",
+  "feriados": ["2026-11-02", "2026-11-03"],
+  "tareas": [
+    {"id": "kick", "fase": "0. Kickoff", "tarea": "Reunión de kickoff y brief", "responsable": "Ambos", "dias": 1},
+    {"id": "sow", "fase": "0. Kickoff", "tarea": "SOW aprobado", "hito": true, "entregable": "SOW v1.0 aprobado", "descripcion": "Alcance, flujos y criterios de aceptación acordados", "depende_de": ["kick"]},
+    {"id": "insumos", "fase": "1. Accesos e insumos", "tarea": "Entrega de credenciales por canal seguro, APIs y contenidos", "responsable": "Cliente", "dias": 2, "depende_de": ["sow"]},
+    {"id": "workspace", "fase": "1. Accesos e insumos", "tarea": "Proyecto y canales en Jelou", "responsable": "Jelou", "dias": 1, "depende_de": ["sow"]},
+    {"id": "diseno", "fase": "2. Diseño", "tarea": "Mapa de conversaciones y prompts", "responsable": "Jelou", "dias": 2, "depende_de": ["workspace"]},
+    {"id": "valdis", "fase": "2. Diseño", "tarea": "Validación del diseño", "responsable": "Cliente", "dias": 1, "depende_de": ["diseno"]},
+    {"id": "flujos", "fase": "3. Construcción", "tarea": "Construcción de flujos", "responsable": "Jelou", "dias": 4, "depende_de": ["valdis"]},
+    {"id": "integ", "fase": "3. Construcción", "tarea": "Integraciones", "responsable": "Jelou", "dias": 3, "depende_de": ["valdis", "insumos"]},
+    {"id": "demo", "fase": "3. Construcción", "tarea": "Demo de avance", "hito": true, "entregable": "Demo funcional", "descripcion": "Flujos principales en sandbox", "depende_de": ["flujos", "integ"]},
+    {"id": "qa", "fase": "4. QA", "tarea": "QA interno con test plan", "responsable": "Jelou", "dias": 2, "depende_de": ["demo"]},
+    {"id": "uat", "fase": "4. QA", "tarea": "Pruebas del cliente (UAT)", "responsable": "Cliente", "dias": 3, "depende_de": ["qa"]},
+    {"id": "golive", "fase": "5. Salida a producción", "tarea": "Salida a producción", "hito": true, "entregable": "Bot en producción", "descripcion": "Publicación en el número productivo", "depende_de": ["uat"]},
+    {"id": "hyper", "fase": "5. Salida a producción", "tarea": "Acompañamiento post salida", "responsable": "Jelou", "dias": 2, "depende_de": ["golive"]},
+    {"id": "cierre", "fase": "6. Cierre", "tarea": "Acta de cierre", "hito": true, "entregable": "Acta de cierre", "descripcion": "Entrega de documentación y cierre del proyecto", "depende_de": ["hyper"]}
+  ]
+}
