@@ -1,11 +1,14 @@
 #!/usr/bin/env node
-// Deterministic linter for sow.json. Usage: node lint_sow.js sow.json [--json]
+// Deterministic linter for sow.json. Usage: node lint_sow.js sow.json [--json] [--modo prekickoff]
 // Exit code 1 when there are errors; warnings do not change the exit code.
+// Pre-kickoff mode (meta.fase = "prekickoff" or --modo prekickoff): the document is a partial sow.json used to build the
+// pre-kickoff deck and the "faltantes" documents. Sections only the full SOW needs are not required and pending values are
+// expected, but credentials, graph integrity, contradictions, scope lock and the diagram rules are still checked.
 // The SOW content is Spanish, so the keyword patterns below match Spanish text.
 const fs = require("fs");
 const C = require("./lib/common");
 
-const file = process.argv[2];
+const file = process.argv.slice(2).find((a) => !a.startsWith("--") && a !== "prekickoff");
 if (!file) {
   console.error("Usage: node lint_sow.js sow.json [--json]");
   process.exit(2);
@@ -18,6 +21,8 @@ try {
   process.exit(2);
 }
 
+const modoArg = (() => { const i = process.argv.indexOf("--modo"); return i >= 0 ? process.argv[i + 1] : process.argv.find((a) => a.startsWith("--modo="))?.split("=")[1]; })();
+const prek = C.isPrekickoff(sow) || modoArg === "prekickoff";
 const findings = [];
 const err = (code, where, msg) => findings.push({ level: "ERROR", code, where, msg });
 const warn = (code, where, msg) => findings.push({ level: "WARN", code, where, msg });
@@ -25,6 +30,7 @@ const warn = (code, where, msg) => findings.push({ level: "WARN", code, where, m
 const block = (code, where, msg) => findings.push({ level: C.isDraft(sow) ? "WARN" : "ERROR", blocking: true, code, where, msg });
 
 const arr = (x) => (Array.isArray(x) ? x : []);
+const errP = (...a) => (prek ? warn : err)(...a); // client deliverables still missing are expected (warnings) in pre-kickoff
 const PLACEHOLDER = /POR DEFINIR|POR COMPLETAR|\bTBD\b|\bTODO\b|\[\s*(?:completar|nombre|fecha|xxx)[^\]]*\]|\.\.\.\.|\bxxx\b/;
 const VAGUE = /\b(correctamente|adecuadamente|apropiad[oa]s?|razonables?|r[aá]pid[oa]s?|f[aá]cil(?:mente)?|amigable|seguro|eficientemente|bien|etc\.?)\b/i;
 const norm = (s) =>
@@ -68,27 +74,30 @@ need(m.proyecto && m.cliente && m.version && m.fecha, "META", "meta", "Missing p
 need(arr([].concat(sow.brief || [])).length > 0 && String([].concat(sow.brief).join("")).trim().length > 40, "BRIEF", "brief", "The brief is empty or too short.");
 need(sow.objetivos && sow.objetivos.general && arr(sow.objetivos.especificos).length > 0, "OBJ", "objetivos", "Missing the general objective or the specific objectives.");
 const al = sow.alcance || {};
-need(arr(al.incluido_usuario).length > 0, "SCOPE", "alcance.incluido_usuario", "There are no end-user features.");
-need(arr(al.fuera_de_alcance).length > 0, "OOS", "alcance.fuera_de_alcance", "Out of scope is mandatory: list what will NOT be done.");
+const needFull = (cond, code, where, msg) => { if (!prek) need(cond, code, where, msg); };
+needFull(arr(al.incluido_usuario).length > 0, "SCOPE", "alcance.incluido_usuario", "There are no end-user features.");
+needFull(arr(al.fuera_de_alcance).length > 0, "OOS", "alcance.fuera_de_alcance", "Out of scope is mandatory: list what will NOT be done.");
 const agents = C.getAgents(sow);
 need(agents.length > 0 && agents.every((a) => arr(a.pasos).length > 0), "FLOW", "agentes", "There are no agents with flow steps (agentes[].pasos).");
-need(arr(sow.reglas).length > 0, "RULES", "reglas", "There are no business rules.");
-need(arr(sow.historias).length > 0, "STORY", "historias", "There are no user stories.");
+needFull(arr(sow.reglas).length > 0, "RULES", "reglas", "There are no business rules.");
+needFull(arr(sow.historias).length > 0, "STORY", "historias", "There are no user stories.");
 need(arr(sow.integraciones).length > 0 || sow.sin_integraciones === true, "INT", "integraciones", "Declare integrations or set sin_integraciones: true.");
-need(arr(sow.escalamiento).length > 0, "ESC", "escalamiento", "There are no escalation-to-human rules.");
-need(arr((sow.cronograma || {}).hitos).length > 0, "SCHED", "cronograma.hitos", "There are no schedule milestones.");
-need(arr(sow.riesgos).length > 0, "RISK", "riesgos", "There is no risk matrix.");
-need(arr(sow.versiones).length > 0, "VERS", "versiones", "Version control is missing.");
+needFull(arr(sow.escalamiento).length > 0, "ESC", "escalamiento", "There are no escalation-to-human rules.");
+needFull(arr((sow.cronograma || {}).hitos).length > 0, "SCHED", "cronograma.hitos", "There are no schedule milestones.");
+needFull(arr(sow.riesgos).length > 0, "RISK", "riesgos", "There is no risk matrix.");
+needFull(arr(sow.versiones).length > 0, "VERS", "versiones", "Version control is missing.");
+if (prek && String(m.estado || "").toLowerCase() === "aprobado") err("VERS", "meta.estado", "A pre-kickoff document cannot be 'aprobado': approval belongs to the full SOW.");
+if (prek && !arr(sow.preguntas_abiertas).length) warn("PREK", "preguntas_abiertas", "A pre-kickoff needs the open questions (they feed the validation slides and the faltantes documents).");
 
 // ---------- 3. operating parameters ----------
 const par = sow.parametros || {};
 for (const k of ["horario_bot", "horario_agentes", "fuera_de_horario", "idioma_tono", "reintentos", "retencion_datos", "identificacion_telefono", "datos_de_prueba"]) {
-  if (!par[k]) warn("PARAM", `parametros.${k}`, `Missing operating parameter "${k}" (a decision that usually gets discovered while building).`);
+  if (!par[k] && !prek) warn("PARAM", `parametros.${k}`, `Missing operating parameter "${k}" (a decision that usually gets discovered while building).`);
 }
 // Only rule text (not keys) and whole words: "valor" or "salario" alone do not mean the bot handles money.
 const monetary = arr(sow.reglas).map((r) => `${r.titulo || ""} ${r.descripcion || ""} ${r.si_no_cumple || ""}`).join(" ")
   .match(/\b(montos?|precios?|pagos?|cobros?|iva|cupos?|tarifas?|descuentos?)\b/i);
-if (monetary) for (const k of ["moneda", "impuestos"]) if (!par[k]) warn("PARAM", `parametros.${k}`, `The SOW handles amounts but "${k}" is missing.`);
+if (monetary && !prek) for (const k of ["moneda", "impuestos"]) if (!par[k]) warn("PARAM", `parametros.${k}`, `The SOW handles amounts but "${k}" is missing.`);
 
 // ---------- 4. IDs and references ----------
 const ids = (list, key = "id") => new Set(arr(list).map((x) => x[key]));
@@ -158,8 +167,8 @@ arr(sow.historias).forEach((h, i) => {
   arr(h.reglas).forEach((r) => { coveredRules.add(r); if (!ruleIds.has(r)) err("REF", w, `Rule does not exist: ${r}.`); });
 });
 arr(sow.reglas).forEach((r, i) => {
-  if (!coveredRules.has(r.id)) warn("COVERAGE", `reglas[${i}]`, `Rule ${r.id} is not covered by any story (it has no acceptance criterion).`);
-  if (!usedRules.has(r.id) && !coveredRules.has(r.id)) warn("COVERAGE", `reglas[${i}]`, `Rule ${r.id} is used neither in the flow nor in stories.`);
+  if (!coveredRules.has(r.id) && !prek) warn("COVERAGE", `reglas[${i}]`, `Rule ${r.id} is not covered by any story (it has no acceptance criterion).`);
+  if (!usedRules.has(r.id) && !coveredRules.has(r.id) && !prek) warn("COVERAGE", `reglas[${i}]`, `Rule ${r.id} is used neither in the flow nor in stories.`);
   if (!r.descripcion) err("RULES", `reglas[${i}]`, `Rule ${r.id} has no description.`);
   const p = r.parametros || {};
   if (!r.si_no_cumple) warn("RULES", `reglas[${i}]`, `Rule ${r.id} does not say what happens if it is NOT met (reject, adjust automatically, retry, escalate or end). Each bot resolves it differently if it is not written.`);
@@ -178,11 +187,11 @@ arr(sow.pruebas).forEach((p, i) => {
 });
 const tested = new Set(arr(sow.pruebas).flatMap((p) => arr(p.cubre)));
 arr(sow.historias).forEach((h) => { if (arr(sow.pruebas).length && !tested.has(h.id)) warn("COVERAGE", "pruebas", `Story ${h.id} has no test.`); });
-if (arr(sow.pruebas).length === 0) warn("TESTS", "pruebas", "No tests are defined.");
+if (arr(sow.pruebas).length === 0 && !prek) warn("TESTS", "pruebas", "No tests are defined.");
 
 // ---------- 4b. technical solution ----------
 const sol = arr((sow.solucion || {}).componentes);
-if (sol.length === 0) warn("SOLUTION", "solucion", "The technical solution is missing: which Jelou component delivers each feature (see references/how-jelou-bots-work.md).");
+if (sol.length === 0 && !prek) warn("SOLUTION", "solucion", "The technical solution is missing: which Jelou component delivers each feature (see references/how-jelou-bots-work.md).");
 const featureIds = new Set([...arr(al.incluido_usuario), ...arr(al.incluido_admin)].map((f) => f.id));
 const coveredFeatures = new Set();
 const deterministicRules = new Set();
@@ -233,8 +242,8 @@ function depsFor(it) {
 arr(sow.integraciones).forEach((it, i) => {
   const w = `integraciones[${i}]`;
   if (!usedInts.has(it.id)) warn("INT", w, `Integration ${it.id} is not used in any flow step.`);
-  if (arr(it.operaciones).length === 0) err("INT", w, `${it.id}: define what is read and what is written.`);
-  if (!it.autenticacion) err("INT", w, `${it.id}: missing how it authenticates (the mechanism only, no credentials).`);
+  if (arr(it.operaciones).length === 0) errP("INT", w, `${it.id}: define what is read and what is written.`);
+  if (!it.autenticacion) errP("INT", w, `${it.id}: missing how it authenticates (the mechanism only, no credentials).`);
   const gaps = [];
   if (!it.responsable_cliente || PLACEHOLDER.test(it.responsable_cliente)) gaps.push("technical owner");
   if (norm(it.documentacion) !== "si") gaps.push("documentation");
@@ -249,19 +258,19 @@ arr(sow.integraciones).forEach((it, i) => {
   }
   if (!it.disponibilidad) warn("INT", w, `${it.id}: missing the required availability.`);
   if (!["directa", "api_cliente", "middleware_jelou", "middleware_cliente"].includes(norm(it.conexion)))
-    err("INT", `${w}.conexion`, `${it.id}: define the connection mode: directa | api_cliente | middleware_jelou | middleware_cliente. (Who builds and hosts the intermediate layer must be written down.)`);
+    errP("INT", `${w}.conexion`, `${it.id}: define the connection mode: directa | api_cliente | middleware_jelou | middleware_cliente. (Who builds and hosts the intermediate layer must be written down.)`);
   else if (norm(it.conexion).startsWith("middleware") && !it.quien_hospeda)
     err("INT", `${w}.quien_hospeda`, `${it.id}: with middleware, state who builds, hosts and maintains it.`);
   if (intBlocked)
     block("INT", w, `${it.id}: no ${gaps.join(", no ")} and no client dependency with a date to obtain ${gaps.length > 1 ? "them" : "it"}: it cannot be built or tested. Add a dependency (with fecha_limite) that covers ${it.id} (field "integracion": "${it.id}" or its INT-n/WS#n in the text).`);
   const undecidedMode = JSON.stringify(it).match(/o bien|una de las siguientes|se definir[aá]|a definir/i);
-  if (undecidedMode) err("INT", w, `${it.id}: a connection mode is left undecided. Choose one or turn the decision into an open question with an owner.`);
+  if (undecidedMode) errP("INT", w, `${it.id}: a connection mode is left undecided. Choose one or turn the decision into an open question with an owner.`);
 });
 
 // ---------- 6. contradictions with out of scope ----------
 const includedText = [];
 walk(
-  { "alcance.incluido_usuario": al.incluido_usuario, "alcance.incluido_admin": al.incluido_admin, agentes: sow.agentes, flujo: sow.flujo, diagrama_general: sow.diagrama_general, historias: sow.historias, pruebas: sow.pruebas, reglas: sow.reglas, escalamiento: sow.escalamiento },
+  { "alcance.incluido_usuario": al.incluido_usuario, "alcance.incluido_admin": al.incluido_admin, agentes: sow.agentes, flujo: sow.flujo, diagrama_general: sow.diagrama_general, historias: sow.historias, pruebas: sow.pruebas, reglas: sow.reglas, escalamiento: sow.escalamiento, "esfuerzo.items": arr((sow.esfuerzo || {}).items).map((i) => [i.entregable, i.nota]), "solucion.componentes": arr((sow.solucion || {}).componentes).map((c) => [c.capacidad, c.componente, c.detalle]) },
   "",
   (s, path) => includedText.push({ s, path })
 );
@@ -340,7 +349,7 @@ walk(sow, "", (s, path) => {
 // ---------- 9. schedule and version ----------
 const cr = sow.cronograma || {};
 if (cr.inicio && !/^\d{4}-\d{2}-\d{2}$/.test(cr.inicio)) err("SCHED", "cronograma.inicio", "The start date must be YYYY-MM-DD.");
-else if (!cr.inicio) warn("SCHED", "cronograma.inicio", "No start date: the schedule shows business days only (dates stay POR DEFINIR). Add it when known to get dated deliverables, the Gantt and the proposal route.");
+else if (!cr.inicio && !prek) warn("SCHED", "cronograma.inicio", "No start date: the schedule shows business days only (dates stay POR DEFINIR). Add it when known to get dated deliverables, the Gantt and the proposal route.");
 arr(cr.hitos).forEach((h, i) => {
   if (!(Number.isInteger(h.dias_habiles) && h.dias_habiles > 0)) err("SCHED", `cronograma.hitos[${i}]`, `${h.id || i}: dias_habiles must be a positive integer.`);
   if (!h.entregable) warn("SCHED", `cronograma.hitos[${i}]`, `${h.id || i}: missing deliverable.`);
@@ -472,6 +481,15 @@ if (v2) {
   const eff = C.computeEffort(sow.esfuerzo);
   if (!arr((sow.esfuerzo || {}).items).length) warn("EFFORT", "esfuerzo", "There is no effort estimate (esfuerzo.items).");
   eff.unknown.forEach((t) => err("EFFORT", "esfuerzo.items", `Unknown effort type "${t}". See references/effort-model.md.`));
+  // hours cap (default 72 h INCLUDING management; meta.tope_horas to change it, meta.excepcion_horas to justify an overrun)
+  const tope = C.topeHoras(sow);
+  if (eff.rows.length && eff.totalMax > tope + 1e-9)
+    (m.excepcion_horas ? warn : err)("EFFORT", "esfuerzo", `The maximum total effort is ${eff.totalMax.toFixed(1)} h (management included) and the cap is ${tope} h (meta.tope_horas, default 72).${m.excepcion_horas ? " An exception is declared in meta.excepcion_horas." : " Reduce scope, split into phases or justify it in meta.excepcion_horas."}`);
+  if (eff.rows.length && !prek) {
+    const tipos = new Set(eff.rows.map((r) => r.tipo));
+    if (!tipos.has("pruebas_qa")) warn("EFFORT", "esfuerzo.items", 'There is no "pruebas_qa" item: internal tests must appear as effort.');
+    if (!tipos.has("uat_acompanamiento")) warn("EFFORT", "esfuerzo.items", 'There is no "uat_acompanamiento" item: the support during the client UAT must appear as effort.');
+  }
   const total = C.totalBusinessDays(sow.cronograma);
   if (total > 20) (m.excepcion_plazo ? warn : err)("SCHED", "cronograma", `The schedule adds up to ${total} business days; the limit is 20.${m.excepcion_plazo ? " An exception is declared in meta.excepcion_plazo." : " Split the project into phases or justify it in meta.excepcion_plazo."}`);
   const build = arr((sow.cronograma || {}).hitos).filter((h) => /construcci/i.test(h.nombre || "")).reduce((a, h) => a + (h.dias_habiles || 0), 0);
@@ -500,6 +518,105 @@ try {
 if (legacyForms.length) warn("FORM", "agentes", `${legacyForms.length} step(s) use the legacy type "webview". It still works (alias), but use "formulario" with "herramienta": flows | webview | por_definir.`);
 if (formToolPending.length) warn("FORM", "agentes", `${formToolPending.length} form step(s) have herramienta = por_definir (WhatsApp Flow vs WebView not decided yet): ${formToolPending.slice(0, 8).join(", ")}${formToolPending.length > 8 ? ", …" : ""}. Keep one open question for the decision.`);
 if (selectorsNoOptions.length) warn("FORM", "agentes", `${selectorsNoOptions.length} selector field(s) have no "opciones" (the simulator shows them as pending): ${selectorsNoOptions.slice(0, 6).join("; ")}${selectorsNoOptions.length > 6 ? "; …" : ""}.`);
+
+
+// ---------- 17. tests in the schedule + UAT clause ----------
+if (!prek || arr(cr.hitos).length) {
+  const tm = C.testMilestones(sow);
+  if (arr(cr.hitos).length && !tm.internas.length) err("SCHED", "cronograma.hitos", 'The schedule has no internal-tests milestone (name it e.g. "Pruebas internas" or set hito.tipo = "pruebas_internas"): internal tests must be an explicit milestone with business days and dates.');
+  if (arr(cr.hitos).length && !tm.uat.length) err("SCHED", "cronograma.hitos", 'The schedule has no client-tests milestone (name it e.g. "UAT del cliente" or set hito.tipo = "uat"): the client tests (UAT) must be an explicit milestone with business days and dates.');
+  if (tm.uat.length) {
+    const uatDep = arr(sow.dependencias_cliente).find((d) => d.tipo === "uat" || /\buat\b|pruebas del cliente/i.test(`${d.item || ""} ${d.hito || ""}`));
+    const uatRule = arr(sow.reglas).some((r) => /\buat\b/i.test(`${r.titulo || ""} ${r.descripcion || ""}`) && /fecha|venc|cierre|aceptad/i.test(`${r.descripcion || ""} ${r.si_no_cumple || ""}`));
+    if (!uatDep && !uatRule) warn("UAT", "dependencias_cliente", 'The UAT time rule is missing: add a dependency (tipo "uat", with fecha_limite = end of the UAT milestone) or a rule that says the client tests must be run on the stipulated dates, otherwise the project is deemed accepted and closed.');
+    if (uatDep) {
+      if (!C.dateOk(uatDep.fecha_limite)) warn("UAT", "dependencias_cliente", "The UAT dependency needs fecha_limite (the closing date of the UAT milestone).");
+      const w = C.uatWindow(sow);
+      if (w && w.fin && C.dateOk(uatDep.fecha_limite) && uatDep.fecha_limite !== C.fmtIso(w.fin)) warn("UAT", "dependencias_cliente", `The UAT dependency date (${uatDep.fecha_limite}) differs from the end of the UAT milestone (${C.fmtIso(w.fin)}); the closing date of the UAT must be the same in both places.`);
+    }
+    if (m.clausula_uat_revisada_legal !== true) warn("LEGAL", "meta.clausula_uat_revisada_legal", "The UAT clause (client tests on the stipulated dates, otherwise deemed accepted and closed) is a DRAFT pending review by Legal. Set meta.clausula_uat_revisada_legal: true once Legal approves the wording.");
+  }
+}
+
+// ---------- 18. scope lock (alcance.base + ampliaciones_solicitadas) ----------
+{
+  const amps = C.ampliaciones(sow);
+  const qById = new Map(arr(sow.preguntas_abiertas).map((q) => [q.id, q]));
+  const base = al.base;
+  if (base && base.congelado === true) {
+    const baseIds = new Set(arr(base.ids));
+    const okIds = new Set(amps.filter((a) => a.estado === "aprobada_comercial").flatMap((a) => arr(a.alcance_ids)));
+    for (const k of ["incluido_usuario", "incluido_admin"]) arr(al[k]).forEach((f, i) => {
+      if (f.id && !baseIds.has(f.id) && !okIds.has(f.id)) err("SCOPE", `alcance.${k}[${i}]`, `${f.id} is not part of the frozen base scope (alcance.base.ids) and no approved ampliación lists it in alcance_ids. The scope does not change after the presales SOW unless Comercial approves and charges the addition.`);
+    });
+    baseIds.forEach((id) => { if (!featureIds.has(id)) warn("SCOPE", "alcance.base.ids", `Base id ${id} does not exist in alcance.incluido_*.`); });
+  } else if (amps.length && !base) warn("SCOPE", "alcance.base", 'There are requested additions but the presales scope is not frozen: add alcance.base = { fuente, fecha, congelado: true, ids: [...] }.');
+  const seenA = new Set();
+  amps.forEach((a, i) => {
+    const w = `ampliaciones_solicitadas[${i}]`;
+    if (!a.id) err("SCOPE", w, "Missing id."); else if (seenA.has(a.id)) err("ID", w, `Duplicate ID ${a.id}.`); seenA.add(a.id);
+    if (!a.descripcion) err("SCOPE", w, `${a.id}: missing descripcion.`);
+    if (!a.origen) warn("SCOPE", w, `${a.id}: missing origen (Diio, date, email).`);
+    if (!C.AMP_ESTADOS.includes(a.estado)) { err("SCOPE", w, `${a.id}: estado must be one of ${C.AMP_ESTADOS.join(" | ")}.`); return; }
+    const terms = arr(a.terminos).map(norm).filter(Boolean);
+    if (a.estado !== "aprobada_comercial") {
+      if (!terms.length) warn("SCOPE", w, `${a.id}: no "terminos" to detect it leaking into flows, stories or effort.`);
+      for (const t of terms) for (const { s: txt, path } of includedText) {
+        if (!norm(txt).includes(t)) continue;
+        if (/no incluye|fuera de alcance|no aplica|no se (?:realiza|permite|ofrece|hace)|sin |sujeto a evaluaci/i.test(txt)) continue;
+        err("SCOPE", path, `${a.id} (${a.estado}) is not in scope but "${t}" appears in: "${txt.slice(0, 90)}…". An addition that is not approved by Comercial cannot be in flows, stories, solution or effort.`);
+      }
+    }
+    if (a.estado === "por_decidir") {
+      const q = arr(sow.preguntas_abiertas).find((x) => x.ampliacion === a.id);
+      if (!q) err("SCOPE", w, `${a.id}: every addition to decide needs ONE open question (preguntas_abiertas[].ampliacion = "${a.id}", responsable "Comercial", text "${C.AMP_QUESTION}").`);
+      else if (!/comercial/i.test(q.responsable || "")) err("SCOPE", w, `${a.id}: its open question must have responsable "Comercial".`);
+    }
+    if (a.estado === "aprobada_comercial") {
+      if (!a.cobro_adicional || PLACEHOLDER.test(String(a.cobro_adicional))) err("SCOPE", w, `${a.id}: an approved addition needs cobro_adicional (the additional charge set by Comercial).`);
+      if (!arr(sow.cambios).some((c) => c.ampliacion === a.id || String(c.descripcion || "").includes(a.id))) err("SCOPE", w, `${a.id}: an approved addition needs a "cambios" row (CC-xx, field ampliacion = "${a.id}") that states the commercial approval.`);
+    }
+  });
+  // presales assumptions that later statements contradict: confirmed through a question, never decided silently
+  arr(sow.cambios_respecto_preventa).forEach((c, i) => {
+    const w = `cambios_respecto_preventa[${i}]`;
+    if (!c.id || !c.tema) warn("SCOPE", w, "Needs id and tema.");
+    if (!c.pregunta || !qById.has(c.pregunta)) warn("SCOPE", w, `${c.id || i}: a change versus presales is a question to confirm, not a decision: link it to an open question (pregunta: "Q-…").`);
+  });
+}
+
+// ---------- 19. open questions ----------
+{
+  const seenQ = new Set();
+  arr(sow.preguntas_abiertas).forEach((q, i) => {
+    const w = `preguntas_abiertas[${i}]`;
+    if (!q.id) warn("QUESTION", w, "Question without id."); else if (seenQ.has(q.id)) err("ID", w, `Duplicate question ID ${q.id}.`); seenQ.add(q.id);
+    if (!q.pregunta) err("QUESTION", w, `${q.id || i}: empty question.`);
+    if (q.audiencia && !["cliente", "interna", "comercial"].includes(q.audiencia)) err("QUESTION", w, `${q.id}: audiencia must be cliente | interna | comercial.`);
+    if (q.ampliacion && !C.ampliaciones(sow).some((a) => a.id === q.ampliacion)) err("REF", w, `${q.id}: ampliacion "${q.ampliacion}" does not exist.`);
+  });
+}
+
+// ---------- 20. client-readable end-to-end diagram (agentes[].resumen_cliente) ----------
+{
+  const TECH = /\b(otp|api|webhook|http|https|json|endpoint|token|deeplink|hsm|jwt|oauth|payload|swagger|sql|ws#\d+)\b/i;
+  const idsE = new Set();
+  const allIds = new Set(agents.flatMap((a) => arr(a.resumen_cliente).map((x) => x && typeof x === "object" && x.id).filter(Boolean)));
+  agents.forEach((ag, ai) => arr(ag.resumen_cliente).forEach((it, k) => {
+    const w = `agentes[${ai}].resumen_cliente[${k}]`;
+    const o = typeof it === "string" ? { texto: it } : it || {};
+    if (!o.texto) err("E2E", w, "A milestone needs texto.");
+    if (o.id) { if (idsE.has(o.id)) err("E2E", w, `Duplicate milestone id ${o.id}.`); idsE.add(o.id); }
+    arr(o.salidas).forEach((e) => { if (!e.a || !allIds.has(e.a)) err("E2E", w, `Exit to a milestone that does not exist: ${e.a}.`); });
+    if (o.texto && TECH.test(o.texto)) warn("E2E", w, `The end-to-end diagram is for the client: "${String(o.texto).slice(0, 60)}" has technical terms (OTP, API, webhook…). Write the business milestone.`);
+    if (String(o.texto || "").length > 90) warn("E2E", w, "Keep milestones short (at most 90 characters).");
+  }));
+  if (figSet.e2e) {
+    if (figSet.e2e.nodos > 9) warn("E2E", "figura FE", `The end-to-end diagram has ${figSet.e2e.nodos} boxes (at most ~8). Shorten agentes[].resumen_cliente.`);
+    if (figSet.e2e.automatico && agents.some((a) => arr(a.pasos).length > 6)) warn("E2E", "agentes", "The end-to-end diagram was built automatically from stage names. Add agentes[].resumen_cliente (5-7 business milestones in the client's words) for a readable overview.");
+    if (figSet.e2e.tecnico) warn("E2E", "figura FE", "The automatic end-to-end diagram contains technical terms; write agentes[].resumen_cliente.");
+  }
+}
 
 // ---------- proposed dates for dependencies without a deadline (suggestion only, never written into the document) ----------
 const dp = C.dependencyPlan(sow);

@@ -2,9 +2,12 @@
   "name": "jelou-sow-studio-scripts",
   "version": "1.0.0",
   "private": true,
-  "description": "Linter, Word, diagramas y simulador del SOW de Jelou",
+  "description": "Linter, Word, diagramas, simulador, pre-kickoff (pptx + faltantes) del SOW de Jelou",
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
     "jszip": "^3.10.2"
+  },
+  "scripts": {
+    "test": "node test/diagram.test.js && node test/figuras.test.js && node test/lint.test.js && node test/simulator.test.js && node test/prekickoff.test.js"
   }
 }

@@ -21,6 +21,7 @@
       "asesor":   { "relleno": "eceff3", "borde": "6b7685", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Asesor humano" },
       "tercero":  { "relleno": "ffffff", "borde": "6b7685", "texto": "1a1d24", "forma": "redondeado", "trazo": "punteado", "leyenda": "Proceso del cliente / tercero" },
       "fin":      { "relleno": "ffffff", "borde": "6b7685", "texto": "555b66", "forma": "pildora", "leyenda": "Fin" },
+      "hito":     { "relleno": "e6f6f8", "borde": "007582", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Hito del proceso" },
       "etapa":    { "relleno": "e6f6f8", "borde": "007582", "texto": "1a1d24", "forma": "redondeado", "leyenda": "Etapa (su detalle está en la figura indicada)" },
       "enlace":   { "relleno": "f7f8fa", "borde": "9aa3ae", "texto": "555b66", "forma": "pildora", "trazo": "punteado", "leyenda": "Enlace a otra figura" }
     },

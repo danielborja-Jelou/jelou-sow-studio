@@ -162,7 +162,22 @@
         "publico": "Clientes mayoristas de Distribuidora Andina",
         "canal": "WhatsApp Pedidos"
       }
-    ]
+    ],
+    "base": {
+      "fuente": "Alcance inicial del ejemplo (solicitud de pedidos mayoristas)",
+      "fecha": "2026-10-05",
+      "congelado": true,
+      "ids": [
+        "F-U1",
+        "F-U2",
+        "F-U3",
+        "F-U4",
+        "F-U5",
+        "F-U6",
+        "F-A1",
+        "F-A2"
+      ]
+    }
   },
   "parametros": {
     "horario_bot": "24/7",
@@ -550,6 +565,13 @@
       "responsable": "Comercial del cliente",
       "fecha_limite": "2026-10-16",
       "hito": "Construcción del agente"
+    },
+    {
+      "item": "Ejecución de la UAT y reporte escrito de observaciones dentro de las fechas del cronograma",
+      "responsable": "Comercial del cliente",
+      "fecha_limite": "2026-10-30",
+      "hito": "UAT del cliente",
+      "tipo": "uat"
     }
   ],
   "cronograma": {
@@ -581,15 +603,17 @@
         "nombre": "Pruebas internas",
         "descripcion": "Ejecución del Test Plan y corrección de hallazgos",
         "dias_habiles": 2,
-        "entregable": "Informe de pruebas"
+        "entregable": "Informe de pruebas",
+        "tipo": "pruebas_internas"
       },
       {
         "id": "H3",
         "fase": "1",
         "nombre": "UAT del cliente",
-        "descripcion": "Validación por el cliente",
+        "descripcion": "Pruebas del cliente en las fechas del cronograma; observaciones por escrito",
         "dias_habiles": 3,
-        "entregable": "Acta de UAT"
+        "entregable": "Acta de UAT",
+        "tipo": "uat"
       },
       {
         "id": "H4",
@@ -655,6 +679,15 @@
       "pregunta": "¿Cuánto tiempo se conserva el carrito guardado? Se asumen 30 días.",
       "bloquea": false,
       "responsable": "Cliente"
+    },
+    {
+      "id": "Q-AMP-1",
+      "pregunta": "¿Se debe tomar en cuenta este adicional? (requiere aprobación de Comercial y cobro adicional): seguimiento del cumplimiento de metas comerciales por vendedor.",
+      "bloquea": false,
+      "responsable": "Comercial",
+      "audiencia": "comercial",
+      "tipo": "adicional",
+      "ampliacion": "AMP-1"
     }
   ],
   "solucion": {
@@ -1028,6 +1061,51 @@
             }
           ]
         }
+      ],
+      "resumen_cliente": [
+        {
+          "id": "E1",
+          "texto": "El cliente mayorista escribe a WhatsApp",
+          "tipo": "usuario"
+        },
+        {
+          "id": "E2",
+          "texto": "Se identifica y confirma que es él"
+        },
+        {
+          "id": "E3",
+          "texto": "Elige productos y cantidades"
+        },
+        {
+          "id": "E4",
+          "texto": "El sistema revisa stock, monto y crédito",
+          "salidas": [
+            {
+              "a": "E5",
+              "si": "cumple"
+            },
+            {
+              "a": "E6",
+              "si": "requiere revisión"
+            }
+          ]
+        },
+        {
+          "id": "E5",
+          "texto": "Recibe su número de pedido",
+          "tipo": "fin"
+        },
+        {
+          "id": "E6",
+          "texto": "Un asesor aprueba o rechaza el pedido",
+          "tipo": "asesor",
+          "salidas": [
+            {
+              "a": "E5",
+              "si": "si aprueba"
+            }
+          ]
+        }
       ]
     }
   ],
@@ -1154,9 +1232,9 @@
     }
   ],
   "esfuerzo": {
-    "personas": 2,
+    "personas": 1,
     "horas_dia": 6,
-    "gestion_pct": 20,
+    "gestion_pct": 15,
     "items": [
       {
         "entregable": "Workflow del agente de pedidos (router, OTP, pedido, derivación)",
@@ -1182,6 +1260,18 @@
         "entregable": "Formulario de ajuste de cantidades (WhatsApp Flow)",
         "tipo": "flow_whatsapp",
         "cantidad": 1
+      },
+      {
+        "entregable": "Pruebas internas del agente (Test Plan en draft y pasada en WhatsApp real)",
+        "tipo": "pruebas_qa",
+        "cantidad": 1,
+        "nota": "Hito del cronograma: Pruebas internas"
+      },
+      {
+        "entregable": "Acompañamiento de la UAT del cliente y corrección de observaciones",
+        "tipo": "uat_acompanamiento",
+        "cantidad": 1,
+        "nota": "Hito del cronograma: UAT del cliente"
       }
     ]
   },
@@ -1225,5 +1315,19 @@
       "nombre": "POR COMPLETAR",
       "cargo": "POR COMPLETAR"
     }
-  }
+  },
+  "ampliaciones_solicitadas": [
+    {
+      "id": "AMP-1",
+      "descripcion": "Seguimiento del cumplimiento de metas comerciales por vendedor",
+      "origen": "Reunión de seguimiento del 2026-10-09 (ejemplo)",
+      "estado": "por_decidir",
+      "cobro_adicional": null,
+      "terminos": [
+        "metas comerciales",
+        "ranking de vendedores"
+      ],
+      "nota": "Mencionado por el cliente; no forma parte del alcance base."
+    }
+  ]
 }

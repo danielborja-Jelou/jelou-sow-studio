@@ -34,7 +34,7 @@ It does not overwrite existing files unless `--forzar`. **Do not fix the derived
 
 ## 3. Schedule (Gantt)
 
-`sow_a_paquete.py` turns `cronograma.hitos` into tasks: one task per milestone (or the milestone's own `tareas`, optional `{tarea, responsable, dias}`) plus a dated deliverable. Dates are business days, skipping weekends and `festivos` — the same calculation as the SOW's schedule table. A milestone may carry `responsable` ("Jelou" | "Cliente" | "Ambos"). Make the **client's tasks explicit** (inputs, validations, UAT) with `responsable: "Cliente"`: they are what moves the end date. The project is at most 20 business days.
+`sow_a_paquete.py` turns `cronograma.hitos` into tasks: one task per milestone (or the milestone's own `tareas`, optional `{tarea, responsable, dias}`) plus a dated deliverable. Dates are business days, skipping weekends and `festivos` — the same calculation as the SOW's schedule table. A milestone may carry `responsable` ("Jelou" | "Cliente" | "Ambos"); the UAT milestone defaults to "Cliente". The internal-tests and UAT milestones are explicit tasks (with dates) in the Gantt and in the proposal route. Make the **client's tasks explicit** (inputs, validations, UAT) with `responsable: "Cliente"`: they are what moves the end date. The project is at most 20 business days.
 
 ```bash
 python scripts/cronograma.py out/paquete/SOW_<Cliente>_vX.Y_cronograma.json out/paquete/SOW_<Cliente>_vX.Y_cronograma

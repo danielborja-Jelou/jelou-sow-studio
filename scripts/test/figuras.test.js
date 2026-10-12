@@ -67,4 +67,25 @@ t('fragment validation: link nodes without exits and several entries are valid',
   const spec = { fragmento: true, pasos: [{ id: '@de', tipo: 'enlace', diagrama: 'Viene de F1.2', siguiente: [{ a: 'A' }] }, { id: 'A', tipo: 'mensaje', diagrama: 'x', siguiente: [{ a: '@a' }] }, { id: '@a', tipo: 'enlace', diagrama: 'Continúa en F1.4', siguiente: [] }] };
   assert.deepStrictEqual(validateGraph(spec).filter((p) => p.nivel === 'error'), []);
 });
+t('end-to-end diagram: first figure "Diagrama end-to-end", at most 9 boxes, business language, valid graph', () => {
+  for (const sow of [example, fixture]) {
+    const set = buildFigureSet(sow);
+    assert.strictEqual(set.figuras[0].id, 'FE');
+    assert.strictEqual(set.figuras[0].titulo, 'Diagrama end-to-end');
+    assert(set.figuras[0].nodos <= 9, 'boxes: ' + set.figuras[0].nodos);
+    assert.deepStrictEqual(validateGraph(set.figuras[0].spec).filter((p) => p.nivel === 'error'), []);
+  }
+  const ex = buildFigureSet(example).e2e;
+  assert(!ex.automatico && !ex.tecnico, 'the example uses resumen_cliente');
+  assert(ex.spec.pasos.some((p) => p.tipo === 'asesor') && ex.spec.pasos.some((p) => p.tipo === 'fin'), 'main exits');
+  // fallback: no resumen_cliente -> built from stage names and flagged automatic
+  const auto = buildFigureSet(fixture).e2e;
+  assert(auto.automatico && auto.nodos <= 9);
+  // inbound and outbound entry points when the graph has both
+  const two = JSON.parse(JSON.stringify(example));
+  two.agentes.push({ id: 'R2', nombre: 'Agente de campañas (outbound)', entrada: 'outbound', continua_en: 'R1', pasos: [{ id: 'Z1', tipo: 'mensaje', etapa: 'Recordatorio', mensaje: 'Hola', diagrama: 'Recordatorio', siguiente: [{ a: 'Z2' }] }, { id: 'Z2', tipo: 'fin', diagrama: 'Fin', siguiente: [] }] });
+  const sp = buildFigureSet(two).e2e.spec.pasos;
+  assert(sp.filter((p) => p.tipo === 'usuario').length >= 2 && sp.some((p) => p.sub === 'Outbound'));
+  fs.writeFileSync(path.join(OUT, 'fig-FE.png'), renderDiagramPng(ex.spec).png);
+});
 console.log(`\n${n} figure tests OK`);

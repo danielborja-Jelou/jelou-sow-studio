@@ -22,7 +22,7 @@ The order and level of detail follow a reference Jelou SOW (two agents, WebViews
 | 15 | Validations | Field or rule, validation, proposed message, applies to | Inconsistent error messages |
 | 16 | Acceptance criteria and tests | Test list and the UAT rule | Tests that contradict the scope |
 | 17 | Effort summary (with AI) | Deliverables by type with hour ranges, management overhead, total | Estimates with no basis |
-| 18 | Deliverables and schedule | Milestones with business days and computed dates (project ≤ 20 business days); client dependencies | Hand-typed dates that do not add up |
+| 18 | Deliverables and schedule | Milestones with business days and computed dates (project ≤ 20 business days), **including explicit "Pruebas internas" and "UAT del cliente" milestones** and the UAT time rule; client dependencies | Hand-typed dates that do not add up |
 | 19 | Responsibilities | Two columns: Jelou and the client | Work nobody owns |
 | 20 | Assumptions and pending items | Assumptions; pending items with owner | Hidden assumptions |
 | 21 | Security review | Aspect, reviewed, mitigation; project risks | A generic copied matrix |
@@ -41,7 +41,7 @@ The order and level of detail follow a reference Jelou SOW (two agents, WebViews
 
 **Integrations.** Describe each system as a card. Say what is read and written, who builds and hosts any intermediate layer, how it authenticates (never the credentials), whether documentation and a test environment exist, who answers on the client side and the current state ("integrated", "to connect", "mock"). If a system is still a mock, say how and when it is replaced.
 
-**Effort and schedule.** Use the AI-assisted rate table (`references/effort-model.md`). The whole project fits in 20 business days; waits on the client are dependencies with dates. Typical milestones: planning and definitions, build, internal tests, client UAT, production, closing.
+**Effort and schedule.** Use the AI-assisted rate table (`references/effort-model.md`). The whole project fits in 20 business days and at most 72 h of effort including management; internal tests and the client UAT are dated milestones; waits on the client are dependencies with dates. Typical milestones: planning and definitions, build, internal tests, client UAT, production, closing.
 
 **Security review.** Aspects of the template (confidentiality, integrity, availability, regulation, staffing, delays) with a mitigation specific to this project, plus risks of the project.
 

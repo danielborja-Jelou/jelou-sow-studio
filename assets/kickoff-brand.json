@@ -1,0 +1,38 @@
+{
+  "_nota": "Design tokens and slide geometry decompiled from the Jelou kickoff deck (python-pptx/Google-Slides export). Units: points on a 960 x 540 pt slide (16:9, 12192000 x 6858000 EMU). Used by scripts/build_kickoff_pptx.js together with assets/kickoff-template.pptx. Change values here, not in the code.",
+  "tamano": { "ancho_pt": 960, "alto_pt": 540, "emu": [12192000, 6858000], "nota": "The source deck declared type=screen4x3 with 16:9 dimensions (python-pptx default); the template drops the type attribute." },
+  "fuentes": {
+    "familia": "Poppins",
+    "titulos": "Poppins SemiBold", "texto": "Poppins", "medio": "Poppins Medium", "ligera": "Poppins Light",
+    "incrustadas": true,
+    "incrustacion": "ppt/fonts/font1-5.fntdata (EOT subsets copied from the source deck: Poppins regular+bold, Light, Medium, SemiBold). Licence: SIL OFL.",
+    "respaldo": "If Poppins is not installed on the viewer's machine PowerPoint substitutes Arial/Calibri (text then looks narrower). TrueType files for installing it: assets/fonts/Poppins-Regular.ttf and Poppins-SemiBold.ttf.",
+    "tamanos_pt": { "portada_titulo": 45, "divisor_titulo": 40, "cierre_titulo": 44, "titulo": 28, "subtitulo_portada": 18, "tarjeta_titulo": 14, "cuerpo_tarjeta": 12, "cuerpo_tarjeta_3col": 12, "cuerpo_chico": 11, "etiqueta": 10, "eyebrow": 11, "tabla_cabecera": 10, "tabla_cuerpo": 11 },
+    "interlineado": 1.5
+  },
+  "colores": {
+    "tinta": "151C2A", "turquesa": "00B4C7", "petroleo": "206C83", "menta": "E6F2F4", "fondo": "FAFBFF", "blanco": "FFFFFF",
+    "borde_tarjeta": "D3EAF3", "texto": "404040", "naranja": "FF6633", "fondo_alerta": "FFF4EE", "verde": "3DD88D", "celeste": "5FC5E3",
+    "linea_gris": "D9E1E8", "pendiente": "FF0000"
+  },
+  "tema": { "nombre": "Jelou", "dk1": "151C2A", "lt1": "FFFFFF", "dk2": "206C83", "lt2": "E6F2F4", "accent1": "00B4C7", "accent2": "3DD88D", "accent3": "5FC5E3", "accent4": "206C83", "accent5": "FF6633", "accent6": "E6F2F4" },
+  "margen": { "izq": 54, "der": 54, "ancho_util": 852, "contenido_y": 169, "contenido_y_titulo2": 203, "pie_y": 504 },
+  "logo": { "oscuro": "logo-blanco.png", "claro": "logo-turquesa.png", "esquina": { "x": 834, "y": 32, "w": 72 }, "portada": { "x": 54, "y": 144, "w": 144 }, "relacion": 0.258 },
+  "patrones": {
+    "portada": "Fondo tinta; logo blanco; título 45 SemiBold blanco; subtítulo 18 Medium menta; pastillas (CLIENTE / CANAL) con borde celeste; 'Fecha' turquesa abajo-izquierda; marca/lema abajo-derecha.",
+    "agenda": "6 tarjetas 3x2 (270x155, gap 21): círculo con icono, '0N · Título' 14 SemiBold, texto 12.",
+    "divisor": "Fondo tinta; logo turquesa; eyebrow turquesa con línea; título 40 SemiBold blanco; subtítulo 14 Medium menta.",
+    "equipo": "Dos tablas 2 columnas (cabecera tinta, texto blanco 10 SemiBold) y caja menta con los roles.",
+    "comparar": "Dos tarjetas 412x209: HOY (naranja) y CON JELOU (turquesa, fondo menta) con viñetas 13; nota 12 petróleo.",
+    "etapas": "Hasta 6 tarjetas 146x166 con flecha entre ellas; las de Jelou en tinta; pastillas leyenda debajo.",
+    "tarjetas": "Hasta 6 tarjetas 3x2: círculo con icono + título + texto (componentes, actores).",
+    "flujo": "Diagrama E2E: cajas redondeadas (usuario/hito menta con borde turquesa, final tinta, asesor blanca con borde petróleo), flechas y etiquetas; nota 12 SemiBold.",
+    "tabla": "Tabla con cabecera tinta, filas alternas blanco/menta, bordes D3EAF3.",
+    "lista_filas": "Filas '01 Título | texto | pastilla de responsable' separadas por línea gris; caja de alerta naranja opcional.",
+    "preguntas": "Eyebrow 'VALIDACIÓN · ETAPA n', 2 o 3 tarjetas con viñetas y caja menta 'Notas / respuesta del cliente'.",
+    "riesgos": "Tarjetas FFF4EE 415x96 con icono de alerta, texto 12 (título SemiBold).",
+    "pendientes": "2 o 3 tarjetas altas con viñetas.",
+    "cierre": "Fondo tinta; logo blanco; título 44; texto menta; pastilla turquesa; 'jelou.ai'."
+  },
+  "iconos": ["users", "target", "workflow", "comments", "plug", "calendar", "alert", "check-circle", "checklist", "link", "send", "phone", "database", "chart", "user", "bot", "gauge", "face", "building", "chat", "shield", "id-card", "file"]
+}

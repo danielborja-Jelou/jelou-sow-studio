@@ -153,7 +153,7 @@ function makeGroups(an) {
     if (cur && cur.ids.length + u.ids.length <= cap) { cur.ids = cur.ids.concat(u.ids); cur.last = u.name; cur.n++; }
     else { cur = { name: u.name, ids: u.ids.slice(), last: u.name, n: 1 }; groups.push(cur); }
   }
-  return groups.map((g) => ({ name: g.n > 1 && g.last !== g.name ? `${g.name} – ${g.last}` : g.name, ids: g.ids, fusion: g.n > 1 && g.last !== g.name }));
+  return groups.map((g) => ({ name: g.n > 1 && g.last !== g.name ? trunc(`${g.name} y ${g.last}`, 58) : g.name, ids: g.ids, fusion: g.n > 1 && g.last !== g.name }));
 }
 
 // ---------- construcción de las figuras ----------
@@ -300,10 +300,102 @@ function splitAgent(agent, ai) {
   return { figs, an, groups };
 }
 
+// ---------- Diagrama end-to-end (visión para el cliente) ----------
+// Una figura por proyecto ("FE", "Diagrama end-to-end"): hitos de negocio, sin tecnicismos (OTP, API, webhook...),
+// como máximo ~8 cajas, con las entradas (inbound/outbound) y las salidas principales.
+//   - agentes[].resumen_cliente: lista explícita de hitos [{id?, texto, tipo?: usuario|hito|asesor|fin, salidas?: [{a, si}]}]
+//     (una cadena sola equivale a {texto}). Sin `salidas`, cada hito sigue al anterior. Un `salidas.a` puede apuntar al id de
+//     un hito de OTRO agente (p. ej. el recordatorio saliente que desemboca en el flujo de solicitud).
+//   - sin resumen_cliente: se arma solo con grupo/etapa (nombres de etapa), una entrada por agente y las salidas a asesor/fin.
+//   - agentes[].entrada: "inbound" | "outbound" (por defecto se deduce del nombre) · agentes[].continua_en: id del agente al que desemboca.
+const E2E_MAX = 9;
+const E2E_TECH = /\b(otp|api|webhook|http|https|json|endpoint|token|deeplink|hsm|jwt|oauth|payload|swagger|sql)\b|ws#\d+/i;
+const OUTBOUND_RE = /outbound|saliente|prospecci|campa[nñ]a|recordatorio/i;
+
+function e2eAgentNodes(ag, ai, auto) {
+  const id = String(ag.id == null ? 'A' + (ai + 1) : ag.id);
+  const pre = `e${ai + 1}_`;
+  const explicit = arr(ag.resumen_cliente).map((it) => (typeof it === 'string' ? { texto: it } : it || {})).filter((o) => clean(o.texto));
+  const outbound = String(ag.entrada || '').toLowerCase() === 'outbound' || (!ag.entrada && OUTBOUND_RE.test(`${ag.nombre || ''} ${ag.fase || ''}`));
+  if (explicit.length) {
+    const nodes = explicit.map((o, k) => ({ id: o.id ? String(o.id) : pre + (k + 1), texto: clean(o.texto), tipo: ['usuario', 'hito', 'asesor', 'fin'].includes(o.tipo) ? o.tipo : (k === 0 ? 'usuario' : 'hito'), salidas: o.salidas ? arr(o.salidas).map((e) => ({ a: String(e.a), si: e.si ? clean(e.si) : '' })) : null }));
+    nodes.forEach((n, k) => { if (!n.salidas) n.salidas = (n.tipo === 'fin' || n.tipo === 'asesor' || k === nodes.length - 1) ? [] : [{ a: nodes[k + 1].id, si: '' }]; });
+    return { agentId: id, nodes, outbound, auto: false };
+  }
+  // automático: nombres de etapa (grupo > etapa)
+  let names = [];
+  try {
+    const an = analyze(ag);
+    names = makeGroups(an).map((g) => clean(g.name).replace(/\s*\(\d+\/\d+\)\s*$/, ''));
+  } catch (e) { names = []; }
+  names = names.filter((n, i) => n && names.indexOf(n) === i);
+  if (!names.length) names = arr(ag.pasos).map((p) => clean(p.etapa)).filter(Boolean).filter((n, i, a) => a.indexOf(n) === i);
+  const cap = 5;
+  while (names.length > cap) { // une pares vecinos de nombres más cortos hasta quedar en el tope
+    let best = 0, bl = Infinity;
+    for (let i = 0; i < names.length - 1; i++) { const l = names[i].length + names[i + 1].length; if (l < bl) { bl = l; best = i; } }
+    names.splice(best, 2, trunc(`${names[best]} y ${names[best + 1]}`, 60));
+  }
+  const nodes = [{ id: pre + 'in', texto: outbound ? 'La empresa escribe primero al usuario por WhatsApp' : 'El usuario inicia la conversación por WhatsApp', tipo: 'usuario' }];
+  names.forEach((n, k) => nodes.push({ id: pre + (k + 1), texto: n, tipo: 'hito' }));
+  if (arr(ag.pasos).some((p) => p.tipo === 'asesor')) nodes.push({ id: pre + 'as', texto: 'Derivación a un asesor', tipo: 'asesor', salidas: [] });
+  const main = nodes.filter((n) => n.id !== pre + 'as');
+  main.forEach((n, k) => { n.salidas = k < main.length - 1 ? [{ a: main[k + 1].id, si: '' }] : []; });
+  const as = nodes.find((n) => n.id === pre + 'as');
+  if (as && main.length > 2) main[Math.min(2, main.length - 1) - 1].salidas.push({ a: as.id, si: 'si necesita ayuda' });
+  else if (as) main[main.length - 1].salidas.push({ a: as.id, si: 'si necesita ayuda' });
+  return { agentId: id, nodes, outbound, auto: true };
+}
+
+function buildE2E(sow) {
+  const agents = (arr(sow && sow.agentes).length ? sow.agentes : legacyAgents(sow)).filter((a) => arr(a.pasos).length);
+  if (!agents.length) return null;
+  let parts = agents.map((ag, ai) => e2eAgentNodes(ag, ai));
+  // continuidad automática entre agentes (agentes[].continua_en): el último hito principal del agente saliente apunta al primer hito del destino
+  parts.forEach((p, i) => {
+    const ag = agents[i];
+    if (!ag.continua_en) return;
+    const dest = parts.find((q) => q.agentId === String(ag.continua_en));
+    if (!dest || dest === p) return;
+    const target = dest.nodes.find((n) => n.tipo !== 'usuario') || dest.nodes[0];
+    const last = [...p.nodes].reverse().find((n) => n.tipo !== 'asesor' && n.tipo !== 'fin');
+    if (last && target && !last.salidas.some((e) => e.a === target.id)) last.salidas.push({ a: target.id, si: '' });
+  });
+  // tope de cajas: se recortan los agentes automáticos (nunca los resúmenes escritos por el autor)
+  const count = () => parts.reduce((a, p) => a + p.nodes.length, 0);
+  for (let guard = 0; count() > E2E_MAX && guard < 20; guard++) {
+    const cand = parts.filter((p) => p.auto).sort((a, b) => b.nodes.length - a.nodes.length)[0];
+    if (!cand || cand.nodes.length <= 3) break;
+    const mid = cand.nodes.filter((n) => n.tipo === 'hito');
+    if (mid.length < 2) break;
+    const i = cand.nodes.indexOf(mid[mid.length - 2]), j = cand.nodes.indexOf(mid[mid.length - 1]);
+    const a = cand.nodes[i], b = cand.nodes[j];
+    a.texto = trunc(`${a.texto} y ${b.texto}`, 60); a.salidas = b.salidas.filter((e) => e.a !== a.id);
+    cand.nodes.splice(j, 1);
+    cand.nodes.forEach((n) => n.salidas.forEach((e) => { if (e.a === b.id) e.a = a.id; }));
+  }
+  parts.forEach((p) => p.nodes.forEach((n) => { n.outbound = p.outbound; }));
+  const all = parts.flatMap((p) => p.nodes);
+  const ids = new Set(all.map((n) => n.id));
+  all.forEach((n) => { n.salidas = n.salidas.filter((e) => ids.has(e.a)); });
+  // los nodos sin salida son terminales: se dibujan como "fin" (salvo asesor)
+  const pasos = all.map((n) => ({ id: n.id, tipo: n.salidas.length || n.tipo === 'asesor' ? n.tipo : (n.tipo === 'usuario' ? 'usuario' : 'fin'), diagrama: n.texto, sub: n.tipo === 'usuario' ? (n.outbound ? 'Outbound' : 'Inbound') : undefined, siguiente: n.salidas.map((e) => (e.si ? { a: e.a, si: e.si } : { a: e.a })) }));
+  // el nodo inicial debe ser un punto de entrada: las entradas (usuario) van primero
+  pasos.sort((a, b) => (a.tipo === 'usuario' ? 0 : 1) - (b.tipo === 'usuario' ? 0 : 1));
+  const titulo = 'Diagrama end-to-end';
+  return {
+    id: 'FE', tipo: 'e2e', agenteId: null, titulo, caption: `Figura FE. ${titulo}.`, nodos: pasos.length, pasos: pasos.map((p) => p.id), dividido: false,
+    automatico: parts.some((p) => p.auto), tecnico: parts.some((p) => p.auto && p.nodes.some((n) => E2E_TECH.test(n.texto))),
+    spec: { titulo, pasos, fragmento: true, ancho: ANCHO },
+  };
+}
+
 // ---------- API ----------
 function buildFigureSet(sow) {
   const figuras = [], porAgente = {};
   let general = null;
+  const e2e = buildE2E(sow);
+  if (e2e) figuras.push(e2e);
   const g = sow && sow.diagrama_general;
   if (g && arr(g.pasos).length) {
     general = { id: 'FG', tipo: 'diagrama_general', agenteId: null, titulo: g.titulo || 'Orquestación E2E', caption: `Figura FG. ${g.titulo || 'Orquestación E2E'}.`, nodos: arr(g.pasos).length, pasos: arr(g.pasos).map((p) => String(p.id)), dividido: false, spec: { titulo: g.titulo || 'Orquestación E2E', pasos: g.pasos, leyendas: g.leyendas } };
@@ -331,7 +423,7 @@ function buildFigureSet(sow) {
     porAgente[id] = list;
     figuras.push(...list);
   });
-  return { figuras, porAgente, general };
+  return { figuras, porAgente, general, e2e };
 }
 
 function legacyAgents(sow) {
@@ -344,7 +436,7 @@ function manifest(set) {
   return set.figuras.map((f) => ({ id: f.id, archivo: safeName(f.id), agente: f.agenteId, tipo: f.tipo, titulo: f.titulo, caption: f.caption, nodos: f.nodos, pasos: f.pasos, dividido: f.dividido }));
 }
 
-module.exports = { buildFigureSet, manifest, safeName, MAX_FIG, MAX_SINGLE, MAX_OVERVIEW };
+module.exports = { buildFigureSet, buildE2E, manifest, safeName, MAX_FIG, MAX_SINGLE, MAX_OVERVIEW, E2E_MAX };
 
 if (require.main === module) {
   const file = process.argv[2];

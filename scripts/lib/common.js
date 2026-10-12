@@ -150,22 +150,23 @@ function dependencyPlan(sow) {
 
 // ---------- effort model ----------
 const DEFAULT_RATES = {
-  workflow_simple: [2, 4], workflow_medio: [6, 12], workflow_complejo: [16, 32], function: [3, 8],
-  webview_simple: [4, 10], webview_backend: [6, 16], flow_whatsapp: [3, 8], formulario: [3, 10], plantilla_hsm: [0.5, 1.5], kyc: [3, 8], pagos: [3, 8],
+  workflow_simple: [0.5, 1.5], workflow_medio: [2, 4], workflow_complejo: [5, 10], function: [1.5, 3],
+  webview_simple: [1.5, 3], webview_backend: [3, 6], flow_whatsapp: [1, 3], formulario: [1, 4], plantilla_hsm: [0.25, 0.5], kyc: [1.5, 3], pagos: [1.5, 3],
 };
+const TOPE_HORAS_DEFECTO = 72; // tope por defecto del esfuerzo total (incluye gestión); configurable con meta.tope_horas
 function loadRates() {
   try {
     const j = JSON.parse(fs.readFileSync(path.join(__dirname, "effort-rates.json"), "utf8"));
     const r = {};
     const labels = {};
     for (const [k, v] of Object.entries(j.rangos || {})) { r[k] = [v.min, v.max]; labels[k] = v.etiqueta || k.replace(/_/g, " "); }
-    return { rangos: r, etiquetas: labels, gestion: j.gestion_pct || { min: 15, max: 25 } };
+    return { rangos: r, etiquetas: labels, gestion: j.gestion_pct || { min: 10, max: 20, defecto: 15 }, tope: j.tope_horas_defecto || TOPE_HORAS_DEFECTO };
   } catch (e) {
-    return { rangos: DEFAULT_RATES, etiquetas: {}, gestion: { min: 15, max: 25 } };
+    return { rangos: DEFAULT_RATES, etiquetas: {}, gestion: { min: 10, max: 20, defecto: 15 }, tope: TOPE_HORAS_DEFECTO };
   }
 }
 function computeEffort(esfuerzo) {
-  const { rangos, etiquetas } = loadRates();
+  const { rangos, etiquetas, gestion } = loadRates();
   const e = esfuerzo || {};
   let min = 0, max = 0; const rows = []; const unknown = [];
   for (const it of arr(e.items)) {
@@ -175,10 +176,69 @@ function computeEffort(esfuerzo) {
     rows.push({ entregable: it.entregable, tipo: it.tipo, etiqueta: (etiquetas && etiquetas[it.tipo]) || String(it.tipo).replace(/_/g, " "), cantidad: q, min: r[0] * q, max: r[1] * q, nota: it.nota });
     min += r[0] * q; max += r[1] * q;
   }
-  const g = (e.gestion_pct == null ? 20 : e.gestion_pct) / 100;
+  const g = (e.gestion_pct == null ? (gestion.defecto == null ? 15 : gestion.defecto) : e.gestion_pct) / 100;
   const personas = e.personas || 1, horasDia = e.horas_dia || 6;
   const totalMin = min * (1 + g), totalMax = max * (1 + g);
   return { rows, unknown, subMin: min, subMax: max, gestionPct: g * 100, totalMin, totalMax, personas, horasDia, diasMin: Math.ceil(totalMin / (personas * horasDia)), diasMax: Math.ceil(totalMax / (personas * horasDia)) };
 }
+// Tope de horas del proyecto (incluye gestión): meta.tope_horas o 72. Pendiente de confirmación de negocio: si la gestión cuenta dentro del tope.
+const topeHoras = (sow) => { const t = Number(((sow && sow.meta) || {}).tope_horas); return Number.isFinite(t) && t > 0 ? t : loadRates().tope; };
 
-module.exports = { canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };
+// ---------- phase: pre-kickoff vs full SOW ----------
+// meta.fase = "prekickoff" (default: SOW completo). build_all.js --modo prekickoff forces it.
+const isPrekickoff = (sow) => String((((sow && sow.meta) || {}).fase) || "").toLowerCase() === "prekickoff";
+
+// ---------- tests in the schedule (internal tests + client UAT) ----------
+// A milestone is an internal-tests or UAT milestone by explicit hito.tipo ("pruebas_internas" | "uat") or by its name.
+function milestoneKind(h) {
+  const t = normTxt(h && h.tipo);
+  if (t === "uat" || t === "pruebas_cliente") return "uat";
+  if (t === "pruebas_internas" || t === "qa") return "pruebas_internas";
+  const n = normTxt(h && h.nombre);
+  if (/\buat\b|aceptaci|pruebas (con el |del |de )?cliente|validacion (del )?cliente|pruebas de aceptacion/.test(n)) return "uat";
+  if (/prueba|\bqa\b|testing/.test(n) && !/cliente/.test(n)) return "pruebas_internas";
+  return null;
+}
+const testMilestones = (sow) => {
+  const hs = arr(((sow && sow.cronograma) || {}).hitos);
+  return { internas: hs.filter((h) => milestoneKind(h) === "pruebas_internas"), uat: hs.filter((h) => milestoneKind(h) === "uat") };
+};
+// Date range of the UAT milestone computed from cronograma.inicio (null when there is no UAT milestone).
+function uatWindow(sow) {
+  const sched = scheduleDates((sow && sow.cronograma) || {});
+  const row = sched.find((x) => milestoneKind(x.hito) === "uat");
+  return row ? { hito: row.hito, inicio: row.inicio, fin: row.fin } : null;
+}
+// Draft clause (pending Legal review; flagged as such in the internal documents and in SKILL.md).
+const UAT_CLAUSE = "Las pruebas del cliente (UAT) deben ejecutarse dentro de las fechas estipuladas en el cronograma. Si vencida la fecha de cierre de UAT el cliente no ha reportado observaciones por escrito, se entiende que el entregable fue probado y aceptado a conformidad y el proyecto se considera cerrado; las solicitudes posteriores se gestionan como control de cambios.";
+const UAT_CLAUSE_LEGAL = "Redacción borrador: pendiente de revisión por Legal.";
+// Clause with the real UAT closing date, for schedule and next-steps texts.
+function uatClauseWithDate(sow) {
+  const w = uatWindow(sow);
+  return w && w.fin ? `${UAT_CLAUSE} Fecha de cierre de UAT: ${fmtShort(w.fin)}.` : UAT_CLAUSE;
+}
+
+// ---------- scope lock ----------
+// alcance.base = scope frozen from the presales SOW/offer. Anything requested later goes to ampliaciones_solicitadas[]:
+// estado "por_decidir" (not in scope; one open question to Comercial) | "aprobada_comercial" (needs a cambios row and cobro_adicional) | "rechazada".
+const AMP_ESTADOS = ["por_decidir", "aprobada_comercial", "rechazada"];
+const ampliaciones = (sow) => arr(sow && sow.ampliaciones_solicitadas);
+const AMP_QUESTION = "¿Se debe tomar en cuenta este adicional? (requiere aprobación de Comercial y cobro adicional)";
+
+// ---------- pre-kickoff activation threshold ----------
+// Input: a presales SOW + first Diio turned into sow.json. Besides the team, ANY of: >=5 blocking open questions,
+// integrations without documentation or QA environment, presales assumptions ([Supuesto]) not confirmed by the client.
+const BLOQUEANTES_UMBRAL = 5;
+function prekickoffThreshold(sow) {
+  const isTeam = (q) => /equipo/.test(normTxt(q.tema || q.tipo || ""));
+  const bloqueantes = arr(sow && sow.preguntas_abiertas).filter((q) => q.bloquea && !isTeam(q));
+  const intSin = arr(sow && sow.integraciones).filter((it) => normTxt(it.documentacion) !== "si" || normTxt(it.ambiente_pruebas) !== "si");
+  const supuestos = arr(((sow && sow.alcance) || {}).supuestos).filter((x) => !(x && typeof x === "object" && (x.confirmado_cliente === true || normTxt(x.estado) === "confirmado")));
+  const razones = [];
+  if (bloqueantes.length >= BLOQUEANTES_UMBRAL) razones.push(`${bloqueantes.length} preguntas abiertas que bloquean (umbral: ${BLOQUEANTES_UMBRAL})`);
+  if (intSin.length) razones.push(`${intSin.length} integración(es) sin documentación o sin ambiente de pruebas: ${intSin.map((i) => i.id).join(", ")}`);
+  if (supuestos.length) razones.push(`${supuestos.length} supuesto(s) de preventa sin confirmar por el cliente`);
+  return { modo: razones.length ? "prekickoff" : "sow_completo", razones, cifras: { bloqueantes: bloqueantes.length, integraciones_sin_doc_o_qa: intSin.length, supuestos_sin_confirmar: supuestos.length }, umbral_bloqueantes: BLOQUEANTES_UMBRAL };
+}
+
+module.exports = { isPrekickoff, milestoneKind, testMilestones, uatWindow, UAT_CLAUSE, UAT_CLAUSE_LEGAL, uatClauseWithDate, AMP_ESTADOS, ampliaciones, AMP_QUESTION, prekickoffThreshold, TOPE_HORAS_DEFECTO, topeHoras, normTxt, canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };

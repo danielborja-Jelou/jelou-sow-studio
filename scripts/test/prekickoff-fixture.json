@@ -1,0 +1,1147 @@
+{
+  "meta": {
+    "proyecto": "Chat de crédito preaprobado por WhatsApp",
+    "cliente": "Cliente ejemplo",
+    "proveedor": "Jelou",
+    "pais": "País de ejemplo",
+    "tipo": "nuevo",
+    "version": "1.0",
+    "estado": "en_revision",
+    "fase": "prekickoff",
+    "fecha": "2026-08-17",
+    "autor": "POR COMPLETAR",
+    "equipo_confirmado": false
+  },
+  "brief": [
+    "El cliente ofrece a la ciudadanía la prospección y activación de crédito preaprobado a través de entidades aliadas. Hoy la afiliación depende de portales web, lo que genera fricción y abandono. El proyecto habilita un canal conversacional en WhatsApp donde Jelou actúa como front y orquestador: captura los datos, orquesta la evaluación del perfil y la verificación de identidad, y deriva la finalización del registro a la plataforma de originación.",
+    "La solución cubre dos frentes: en el flujo inbound la persona inicia la conversación y recorre la solicitud; en el flujo outbound la entidad inicia la conversación con un recordatorio de crédito preaprobado mediante el API de campañas que expone Jelou."
+  ],
+  "objetivos": {
+    "general": "Habilitar la solicitud y activación de crédito preaprobado de extremo a extremo dentro de WhatsApp, reduciendo la fricción y el abandono de los portales web.",
+    "especificos": [
+      "Orquestar desde Jelou la captura de datos, la evaluación en el motor de decisión y la verificación de identidad.",
+      "Exponer desde Jelou el endpoint de resultado y el API de campañas que el cliente consume.",
+      "Integrar la verificación de identidad y derivar la finalización del registro sin cortar la conversación.",
+      "Habilitar la prospección proactiva con recordatorios de crédito preaprobado.",
+      "Persistir la operación en Datum en cumplimiento de la normativa de protección de datos."
+    ]
+  },
+  "equipo": [
+    {
+      "rol": "AM",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Account Manager (AM)",
+      "responsabilidad": "Mejoras, alcance, precio e integraciones adicionales"
+    },
+    {
+      "rol": "PM",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Project Manager (PM)",
+      "responsabilidad": "Implementación hasta el acta de cierre"
+    },
+    {
+      "rol": "Implementador",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Implementador / Bot builder",
+      "responsabilidad": "Construcción de los flujos y formularios"
+    },
+    {
+      "rol": "Líder técnico",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Jelou",
+      "cargo": "Líder técnico / integrador",
+      "responsabilidad": "Integraciones con el motor, la verificación y la plataforma"
+    },
+    {
+      "rol": "Cliente funcional",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Cliente ejemplo",
+      "cargo": "PM de producto",
+      "responsabilidad": "Validación de flujos y reglas de negocio"
+    },
+    {
+      "rol": "Cliente técnico",
+      "nombre": "POR COMPLETAR",
+      "organizacion": "Cliente ejemplo",
+      "cargo": "PM de implementaciones / responsable técnico",
+      "responsabilidad": "Accesos, documentación y ambiente de pruebas"
+    }
+  ],
+  "alcance": {
+    "fases": [
+      {
+        "fase": "Fase 1",
+        "requerimiento": "Flujo_1 solicitud (inbound) y Flujo_2 prospección (outbound)",
+        "publico": "Ciudadanía con crédito preaprobado",
+        "canal": "WhatsApp"
+      }
+    ],
+    "incluido_usuario": [],
+    "incluido_admin": [],
+    "fuera_de_alcance": [
+      {
+        "id": "OOS-1",
+        "texto": "Formalización, firma de documentos y desembolso del crédito: competencia de la plataforma de originación.",
+        "terminos": [
+          "formalización",
+          "desembolso",
+          "firma de documentos"
+        ]
+      }
+    ],
+    "supuestos": [
+      {
+        "texto": "Las entidades aliadas operan detrás del motor de decisión, de forma transparente para Jelou.",
+        "pregunta": "¿Todo pasa por el motor, sin integración directa con las entidades?"
+      },
+      {
+        "texto": "El cliente tiene la capacidad de consumir los componentes que expone Jelou (endpoint de resultado y API de campañas).",
+        "pregunta": "¿Pueden llamarlos? ¿Quién lo desarrolla?"
+      },
+      {
+        "texto": "El cliente provee credenciales y ambiente de pruebas del motor de decisión.",
+        "pregunta": "¿Disponibles desde el día 1? ¿Fecha y responsable?"
+      },
+      {
+        "texto": "El resultado llega por endpoint o por API, ambos expuestos por Jelou.",
+        "pregunta": "¿Cuál de los dos mecanismos usarán?"
+      },
+      {
+        "texto": "Los enlaces de verificación y de registro se obtienen por API o se construyen por regla.",
+        "pregunta": "¿Cómo se obtienen cada uno?"
+      },
+      {
+        "texto": "Las campañas las inicia la entidad y se administran del lado del cliente.",
+        "pregunta": "¿Quién dispara: plataforma, cliente o la interfaz de Jelou?"
+      },
+      {
+        "texto": "Se contemplan los créditos de libre inversión y rotativo.",
+        "pregunta": "¿Cuántas líneas por tipo y cambian los datos pedidos?"
+      }
+    ]
+  },
+  "agentes": [
+    {
+      "id": "F1",
+      "nombre": "Flujo_1: Solicitud de crédito (inbound)",
+      "fase": "Fase 1",
+      "canal": "WhatsApp",
+      "persona": {
+        "nombre": "Cami",
+        "tono": "cálido y cercano",
+        "apelativo": "tú"
+      },
+      "entrada": "inbound",
+      "resumen_cliente": [
+        {
+          "id": "E1",
+          "texto": "El ciudadano escribe por WhatsApp",
+          "tipo": "usuario"
+        },
+        {
+          "id": "E2",
+          "texto": "Autoriza el uso de sus datos y entrega su documento"
+        },
+        {
+          "id": "E3",
+          "texto": "Se evalúa su perfil de crédito",
+          "salidas": [
+            {
+              "a": "E4",
+              "si": "aprobado o preaprobado"
+            },
+            {
+              "a": "E6",
+              "si": "negado"
+            }
+          ]
+        },
+        {
+          "id": "E4",
+          "texto": "Verifica su identidad"
+        },
+        {
+          "id": "E5",
+          "texto": "Termina su registro en la plataforma de originación",
+          "tipo": "fin"
+        },
+        {
+          "id": "E6",
+          "texto": "Recibe el resultado y se cierra la conversación",
+          "tipo": "fin"
+        }
+      ],
+      "pasos": [
+        {
+          "id": "P1",
+          "tipo": "usuario",
+          "diagrama": "El ciudadano saluda por WhatsApp",
+          "siguiente": [
+            {
+              "a": "P2"
+            }
+          ],
+          "etapa": "Entrada",
+          "grupo": "Inicio y autorización",
+          "mensaje": "Hola"
+        },
+        {
+          "id": "P2",
+          "tipo": "mensaje",
+          "diagrama": "Bienvenida y opción de comenzar",
+          "siguiente": [
+            {
+              "a": "P3"
+            }
+          ],
+          "etapa": "Bienvenida",
+          "mensaje": "¡Hola! Soy Cami, la asistente de Cliente ejemplo. ¿Empezamos con tu solicitud de crédito?",
+          "botones": [
+            "Comenzar",
+            "Más información"
+          ]
+        },
+        {
+          "id": "P3",
+          "tipo": "formulario",
+          "diagrama": "Autorización de tratamiento de datos",
+          "siguiente": [
+            {
+              "a": "P4"
+            }
+          ],
+          "etapa": "Autorización de datos",
+          "herramienta": "flows",
+          "componente": "Flows",
+          "formulario": {
+            "titulo": "Autorización de datos",
+            "boton": "Continuar",
+            "campos": [
+              {
+                "etiqueta": "Acepto el tratamiento de mis datos personales",
+                "tipo": "casilla",
+                "obligatorio": true,
+                "ejemplo": "Sí"
+              }
+            ]
+          }
+        },
+        {
+          "id": "P4",
+          "tipo": "decision",
+          "diagrama": "¿Autorizó el tratamiento de datos?",
+          "siguiente": [
+            {
+              "a": "P5",
+              "si": "sí"
+            },
+            {
+              "a": "P12",
+              "si": "no"
+            }
+          ]
+        },
+        {
+          "id": "P5",
+          "tipo": "formulario",
+          "diagrama": "Tipo de documento, número y primer apellido",
+          "siguiente": [
+            {
+              "a": "P6"
+            }
+          ],
+          "etapa": "Documento y apellido",
+          "grupo": "Datos de la persona",
+          "herramienta": "flows",
+          "componente": "Flows",
+          "formulario": {
+            "titulo": "Tus datos",
+            "boton": "Enviar",
+            "campos": [
+              {
+                "etiqueta": "Tipo de documento",
+                "tipo": "selector",
+                "opciones": [
+                  "Cédula de ciudadanía",
+                  "Cédula de extranjería",
+                  "Pasaporte"
+                ],
+                "ejemplo": "Cédula de ciudadanía",
+                "obligatorio": true
+              },
+              {
+                "etiqueta": "Número de documento",
+                "tipo": "numero",
+                "ejemplo": "1234567",
+                "obligatorio": true
+              },
+              {
+                "etiqueta": "Primer apellido",
+                "tipo": "texto",
+                "ejemplo": "Pérez",
+                "obligatorio": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "P6",
+          "tipo": "api",
+          "diagrama": "Evaluación del perfil en el motor de decisión",
+          "siguiente": [
+            {
+              "a": "P7"
+            }
+          ],
+          "etapa": "Evaluación del perfil",
+          "grupo": "Evaluación del perfil",
+          "integracion": "INT-1",
+          "componente": "API (WS#1)"
+        },
+        {
+          "id": "P7",
+          "tipo": "decision",
+          "diagrama": "¿Resultado de la evaluación?",
+          "siguiente": [
+            {
+              "a": "P8",
+              "si": "aprobado o preaprobado"
+            },
+            {
+              "a": "P12",
+              "si": "negado"
+            }
+          ]
+        },
+        {
+          "id": "P8",
+          "tipo": "mensaje",
+          "diagrama": "Comunica el resultado y la entidad",
+          "siguiente": [
+            {
+              "a": "P9"
+            }
+          ],
+          "etapa": "Resultado",
+          "grupo": "Resultado",
+          "mensaje": "Tenemos buenas noticias: tu solicitud fue preaprobada con la entidad que puede otorgarte el crédito. Falta verificar tu identidad.",
+          "botones": [
+            "Verificar identidad"
+          ],
+          "integracion": "INT-2"
+        },
+        {
+          "id": "P9",
+          "tipo": "tercero",
+          "diagrama": "Verificación biométrica (enlace del cliente abierto dentro del chat)",
+          "siguiente": [
+            {
+              "a": "P10"
+            }
+          ],
+          "etapa": "Verificación de identidad",
+          "grupo": "Verificación de identidad",
+          "integracion": "INT-3"
+        },
+        {
+          "id": "P10",
+          "tipo": "decision",
+          "diagrama": "¿Verificación exitosa?",
+          "siguiente": [
+            {
+              "a": "P11",
+              "si": "sí"
+            },
+            {
+              "a": "P12",
+              "si": "no"
+            }
+          ]
+        },
+        {
+          "id": "P11",
+          "tipo": "tercero",
+          "diagrama": "Finalización del registro en la plataforma de originación",
+          "siguiente": [
+            {
+              "a": "PF"
+            }
+          ],
+          "etapa": "Registro",
+          "grupo": "Registro",
+          "integracion": "INT-4"
+        },
+        {
+          "id": "P12",
+          "tipo": "mensaje",
+          "diagrama": "Mensaje de cierre: la solicitud no continúa",
+          "siguiente": [
+            {
+              "a": "PF"
+            }
+          ],
+          "etapa": "Cierre",
+          "mensaje": "Por ahora no podemos continuar con tu solicitud. Gracias por escribirnos."
+        },
+        {
+          "id": "PF",
+          "tipo": "fin",
+          "diagrama": "Fin de la conversación",
+          "siguiente": []
+        }
+      ]
+    },
+    {
+      "id": "F2",
+      "nombre": "Flujo_2: Prospección (outbound)",
+      "fase": "Fase 1",
+      "canal": "WhatsApp",
+      "persona": {
+        "nombre": "Cami",
+        "tono": "cálido y cercano",
+        "apelativo": "tú"
+      },
+      "entrada": "outbound",
+      "continua_en": "F1",
+      "resumen_cliente": [
+        {
+          "id": "O1",
+          "texto": "La entidad envía un recordatorio de crédito preaprobado",
+          "tipo": "usuario"
+        },
+        {
+          "id": "O2",
+          "texto": "El ciudadano pulsa para iniciar su afiliación",
+          "salidas": [
+            {
+              "a": "E2"
+            }
+          ]
+        }
+      ],
+      "pasos": [
+        {
+          "id": "Q1",
+          "tipo": "api",
+          "diagrama": "La entidad dispara la campaña de recordatorio",
+          "siguiente": [
+            {
+              "a": "Q2"
+            }
+          ],
+          "etapa": "Disparo de la campaña",
+          "integracion": "INT-5",
+          "componente": "API (WS#5)"
+        },
+        {
+          "id": "Q2",
+          "tipo": "mensaje",
+          "diagrama": "Recordatorio de crédito preaprobado",
+          "siguiente": [
+            {
+              "a": "Q3"
+            }
+          ],
+          "etapa": "Recordatorio",
+          "mensaje": "Hola, soy Cami. Tienes un crédito preaprobado disponible. ¿Quieres iniciar tu afiliación?",
+          "botones": [
+            "Iniciar afiliación"
+          ]
+        },
+        {
+          "id": "Q3",
+          "tipo": "usuario",
+          "diagrama": "Pulsa «Iniciar mi afiliación»",
+          "siguiente": [
+            {
+              "a": "Q4"
+            }
+          ],
+          "mensaje": "Iniciar mi afiliación"
+        },
+        {
+          "id": "Q4",
+          "tipo": "fin",
+          "diagrama": "Continúa en el Flujo_1",
+          "siguiente": []
+        }
+      ]
+    }
+  ],
+  "integraciones": [
+    {
+      "id": "INT-1",
+      "nombre": "API del motor de decisión (WS#1)",
+      "sistema": "Motor de decisión del cliente",
+      "proposito": "Jelou consulta el motor para evaluar el perfil de crédito de la persona.",
+      "operaciones": [
+        {
+          "tipo": "lectura",
+          "descripcion": "Consulta de la decisión: aprobado, preaprobado o negado"
+        }
+      ],
+      "conexion": "api_cliente",
+      "autenticacion": "Mecanismo por definir con el cliente (las credenciales se entregan por canal seguro)",
+      "documentacion": "pendiente",
+      "ambiente_pruebas": "pendiente",
+      "responsable_cliente": "POR COMPLETAR",
+      "disponibilidad": "POR DEFINIR",
+      "expone": "Cliente",
+      "consume": "Jelou"
+    },
+    {
+      "id": "INT-2",
+      "nombre": "Endpoint de resultado (WS#2, componente de Jelou)",
+      "sistema": "Jelou",
+      "proposito": "Endpoint que Jelou expone para que el cliente envíe el concepto de crédito.",
+      "operaciones": [
+        {
+          "tipo": "escritura",
+          "descripcion": "Recepción y persistencia del concepto de crédito"
+        }
+      ],
+      "conexion": "directa",
+      "autenticacion": "Mecanismo por definir con el cliente (las credenciales se entregan por canal seguro)",
+      "documentacion": "pendiente",
+      "ambiente_pruebas": "pendiente",
+      "responsable_cliente": "POR COMPLETAR",
+      "disponibilidad": "POR DEFINIR",
+      "expone": "Jelou",
+      "consume": "Cliente",
+      "condicion": "El cliente debe poder consumir componentes de Jelou"
+    },
+    {
+      "id": "INT-3",
+      "nombre": "Verificación biométrica (WS#3)",
+      "sistema": "Proveedor de verificación del cliente",
+      "proposito": "Enlace de verificación biométrica que Jelou abre dentro del chat.",
+      "operaciones": [
+        {
+          "tipo": "lectura",
+          "descripcion": "Obtención del enlace y del resultado de la verificación"
+        }
+      ],
+      "conexion": "api_cliente",
+      "autenticacion": "Mecanismo por definir con el cliente (las credenciales se entregan por canal seguro)",
+      "documentacion": "pendiente",
+      "ambiente_pruebas": "pendiente",
+      "responsable_cliente": "POR COMPLETAR",
+      "disponibilidad": "POR DEFINIR",
+      "expone": "Cliente",
+      "consume": "Jelou"
+    },
+    {
+      "id": "INT-4",
+      "nombre": "Finalización del registro (WS#4)",
+      "sistema": "Plataforma de originación del cliente",
+      "proposito": "Enlace de finalización del registro que Jelou abre dentro del chat.",
+      "operaciones": [
+        {
+          "tipo": "lectura",
+          "descripcion": "Obtención del enlace de finalización"
+        }
+      ],
+      "conexion": "api_cliente",
+      "autenticacion": "Mecanismo por definir con el cliente (las credenciales se entregan por canal seguro)",
+      "documentacion": "pendiente",
+      "ambiente_pruebas": "pendiente",
+      "responsable_cliente": "POR COMPLETAR",
+      "disponibilidad": "POR DEFINIR",
+      "expone": "Cliente / plataforma",
+      "consume": "Jelou"
+    },
+    {
+      "id": "INT-5",
+      "nombre": "API de campañas (WS#5, componente de Jelou)",
+      "sistema": "Jelou",
+      "proposito": "Componente de Jelou para disparar los recordatorios de crédito preaprobado.",
+      "operaciones": [
+        {
+          "tipo": "escritura",
+          "descripcion": "Envío de plantillas de recordatorio"
+        }
+      ],
+      "conexion": "directa",
+      "autenticacion": "Mecanismo por definir con el cliente (las credenciales se entregan por canal seguro)",
+      "documentacion": "si",
+      "ambiente_pruebas": "pendiente",
+      "responsable_cliente": "POR COMPLETAR",
+      "disponibilidad": "POR DEFINIR",
+      "expone": "Jelou",
+      "consume": "Cliente",
+      "condicion": "La administración de campañas queda del lado del cliente"
+    }
+  ],
+  "preguntas_abiertas": [
+    {
+      "id": "Q-01",
+      "etapa": "Solicitud",
+      "tema": "Autorización de datos",
+      "pregunta": "¿Cuál es el texto oficial y la versión de la política de tratamiento de datos? ¿Hay una URL pública?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-02",
+      "etapa": "Solicitud",
+      "tema": "Autorización de datos",
+      "pregunta": "¿Qué norma de protección de datos aplica y quién actúa como responsable del tratamiento?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-03",
+      "etapa": "Solicitud",
+      "tema": "Autorización de datos",
+      "pregunta": "Si la persona no autoriza, ¿solo se cierra la conversación o hay un mensaje alterno?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-04",
+      "etapa": "Solicitud",
+      "tema": "Documento y apellido",
+      "pregunta": "¿Qué tipos de documento se admiten y cuáles son las reglas de formato y longitud de cada uno?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-05",
+      "etapa": "Solicitud",
+      "tema": "Documento y apellido",
+      "pregunta": "¿Cuántos reintentos se permiten y cómo se enmascaran los datos al confirmarlos?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-06",
+      "etapa": "Evaluación",
+      "tema": "Respuesta del motor",
+      "pregunta": "¿Cuál es la estructura de la respuesta del motor? Como mínimo: decisión, entidad e identificador de solicitud.",
+      "bloquea": true,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-07",
+      "etapa": "Evaluación",
+      "tema": "Respuesta del motor",
+      "pregunta": "¿Se muestra puntaje, monto, tasa o plazo? ¿Hay trato distinto entre aprobado y preaprobado?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-08",
+      "etapa": "Evaluación",
+      "tema": "Entrega del resultado",
+      "pregunta": "¿El resultado llega de forma síncrona o asíncrona y en cuánto tiempo?",
+      "bloquea": true,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-09",
+      "etapa": "Evaluación",
+      "tema": "Entrega del resultado",
+      "pregunta": "¿Qué dato permite relacionar el resultado con la conversación: documento, teléfono o identificador?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-10",
+      "etapa": "Evaluación",
+      "tema": "Entrega del resultado",
+      "pregunta": "¿Qué seguridad se usará en el endpoint de resultado (token, firma, lista de direcciones permitidas)?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-11",
+      "etapa": "Evaluación",
+      "tema": "Verificación de identidad",
+      "pregunta": "¿El enlace de verificación se obtiene por API o se construye por regla? ¿Qué parámetros lleva?",
+      "bloquea": true,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-12",
+      "etapa": "Evaluación",
+      "tema": "Verificación de identidad",
+      "pregunta": "¿El enlace expira o es de un solo uso? ¿Cómo regresa el resultado al chat?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-13",
+      "etapa": "Evaluación",
+      "tema": "Registro en la plataforma",
+      "pregunta": "¿El enlace de finalización se obtiene por API o por regla, con datos embebidos y cifrados?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-14",
+      "etapa": "Evaluación",
+      "tema": "Registro en la plataforma",
+      "pregunta": "¿La plataforma avisa a Jelou cuando el registro termina y qué ve la persona después?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "tecnica"
+    },
+    {
+      "id": "Q-15",
+      "etapa": "Canal y datos",
+      "tema": "Campañas",
+      "pregunta": "¿Qué variables lleva la plantilla y quién la redacta y aprueba?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-16",
+      "etapa": "Canal y datos",
+      "tema": "Campañas",
+      "pregunta": "¿Quién dispara las campañas (plataforma del cliente, API o interfaz de Jelou) y con qué frecuencia y volumen?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-17",
+      "etapa": "Canal y datos",
+      "tema": "Canal de WhatsApp",
+      "pregunta": "¿El número será nuevo o existente? ¿De quién es el Business Manager y quién paga la línea?",
+      "bloquea": true,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-18",
+      "etapa": "Canal y datos",
+      "tema": "Canal de WhatsApp",
+      "pregunta": "¿Habrá agentes humanos para derivar conversaciones?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-19",
+      "etapa": "Canal y datos",
+      "tema": "Datos y métricas",
+      "pregunta": "¿Qué se persiste en Datum (usuarios, solicitudes, resultados), con qué retención y qué datos son sensibles?",
+      "bloquea": true,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-20",
+      "etapa": "Canal y datos",
+      "tema": "Datos y métricas",
+      "pregunta": "¿Qué indicadores del embudo quieren ver?",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "negocio"
+    },
+    {
+      "id": "Q-EQ",
+      "etapa": "General",
+      "tema": "Equipo",
+      "pregunta": "Nombres, cargos y correos del sponsor, responsable técnico y responsable de negocio del cliente.",
+      "bloquea": false,
+      "responsable": "Cliente",
+      "audiencia": "cliente",
+      "tipo": "equipo"
+    },
+    {
+      "id": "QI-1",
+      "etapa": "General",
+      "tema": "Capacidades",
+      "pregunta": "¿Jelou puede validar existencia e identidad de la persona en el país (consulta al registro civil) o lo cubre el motor del cliente? Verificar en la documentación y con Producto.",
+      "bloquea": true,
+      "responsable": "Implementación",
+      "audiencia": "interna",
+      "tipo": "capacidad"
+    },
+    {
+      "id": "QI-2",
+      "etapa": "General",
+      "tema": "Capacidades",
+      "pregunta": "¿Qué opciones de verificación (biometría facial, OTP) existen como tool y cómo se configuran por flujo?",
+      "bloquea": false,
+      "responsable": "Implementación",
+      "audiencia": "interna",
+      "tipo": "capacidad"
+    },
+    {
+      "id": "QI-3",
+      "etapa": "General",
+      "tema": "Preventa",
+      "pregunta": "El alcance de preventa cubre solo solicitud y evaluación: ¿se confirmó con Comercial que formalización y desembolso quedan fuera?",
+      "bloquea": false,
+      "responsable": "Comercial",
+      "audiencia": "interna",
+      "tipo": "preventa"
+    }
+  ],
+  "dependencias_cliente": [
+    {
+      "item": "Documentación y contrato del API del motor de decisión (INT-1)",
+      "responsable": "Responsable técnico del cliente",
+      "fecha_limite": "POR DEFINIR",
+      "hito": "Construcción",
+      "integracion": "INT-1"
+    },
+    {
+      "item": "Credenciales y ambiente de pruebas del motor (INT-1)",
+      "responsable": "Responsable técnico del cliente",
+      "fecha_limite": "POR DEFINIR",
+      "hito": "Construcción",
+      "integracion": "INT-1"
+    },
+    {
+      "item": "Especificación del enlace de verificación (INT-3)",
+      "responsable": "Responsable técnico del cliente",
+      "fecha_limite": "POR DEFINIR",
+      "hito": "Construcción",
+      "integracion": "INT-3"
+    },
+    {
+      "item": "Especificación de la URL de la plataforma de originación (INT-4)",
+      "responsable": "Responsable técnico del cliente",
+      "fecha_limite": "POR DEFINIR",
+      "hito": "Construcción",
+      "integracion": "INT-4"
+    },
+    {
+      "item": "Texto de la política de tratamiento de datos",
+      "responsable": "Cliente ejemplo",
+      "fecha_limite": "POR DEFINIR",
+      "hito": "Construcción"
+    },
+    {
+      "item": "Contenido de las plantillas y número de WhatsApp",
+      "responsable": "Cliente ejemplo",
+      "fecha_limite": "POR DEFINIR",
+      "hito": "Pruebas internas"
+    }
+  ],
+  "cronograma": {
+    "hitos": [
+      {
+        "id": "H0",
+        "fase": "0",
+        "nombre": "Planificación y definiciones",
+        "descripcion": "Cerrar supuestos y emitir el SOW",
+        "dias_habiles": 2,
+        "entregable": "SOW firmado"
+      },
+      {
+        "id": "H1",
+        "fase": "1",
+        "nombre": "Construcción",
+        "descripcion": "Flujos, formularios, endpoint de resultado y campañas",
+        "dias_habiles": 7,
+        "entregable": "Solución en ambiente de pruebas"
+      },
+      {
+        "id": "H2",
+        "fase": "1",
+        "nombre": "Pruebas internas",
+        "tipo": "pruebas_internas",
+        "descripcion": "Test plan a partir de los criterios de aceptación",
+        "dias_habiles": 2,
+        "entregable": "Informe de pruebas"
+      },
+      {
+        "id": "H3",
+        "fase": "1",
+        "nombre": "UAT del cliente",
+        "tipo": "uat",
+        "descripcion": "Pruebas del cliente en el ambiente acordado",
+        "dias_habiles": 4,
+        "entregable": "Acta de UAT"
+      },
+      {
+        "id": "H4",
+        "fase": "1",
+        "nombre": "Producción y estabilización",
+        "descripcion": "Primeros usuarios y acta de cierre",
+        "dias_habiles": 2,
+        "entregable": "Solución en producción"
+      },
+      {
+        "id": "H5",
+        "fase": "Cierre",
+        "nombre": "Cierre",
+        "descripcion": "Entrega de documentación y acta de cierre",
+        "dias_habiles": 1,
+        "entregable": "Acta de cierre"
+      }
+    ]
+  },
+  "riesgos": [
+    {
+      "riesgo": "Ambiente de pruebas tardío. Sin credenciales no se prueba el motor ni el endpoint de resultado.",
+      "probabilidad": "Alta",
+      "impacto": "Alto",
+      "mitigacion": "Pedir credenciales y ambiente en el kickoff, con fecha y responsable."
+    },
+    {
+      "riesgo": "Contrato de respuesta abierto. Sin la estructura del motor no se diseña el resultado.",
+      "probabilidad": "Alta",
+      "impacto": "Alto",
+      "mitigacion": "Cerrar la estructura en la sesión de validación."
+    },
+    {
+      "riesgo": "Capacidad del cliente. Debe consumir el endpoint de resultado y la API de campañas de Jelou.",
+      "probabilidad": "Media",
+      "impacto": "Alto",
+      "mitigacion": "Confirmar quién desarrolla el consumo y cuándo."
+    },
+    {
+      "riesgo": "Aprobación de plantillas. Meta debe aprobar la plantilla antes del outbound.",
+      "probabilidad": "Media",
+      "impacto": "Medio",
+      "mitigacion": "Enviar las plantillas con anticipación."
+    },
+    {
+      "riesgo": "Datos sensibles. Documento y concepto de crédito exigen enmascarado y política clara.",
+      "probabilidad": "Media",
+      "impacto": "Alto",
+      "mitigacion": "Definir enmascarado y retención antes de construir."
+    },
+    {
+      "riesgo": "Conexiones no mapeadas. ¿VPN o lista de direcciones para llegar al motor?",
+      "probabilidad": "Media",
+      "impacto": "Medio",
+      "mitigacion": "Preguntar al responsable técnico del cliente."
+    }
+  ],
+  "prekickoff": {
+    "portada_titulo": "Cliente ejemplo · Chat de crédito preaprobado",
+    "subtitulo": "Pre-kickoff: solicitud y activación de crédito preaprobado de punta a punta en WhatsApp",
+    "contexto": {
+      "eyebrow": "Bloque 2 · Contexto",
+      "titulo": "Del portal web a *WhatsApp*, sin cortar la conversación",
+      "hoy": [
+        "La afiliación al crédito preaprobado depende de portales web.",
+        "Fricción y abandono en el proceso."
+      ],
+      "con_jelou": [
+        "La persona solicita y recibe su concepto con la entidad que le otorga el crédito.",
+        "Verificación de identidad y registro final dentro del chat.",
+        "Prospección proactiva con recordatorios por campañas de WhatsApp."
+      ],
+      "dato": "Volumen estimado: 1.000 a 2.000 conversaciones al mes · Tipos de crédito: libre inversión y rotativo."
+    },
+    "etapas": {
+      "titulo": "Jelou cubre las *dos primeras* etapas de la originación",
+      "items": [
+        {
+          "nombre": "Solicitud",
+          "texto": "Autorización de datos, documento y primer apellido.",
+          "titulo_validacion": "Autorización y captura de datos"
+        },
+        {
+          "nombre": "Evaluación",
+          "texto": "Motor de decisión, resultado y verificación de identidad.",
+          "titulo_validacion": "Motor de decisión, verificación y registro"
+        },
+        {
+          "nombre": "Simulación",
+          "texto": "Cuota y condiciones financieras.",
+          "jelou": false
+        },
+        {
+          "nombre": "Formalización",
+          "texto": "Aceptación, documentos y firma.",
+          "jelou": false
+        },
+        {
+          "nombre": "Desembolso",
+          "texto": "Core del banco.",
+          "jelou": false
+        }
+      ]
+    },
+    "componentes": {
+      "titulo": "Los componentes que construye Jelou",
+      "items": [
+        {
+          "nombre": "Flows",
+          "texto": "Autorización de datos y captura con confirmación de documento y apellido.",
+          "icono": "checklist"
+        },
+        {
+          "nombre": "Endpoint de resultado",
+          "texto": "Endpoint de Jelou donde el cliente deja el concepto de crédito.",
+          "icono": "link"
+        },
+        {
+          "nombre": "API de campañas",
+          "texto": "Endpoint de Jelou para disparar recordatorios de preaprobado.",
+          "icono": "send"
+        },
+        {
+          "nombre": "Webviews",
+          "texto": "Verificación de identidad y finalización del registro dentro del chat.",
+          "icono": "phone"
+        },
+        {
+          "nombre": "Datum (a solicitud)",
+          "texto": "Usuarios y autorización, solicitudes de crédito, conceptos y resultados.",
+          "icono": "database"
+        },
+        {
+          "nombre": "Métricas",
+          "texto": "Métricas por defecto de Jelou.",
+          "icono": "chart"
+        }
+      ]
+    },
+    "actores": {
+      "titulo": "Seis actores en un mismo flujo",
+      "items": [
+        {
+          "nombre": "Ciudadano",
+          "texto": "Inicia la conversación o responde al recordatorio; autoriza, entrega datos y se verifica.",
+          "icono": "user"
+        },
+        {
+          "nombre": "Jelou",
+          "texto": "Canal y orquestador: bot, Flows, webviews, endpoint de resultado, campañas y Datum.",
+          "icono": "bot",
+          "destacado": true
+        },
+        {
+          "nombre": "Cliente · motor de decisión",
+          "texto": "Expone la consulta del motor y envía el concepto al endpoint de Jelou.",
+          "icono": "gauge"
+        },
+        {
+          "nombre": "Cliente · verificación",
+          "texto": "Enlace donde reside la verificación de identidad.",
+          "icono": "face"
+        },
+        {
+          "nombre": "Plataforma de originación",
+          "texto": "Finaliza el registro; las entidades aliadas operan detrás.",
+          "icono": "building"
+        },
+        {
+          "nombre": "WhatsApp (Meta)",
+          "texto": "Número, plantillas aprobadas, Flows y botones.",
+          "icono": "chat"
+        }
+      ]
+    },
+    "e2e": {
+      "titulo": "Dos entradas, *un mismo camino* hasta el registro",
+      "nota": "Jelou orquesta hasta el registro. Simulación, formalización y desembolso quedan del lado de la plataforma y las entidades."
+    },
+    "llamadas": {
+      "titulo": "Quién llama a quién en la solicitud",
+      "filas": [
+        {
+          "de_a": "Ciudadano → Jelou",
+          "que_viaja": "Autorización, tipo y número de documento, primer apellido",
+          "mecanismo": "WhatsApp Flows"
+        },
+        {
+          "de_a": "Jelou → Cliente (motor)",
+          "que_viaja": "Solicitud de evaluación del perfil",
+          "mecanismo": "API del motor de decisión"
+        },
+        {
+          "de_a": "Cliente (motor) → Jelou",
+          "que_viaja": "Decisión y entidad (puntaje opcional)",
+          "mecanismo": "Endpoint de resultado de Jelou"
+        },
+        {
+          "de_a": "Jelou → Ciudadano",
+          "que_viaja": "Resultado y botón de verificación",
+          "mecanismo": "Mensaje y webview"
+        },
+        {
+          "de_a": "Ciudadano → Cliente (verificación)",
+          "que_viaja": "Verificación de identidad; resultado a Jelou por confirmar",
+          "mecanismo": "Enlace en webview"
+        },
+        {
+          "de_a": "Ciudadano → Plataforma",
+          "que_viaja": "Finalización del registro",
+          "mecanismo": "URL en webview"
+        },
+        {
+          "de_a": "Jelou → Datum",
+          "que_viaja": "Usuario, autorización, solicitud y resultado",
+          "mecanismo": "Persistencia (a solicitud)"
+        }
+      ]
+    },
+    "outbound": {
+      "titulo": "La prospección entra *al mismo flujo*",
+      "items": [
+        {
+          "titulo": "Base de preaprobados",
+          "texto": "Se arma y se gestiona en la plataforma del cliente o en la interfaz de campañas de Jelou.",
+          "quien": "Cliente / entidad"
+        },
+        {
+          "titulo": "Disparo por API de campañas",
+          "texto": "Plantilla aprobada por Meta con botón «Iniciar mi afiliación».",
+          "quien": "Cliente consume · Jelou expone"
+        },
+        {
+          "titulo": "Entra al Flujo 1",
+          "texto": "El botón lleva al workflow de solicitud.",
+          "quien": "Jelou"
+        }
+      ],
+      "validar": "el alcance envía al Flujo 1 completo; ¿se omite la evaluación porque la persona ya viene preaprobada?"
+    },
+    "integraciones_nota": "El cliente no expone servicios adicionales: debe poder consumir los componentes de Jelou.",
+    "pendientes": {
+      "documento": [
+        "Equipo de trabajo sin nombres.",
+        "Funcionalidades de back office y de usuario por detallar.",
+        "Criterios de aceptación por escribir (base del plan de pruebas).",
+        "Días hábiles por entregable y firma del cronograma."
+      ]
+    }
+  }
+}

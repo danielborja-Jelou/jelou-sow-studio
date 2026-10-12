@@ -42,6 +42,11 @@ const cases = [
   ['unknown effort type', (s) => { s.esfuerzo.items.push({ entregable: 'x', tipo: 'inventado', cantidad: 1 }); }, 'EFFORT'],
   ['schedule above 20 business days', (s) => { s.cronograma.hitos[0].dias_habiles = 40; }, 'SCHED', '20'],
   ['escalation without mode', (s) => { delete s.escalamiento[0].modo; }, 'ESC'],
+  ['effort above the 72 h cap', (s) => { s.esfuerzo.items.push({ entregable: 'Extra', tipo: 'workflow_complejo', cantidad: 6 }); }, 'EFFORT', 'cap'],
+  ['no internal-tests milestone', (s) => { s.cronograma.hitos = s.cronograma.hitos.filter((h) => h.id !== 'H2'); }, 'SCHED', 'internal-tests'],
+  ['no client-tests (UAT) milestone', (s) => { s.cronograma.hitos = s.cronograma.hitos.filter((h) => h.id !== 'H3'); }, 'SCHED', 'client-tests'],
+  ['approved addition without charge', (s) => { s.ampliaciones_solicitadas[0].estado = 'aprobada_comercial'; }, 'SCOPE', 'cobro_adicional'],
+  ['addition to decide without its question', (s) => { s.preguntas_abiertas = s.preguntas_abiertas.filter((q) => !q.ampliacion); }, 'SCOPE', 'ONE open question'],
   ['empty out of scope', (s) => { s.alcance.fuera_de_alcance = []; }, 'OOS'],
 ];
 let failed = 0;
@@ -94,6 +99,25 @@ for (const [name, mutate, code, sub] of cases) {
   const fx = JSON.parse(fs.readFileSync(path.join(__dirname, 'figuras-fixture.json'), 'utf8'));
   fx.agentes[0].pasos.forEach((p) => { delete p.grupo; });
   chk('auto-merged stages produce a FIG notice', lint(Object.assign(clone(base), { agentes: fx.agentes, integraciones: base.integraciones }), 'lint-fig').warns.some((w) => w.code === 'FIG'));
+}
+// 5. hours cap exception, UAT rule warning, legal flag, E2E
+{
+  const chk = (name, cond) => { if (!cond) { failed++; console.error('FAIL ' + name); } else console.log('ok  ' + name); };
+  let s = clone(base); s.esfuerzo.items.push({ entregable: 'Extra', tipo: 'workflow_complejo', cantidad: 6 }); s.meta.excepcion_horas = 'Aprobado por la dirección';
+  chk('hours cap exception downgrades the error to a warning', lint(s, 'lint-cap').errors.length === 0 && lint(s, 'lint-cap').warns.some((w) => w.code === 'EFFORT' && /excepcion_horas/.test(w.msg)));
+  s = clone(base); s.meta.tope_horas = 20;
+  chk('meta.tope_horas is configurable', lint(s, 'lint-cap2').errors.some((e) => e.code === 'EFFORT' && /20 h/.test(e.msg)));
+  s = clone(base); s.dependencias_cliente = s.dependencias_cliente.filter((d) => d.tipo !== 'uat');
+  chk('missing UAT time rule warns', lint(s, 'lint-uat').warns.some((w) => w.code === 'UAT'));
+  chk('the UAT clause is flagged as pending Legal review until confirmed', lint(base, 'lint-legal').warns.some((w) => w.code === 'LEGAL'));
+  s = clone(base); s.meta.clausula_uat_revisada_legal = true;
+  chk('Legal flag clears with meta.clausula_uat_revisada_legal', !lint(s, 'lint-legal2').warns.some((w) => w.code === 'LEGAL'));
+  s = clone(base); s.dependencias_cliente.find((d) => d.tipo === 'uat').fecha_limite = '2026-12-01';
+  chk('UAT dependency date must match the end of the UAT milestone', lint(s, 'lint-uat2').warns.some((w) => w.code === 'UAT' && /differs/.test(w.msg)));
+  s = clone(base); s.agentes[0].resumen_cliente[1].texto = 'Valida el OTP con la API del ERP';
+  chk('technical words in the end-to-end summary warn', lint(s, 'lint-e2e').warns.some((w) => w.code === 'E2E'));
+  s = clone(base); s.agentes[0].pasos[1].mensaje = 'Hola, ¿quieres ver el ranking de vendedores?';
+  chk('an addition by decide cannot leak into a bot message', lint(s, 'lint-amp').errors.some((e) => e.code === 'SCOPE'));
 }
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }
 console.log('lint tests passed');

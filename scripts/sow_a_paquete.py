@@ -109,6 +109,12 @@ def fases_sin_fechas(sow):
     return out
 
 
+def responsable_hito(h):
+    """Las pruebas del cliente (UAT) las ejecuta el cliente; el resto lo hace Jelou."""
+    t = (str(h.get("tipo", "")) + " " + str(h.get("nombre", ""))).lower()
+    return "Cliente" if ("uat" in t or "pruebas del cliente" in t or "pruebas con el cliente" in t) else "Jelou"
+
+
 def cronograma(sow):
     m, cr = sow.get("meta") or {}, sow.get("cronograma") or {}
     tareas, previo = [], None
@@ -126,7 +132,7 @@ def cronograma(sow):
         else:
             tid = str(h.get("id", k))
             tareas.append({"id": tid, "fase": fase, "tarea": h.get("descripcion") or h.get("nombre"),
-                           "responsable": h.get("responsable", "Jelou"), "dias": int(h.get("dias_habiles", 1)),
+                           "responsable": h.get("responsable", responsable_hito(h)), "dias": int(h.get("dias_habiles", 1)),
                            **({"depende_de": [previo]} if previo else {})})
             fin = [tid]
         hito_id = f"{h.get('id', k)}_entrega"
