@@ -118,6 +118,16 @@ for (const [name, mutate, code, sub] of cases) {
   chk('technical words in the end-to-end summary warn', lint(s, 'lint-e2e').warns.some((w) => w.code === 'E2E'));
   s = clone(base); s.agentes[0].pasos[1].mensaje = 'Hola, ¿quieres ver el ranking de vendedores?';
   chk('an addition by decide cannot leak into a bot message', lint(s, 'lint-amp').errors.some((e) => e.code === 'SCOPE'));
+  s = clone(base); s.agentes.forEach((a) => { a.canal = 'Widget web'; }); s.agentes[0].pasos.find((p) => p.tipo === 'formulario').herramienta = 'flows';
+  chk('CANAL: WhatsApp Flows cannot be promised on the web widget', lint(s, 'lint-canal1').errors.some((e) => e.code === 'CANAL' && /Flow/.test(e.msg)));
+  s = clone(base); s.agentes.forEach((a) => { a.canal = 'Instagram'; }); s.agentes[0].pasos[1].lista = ['A', 'B'];
+  chk('CANAL: drop-down lists are not allowed on Instagram', lint(s, 'lint-canal2').errors.some((e) => e.code === 'CANAL' && /list/i.test(e.msg)));
+  s = clone(base); s.solucion.componentes[0].componente = 'WhatsApp Flows'; s.agentes.forEach((a) => { a.canal = 'Messenger'; });
+  chk('CANAL: a solution component that promises Flows on Messenger is an error', lint(s, 'lint-canal3').errors.some((e) => e.code === 'CANAL' && /solucion/.test(e.where)));
+  const waRes = lint(base, 'lint-canal4');
+  chk('CANAL: WhatsApp projects are not affected', ![...waRes.errors, ...waRes.warns].some((e) => e.code === 'CANAL'));
+  s = clone(base); s.agentes.forEach((a) => { delete a.canal; }); s.alcance.fases = s.alcance.fases.map((f) => ({ ...f, canal: '' })); s.brief = ['Bot de pedidos.']; s.objetivos = { general: 'Atender pedidos.', especificos: [] }; delete s.meta.canal;
+  chk('CANAL: no declared channel warns that WhatsApp is assumed', lint(s, 'lint-canal5').warns.some((w) => w.code === 'CANAL' && /assumed/.test(w.msg)));
 }
 if (failed) { console.error(failed + ' test(s) failed'); process.exit(1); }
 console.log('lint tests passed');

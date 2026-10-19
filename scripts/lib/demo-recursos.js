@@ -20,6 +20,33 @@ function leer(dir) {
   if (!fs.existsSync(f)) return [];
   try { return arr(JSON.parse(fs.readFileSync(f, "utf8")).recursos).map((r) => ({ ...r, _dir: dir })); } catch (e) { console.warn(`Catálogo ilegible (${f}): ${e.message}`); return []; }
 }
+// Campos probables para formularios sin campos (ver `campos_probables` en recursos.json): capas skill -> usuario -> sow.demo
+function leerCampos(dir) {
+  const f = path.join(dir, "recursos.json");
+  if (!fs.existsSync(f)) return null;
+  try { return JSON.parse(fs.readFileSync(f, "utf8")).campos_probables || null; } catch (e) { return null; }
+}
+function cargarCamposProbables(sow) {
+  const capas = [leerCampos(SKILL_DIR), leerCampos(USER_DIR), ((sow || {}).demo || {}).campos_probables].filter(Boolean);
+  const map = new Map(); let generico = null;
+  capas.forEach((c, i) => { for (const e of arr(c.entradas)) map.set(e.id, { ...(map.get(e.id) || {}), ...e, capa: i }); if (c.generico) generico = c.generico; });
+  return { entradas: [...map.values()], generico };
+}
+const toks = (s) => new Set(sinAcentos(s).toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+const parecido = (a, b) => { const A = toks(a), B = toks(b); if (!A.size || !B.size) return false; let k = 0; for (const w of A) if (B.has(w)) k++; return k / Math.min(A.size, B.size) >= 0.6; };
+// Devuelve { campos, entrada, agregados } o null si el formulario ya está definido o es «completo» (autorización…)
+function completarCampos(probables, texto, existentes, max = 5, titulo = "") {
+  const ex = arr(existentes);
+  if (ex.length >= 2) return null;
+  let mejor = null;
+  for (const e of arr(probables.entradas)) { const x = re(e.senales); if (x && (x.test(texto) || x.test(titulo))) { const cuenta = (s) => (String(s).match(new RegExp(e.senales, "gi")) || []).length; const n = cuenta(texto) + 3 * cuenta(titulo); /* el título pesa más que la etapa */ if (!mejor || n > mejor.n || (n === mejor.n && (e.capa || 0) > (mejor.e.capa || 0))) mejor = { e, n }; } }
+  if (mejor && mejor.e.completo) return null;
+  const fuente = mejor ? mejor.e : probables.generico; if (!fuente) return null;
+  const agregados = arr(fuente.campos).filter((c) => !ex.some((x) => parecido(x.etiqueta, c.etiqueta))).slice(0, Math.max(0, max - ex.length));
+  if (!agregados.length) return null;
+  return { campos: [...ex, ...agregados], entrada: fuente.id, agregados };
+}
+
 function fusionar(base, extra) {
   const out = { ...base, ...extra, senales: { ...(base.senales || {}), ...(extra.senales || {}) } };
   if (base.proveedores || extra.proveedores) {
@@ -165,4 +192,4 @@ function aplicar(res, nodo, vars0, o = {}) {
   return { abre: rec.abre, nota, mensaje: rec.mensaje || {}, webview: rec.webview, flow: rec.flow, pasos: arr(rec.pasos), despues: arr(rec.despues), avisos, proveedor: prov, recurso: r, vars };
 }
 
-module.exports = { cargarCatalogo, resolver, aplicar, USER_DIR, SKILL_DIR };
+module.exports = { cargarCatalogo, cargarCamposProbables, completarCampos, resolver, aplicar, USER_DIR, SKILL_DIR };

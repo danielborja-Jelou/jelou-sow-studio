@@ -22,12 +22,41 @@ function installedPluginDir() {
   return m ? m[1].trim() : null;
 }
 
-// Kit instalado y utilizable, o null
+// ---- skill `jelou-demo-whatsapp` de la skill library (misma skill que el plugin, sin instalar nada en Claude Code) ----
+const LIB_SKILL = "jelou-demo-whatsapp";
+const kitDeSkill = (dir) => { const k = path.join(dir, "kit"); return fs.existsSync(path.join(k, "build.py")) ? k : null; };
+function skillboxCmd() {
+  const cands = [process.env.SKILLBOX_MJS, path.join(os.homedir(), ".local", "share", "jelou-skills", "skillbox.mjs")].filter(Boolean);
+  const mjs = cands.find((c) => fs.existsSync(c));
+  return mjs ? { cmd: "node", args: [mjs] } : null;
+}
+// Última copia ya descargada por skillbox (no usa red)
+function kitFromSkillCache() {
+  const root = process.env.SKILLBOX_CACHE || path.join(os.homedir(), ".cache", "skillbox");
+  if (!fs.existsSync(root)) return null;
+  const found = [];
+  for (const h of fs.readdirSync(root)) {
+    const d = path.join(root, h); if (!fs.statSync(d).isDirectory()) continue;
+    for (const s of fs.readdirSync(d)) if (s.startsWith(LIB_SKILL + "-")) { const k = kitDeSkill(path.join(d, s)); if (k) found.push({ k, t: fs.statSync(path.join(d, s)).mtimeMs }); }
+  }
+  found.sort((a, b) => b.t - a.t); return found.length ? found[0].k : null;
+}
+// Descarga (o refresca) la skill desde la library con `skillbox fetch`
+function kitFromLibrary() {
+  const sb = skillboxCmd(); if (!sb) return null;
+  const r = spawnSync(sb.cmd, [...sb.args, "fetch", LIB_SKILL], { encoding: "utf8" });
+  // skillbox falla (EPERM al renombrar) si esa revisión ya está en la caché: en ese caso se usa la copia descargada
+  if (r.status !== 0) return kitFromSkillCache();
+  const dir = (r.stdout || "").trim().split("\n").pop().trim();
+  return dir && fs.existsSync(dir) ? kitDeSkill(dir) : null;
+}
+
+// Kit instalado y utilizable, o null: plugin instalado, carpeta estable del plugin, o skill ya descargada de la library
 function findKit() {
   const dir = installedPluginDir();
   if (dir) { const k = kitOf(dir); if (k) return k; }
   const local = kitOf(path.join(LOCAL_DIR, "plugins", PLUGIN));   // carpeta estable, aunque `claude` no responda
-  return local;
+  return local || kitFromSkillCache();
 }
 
 // Busca el origen del plugin: argumento, variable de entorno, assets de la skill, Descargas
@@ -58,8 +87,10 @@ function extractZip(zip, dest) {
 function install({ source, force } = {}) {
   const had = installedPluginDir();
   if (had && !force && kitOf(had)) return { kit: kitOf(had), accion: "ya instalado" };
+  // 1) la skill de la library (no requiere plugin ni reiniciar Claude Code); --fuente o --forzar piden el plugin explícitamente
+  if (!source && !force) { const k = kitFromLibrary(); if (k) return { kit: k, accion: "descargado de la skill library (skill jelou-demo-whatsapp)" }; }
   const src = findSource(source);
-  if (!src) throw new Error(`No encontré el plugin ${PLUGIN}. Pasa --fuente <zip|carpeta>, define JELOU_DEMOS_PLUGIN, o deja jelou-demos-plugin-vX.Y.Z.zip en assets/ de la skill o en Descargas.`);
+  if (!src) throw new Error(`No encontré el kit del simulador. Opciones: la skill de la library (skillbox fetch ${LIB_SKILL}), o el plugin ${PLUGIN}: pasa --fuente <zip|carpeta>, define JELOU_DEMOS_PLUGIN, o deja jelou-demos-plugin-vX.Y.Z.zip en assets/ de la skill o en Descargas.`);
   let folder = src;
   if (/\.zip$/i.test(src)) {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jelou-demos-"));
@@ -84,4 +115,4 @@ function install({ source, force } = {}) {
   return { kit, accion: had ? "actualizado" : "instalado", origen: src };
 }
 
-module.exports = { findKit, install, installedPluginDir, LOCAL_DIR, PLUGIN, MARKETPLACE };
+module.exports = { findKit, install, installedPluginDir, kitFromLibrary, kitFromSkillCache, LOCAL_DIR, PLUGIN, MARKETPLACE, LIB_SKILL };

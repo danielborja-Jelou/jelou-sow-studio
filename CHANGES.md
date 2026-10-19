@@ -1,3 +1,19 @@
+# Review round: the SOW itself is channel-aware
+Until now only the simulator knew the channel; the SOW, the linter and the instructions assumed WhatsApp, so nothing stopped a widget project from promising WhatsApp Flows.
+- **Linter `CANAL`** (new section 18, `lib/demo-canales.js infoCanales`): each agent's channel (explicit, `alcance.fases`, brief; default WhatsApp with a warning). On a project with no WhatsApp channel: ERROR for a `formulario` with `herramienta: flows`, a step `componente` that says Flows, `lista` steps, and for WhatsApp Flows / carousel / drop-down list / native location-contact requests mentioned in solution, stories, scope, integrations or rules; WARN for undecided form tool, HSM templates, WhatsApp Business verification, outbound flows (24 h window), text over the channel limit and channels without simulator. Multi-channel agents get a reminder of what is WhatsApp-only. WhatsApp projects are unchanged.
+- **Instructions:** SKILL.md A3 «Channel first» (declare the channel, never promise WhatsApp-only features elsewhere) and per-channel limits; `references/catalogo-jelou.md` §6.1 capability matrix from the Jelou docs (unverified cells marked «confirm»); `minimum-questions.md` asks the channel first.
+- Tests: lint cases for widget vs WhatsApp.
+
+# Review round: probable form fields, simulated variables, channels other than WhatsApp
+- **Forms with no fields** (the presales SOW does not detail them): a `formulario` with 0 or 1 field gets probable fields from the new `campos_probables` catalog section (identity, billing, scheduling, claim, survey, credit, delivery, company, vehicle, contact, generic; consent forms stay as is, forms with 2+ fields are never touched). The title weighs most, the user/client layers win ties; the step note and a warning list the probable fields. Same for webview forms.
+- **Template variables** `{{x}}` are never shown: simulated by keyword (name, amount, date, city, entity, document, code…), kit variables kept, `demo.variables` overrides, final safety sweep over the whole script.
+- **Channels:** `lib/demo-canales.js` (capabilities from the Jelou docs) detects the channel per agent (`demo.canal`, `agentes[].canal`, `alcance.fases[].canal`, free text limited to messaging channels so «correo»/«portal web» do not mislabel WhatsApp bots; several channels give one set of journeys each). `assets/visuales/kit-skins.js` re-skins the kit (Instagram, Messenger, widget web, X, work chat; email/voice/custom shown generic with a warning). Content is adapted per channel: no templates/notification, Flows become web forms, lists become numbered text + buttons, WhatsApp-only formats become text, per-channel text limits; unused Flows/webviews are pruned from the script.
+- Tests: 36 simulator tests (fields, variables, channel detection and adaptation, multi-channel, skins injection). Docs: `references/simulador-visual.md` §1b-1d, `sow-json-format.md`, SKILL.md A3.
+- Local change until published.
+
+# Review round: the simulator kit comes from the skill library
+- The skill `jelou-demo-whatsapp` was published to the skill library (revision 87e5dbe4…; full contents, reference screenshots downscaled to fit the server's size limit). `lib/demo-kit.js` now finds the kit in the plugin, the plugin's stable folder or the skillbox cache, and `instalar_plugin_demos.js` downloads it with `skillbox fetch` before falling back to the plugin zip. Handles skillbox's EPERM on an already cached revision.
+
 > **Dependency:** the WhatsApp simulator needs the separate plugin `jelou-demos-whatsapp` (skill `jelou-demo-whatsapp`, v0.4.0+), installed with `node scripts/instalar_plugin_demos.js`. It is not bundled in this skill.
 
 # Review round: Jelou docs as a source of real screens, Jelou Shop webview

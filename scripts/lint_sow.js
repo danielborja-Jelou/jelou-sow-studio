@@ -632,6 +632,50 @@ const noStart = dp.sinFecha && !C.dateOk((sow.cronograma || {}).inicio);
     if (f.code === "PENDING" && bw.some((b) => f.where === b || f.where.startsWith(b + ".") || f.where.startsWith(b + "["))) findings.splice(i, 1);
   }
 }
+// ---------- 18. channel coherence: never promise WhatsApp-only features on another channel ----------
+{
+  const CAN = require("./lib/demo-canales");
+  const SOLO_WA = [
+    [/whatsapp flows?|\bflows\b/i, "WhatsApp Flows", true],
+    [/carrusel|carousel/i, "carrusel", true],
+    [/lista desplegable|mensaje de lista|lista interactiva|nodo lista|list message/i, "lista desplegable", true],
+    [/solicitud de ubicaci|solicitar (la )?ubicaci|solicitar contacto|solicitud de contacto/i, "solicitud nativa de ubicación o contacto", true],
+    [/plantillas? (hsm|de whatsapp|aprobadas?)|\bhsm\b|template de whatsapp/i, "plantillas HSM de WhatsApp", false],
+    [/verificaci[oó]n (del negocio )?(de|por) meta|whatsapp business|waba\b/i, "cuenta de WhatsApp Business", false],
+  ];
+  const lugares = [["solucion.componentes", arr((sow.solucion || {}).componentes)], ["historias", arr(sow.historias)], ["alcance.incluido_usuario", arr((sow.alcance || {}).incluido_usuario)],
+    ["alcance.incluido_admin", arr((sow.alcance || {}).incluido_admin)], ["integraciones", arr(sow.integraciones)], ["reglas", arr(sow.reglas)]];
+  const infos = agents.map((ag) => ({ ag, ...CAN.infoCanales(sow, ag) }));
+  const ningunoWA = infos.length > 0 && infos.every((x) => !x.canales.includes("whatsapp"));
+  infos.forEach(({ ag, canales, origen }, ai) => {
+    const donde = `agentes[${ai}]`; const nombres = canales.map((c) => CAN.CANALES[c].nombre).join(", ");
+    if (origen === "defecto") warn("CANAL", donde, `${ag.id}: no channel is declared (agentes[].canal, alcance.fases[].canal or the brief), so WhatsApp is assumed. Write the real channel (WhatsApp, Instagram, Messenger, Widget web…): it decides which features can be promised.`);
+    canales.filter((c) => CAN.CANALES[c].sinSkin).forEach((c) => warn("CANAL", donde, `${ag.id}: ${CAN.CANALES[c].nombre} has no visual simulator and Jelou's rich messages differ there; confirm what the channel supports before promising it.`));
+    if (canales.includes("whatsapp") && canales.length > 1) warn("CANAL", donde, `${ag.id}: it runs on ${nombres}. WhatsApp Flows, templates, lists, carousel and native location/contact requests exist only on WhatsApp: say which part of the flow is WhatsApp-only and give the other channels a web form (webview) and reply buttons.`);
+    if (canales.includes("whatsapp")) return;
+    const C = CAN.CANALES[canales[0]];
+    arr(ag.pasos).forEach((n, i) => {
+      const w = `${donde}.pasos[${i}]`;
+      if (n.tipo === "formulario" || n.tipo === "webview") {
+        const h = String(n.herramienta || (n.formulario || {}).herramienta || "por_definir").toLowerCase();
+        if (h === "flows") err("CANAL", w, `${n.id}: a WhatsApp Flow cannot exist on ${nombres} (Flows are WhatsApp-only). Use herramienta "webview" (a web form opened from a link button).`);
+        else if (h === "por_definir") warn("CANAL", w, `${n.id}: on ${nombres} there are no WhatsApp Flows: set herramienta "webview" (Webview Studio or Jelou Sites) instead of leaving it undecided.`);
+      }
+      if (/flows?\b/i.test(String(n.componente || ""))) err("CANAL", w, `${n.id}: componente "${n.componente}" promises WhatsApp Flows on ${nombres}. Flows are WhatsApp-only: use a web form (webview).`);
+      if (arr(n.lista).length) err("CANAL", w, `${n.id}: ${nombres} has no list messages (only WhatsApp). Use reply buttons (up to 3, 20 characters) or a numbered list in the text.`);
+      if ((C.limite || 4096) < 4096 && String(n.mensaje || "").length > C.limite) warn("CANAL", w, `${n.id}: the message has ${String(n.mensaje).length} characters and ${C.nombre} allows ${C.limite}.`);
+    });
+    if (ag.entrada === "outbound") warn("CANAL", donde, `${ag.id}: an outbound flow on ${nombres}: ${C.ventana24h ? "the bot can only write first inside the 24 h window after the person's last message (or with Meta message tags); there are no HSM templates" : "there are no HSM templates and the channel may not allow the bot to start the conversation"}. Confirm the real mechanism with the client.`);
+  });
+  if (ningunoWA) {
+    const nombres = [...new Set(infos.flatMap((x) => x.canales.map((c) => CAN.CANALES[c].nombre)))].join(", ");
+    for (const [donde, items] of lugares) items.forEach((it, i) => {
+      const txt = JSON.stringify(it);
+      for (const [re, que, duro] of SOLO_WA) if (re.test(txt)) (duro ? err : warn)("CANAL", `${donde}[${i}]`, `${it.id || ""} mentions ${que}, which exists only on WhatsApp, but the project runs on ${nombres}. Remove it or replace it with what that channel supports (web form via webview, reply buttons, numbered list).`);
+    });
+  }
+}
+
 const errors = findings.filter((f) => f.level === "ERROR");
 const warns = findings.filter((f) => f.level === "WARN");
 const blockers = findings.filter((f) => f.blocking);

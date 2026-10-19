@@ -127,6 +127,83 @@ t("outbound flow starts with a notification and a template", () => {
     assert(!inyectarExtension("<html><body></body></html>").ok);
   });
 }
+// ---- campos probables, variables simuladas y canales distintos de WhatsApp ----
+{
+  const CAN = require("../lib/demo-canales");
+  const clon = (f) => JSON.parse(JSON.stringify(load(f)));
+  t("fields: a form without fields gets probable ones from its context (billing), a consent form stays as is", () => {
+    const s = clon("demo-pago-fixture.json"); s.agentes[0].pasos.find((p) => p.id === "P17").formulario = { titulo: "Datos de facturación", boton: "Continuar" };
+    const r = buildGuion(s); const fl = Object.values(r.guion.flows)[0];
+    const labels = fl.json.screens[0].layout.children.find((c) => c.type === "Form").children.map((c) => c.label).filter(Boolean);
+    assert(labels.length >= 4 && labels.some((x) => /RUC|C[eé]dula/.test(x)), labels.join("|"));
+    assert(r.avisos.some((a) => /campos probables/.test(a) && /Datos de facturaci/.test(a)));
+    assert(fl.notas.FORMULARIO.includes("Campos probables"));
+    const exp = clon("prekickoff-fixture.json"); const r2 = buildGuion(exp);
+    assert(!r2.avisos.some((a) => /campos probables/.test(a)), "consent and 3-field forms are untouched");
+  });
+  t("fields: a form that already has two fields is left as the SOW defines it; demo.campos_probables can add a context", () => {
+    const s = clon("demo-pago-fixture.json"); const antes = JSON.stringify(buildGuion(s).guion.flows);
+    assert(!buildGuion(s).avisos.some((a) => /campos probables/.test(a)));
+    s.agentes[0].pasos.find((p) => p.id === "P17").formulario = { titulo: "Registro de mascota" };
+    s.demo.campos_probables = { entradas: [{ id: "mascota", senales: "mascota", campos: [{ etiqueta: "Nombre de la mascota", tipo: "texto", ejemplo: "Luna" }, { etiqueta: "Especie", tipo: "selector", opciones: ["Perro", "Gato"], ejemplo: "Perro" }] }] };
+    assert(JSON.stringify(buildGuion(s).guion.flows).includes("Nombre de la mascota"));
+    assert(antes.length > 0);
+  });
+  t("variables: {{x}} placeholders are simulated, kit variables are kept, demo.variables overrides", () => {
+    const s = clon("demo-pago-fixture.json"); s.agentes[0].pasos.find((p) => p.id === "P2").mensaje = "Hola {{nombre_cliente}}, saldo {{monto_total}} vence {{fecha_vencimiento}} en {{ciudad}} {{usuario.nombre}} {{form.cedula}} {{algo_raro}}";
+    s.demo.variables = { algo_raro: "Valor X" };
+    const g = JSON.stringify(buildGuion(s).guion);
+    assert(!/\{\{(?!form|etq|usuario|eleccion|marca|sel)[^}]*\}\}/.test(g), "no template variable left");
+    assert(g.includes("Ana Torres") && g.includes("Valor X") && g.includes("{{usuario.nombre}}") && g.includes("{{form.cedula}}"));
+  });
+  t("channels: detection from explicit fields and free text, without false positives from email or web mentions", () => {
+    assert.deepStrictEqual(CAN.detectarCanales("WhatsApp e Instagram"), ["whatsapp", "instagram"]);
+    assert.deepStrictEqual(CAN.detectarCanales("Web"), ["widget"]);
+    assert.deepStrictEqual(CAN.detectarCanales("Facebook Messenger"), ["messenger"]);
+    const wa = { brief: ["El bot atiende por WhatsApp, envía la factura por correo electrónico y hay un portal web."], agentes: [{ id: "F1" }] };
+    assert.deepStrictEqual(CAN.canalesDeAgente(wa, wa.agentes[0]), ["whatsapp"]);
+    const ig = { brief: ["Asistente de ventas en Instagram."], agentes: [{ id: "F1" }] };
+    assert.deepStrictEqual(CAN.canalesDeAgente(ig, ig.agentes[0]), ["instagram"]);
+    const fases = { alcance: { fases: [{ requerimiento: "R1 · Agente X", canal: "Messenger" }] }, agentes: [{ id: "R1", nombre: "Agente X" }, { id: "R2", nombre: "Otro" }] };
+    assert.deepStrictEqual(CAN.canalesDeAgente(fases, fases.agentes[0]), ["messenger"]);
+    assert.deepStrictEqual(CAN.canalesDeAgente(fases, fases.agentes[1]), ["whatsapp"]);
+  });
+  t("channels: a non-WhatsApp bot is built with its own skin and only content that channel supports", () => {
+    const s = clon("demo-recursos-fixture.json"); s.agentes[0].canal = "Instagram";
+    const r = buildGuion(s); const todos = r.guion.journeys.flatMap((j) => j.pasos);
+    assert(r.guion.journeys.every((j) => j.canal === "instagram" && /Instagram/.test(j.nombre)));
+    for (const x of ["notificacion", "plantilla", "flow", "lista", "solicitar_ubicacion", "solicitar_contacto", "carrusel", "multiproducto"]) assert(!todos.some((p) => p.tipo === x), x);
+    todos.filter((p) => p.tipo === "botones").forEach((p) => { assert(p.botones.length <= 3); p.botones.forEach((b) => assert(b.titulo.length <= 20)); });
+    assert(/Instagram/.test(r.guion.panel.subtitulo) && /aproximada/.test(r.guion.panel.pie));
+    assert(r.avisos.some((a) => /Canal Instagram/.test(a)));
+    const wa = buildGuion(clon("demo-recursos-fixture.json")); assert(wa.guion.journeys.every((j) => j.canal === "whatsapp"));
+  });
+  t("channels: outbound template and WhatsApp Flow become a plain bot message and a web form in other channels", () => {
+    const s = clon("prekickoff-fixture.json"); s.agentes.forEach((a) => { a.canal = "Messenger"; });
+    const r = buildGuion(s); const todos = r.guion.journeys.flatMap((j) => j.pasos);
+    assert(!todos.some((p) => p.tipo === "plantilla" || p.tipo === "notificacion" || p.tipo === "flow"));
+    assert(todos.some((p) => p.tipo === "cta_url" && /Flows/.test(p.nota || "")), "the form opens as a web page");
+    assert(Object.keys(r.guion.flows).length === 0, "unused Flows are removed");
+    const out = r.guion.journeys.find((j) => /Prospecci/.test(j.nombre)); assert(out && out.tech !== "hsm");
+  });
+  t("channels: several channels in one agent give one set of journeys per channel (WhatsApp first)", () => {
+    const s = clon("demo-pago-fixture.json"); s.agentes[0].canal = "WhatsApp, Instagram y chat web";
+    const g = buildGuion(s).guion; const canales = [...new Set(g.journeys.map((j) => j.canal))];
+    assert.deepStrictEqual(canales, ["whatsapp", "instagram", "widget"]);
+    assert(new Set(g.journeys.map((j) => j.id)).size === g.journeys.length, "unique journey ids");
+  });
+  t("extension: skins are injected together with the webview blocks", () => {
+    const { inyectarExtension } = require("../sow_a_demo");
+    const r = inyectarExtension("<html><body><script>function wvBlock(b){} function startJourney(i){}</script></body></html>");
+    assert(r.ok && /data-skins/.test(r.html) && /x-cam/.test(r.html));
+  });
+}
+t("kit lookup: finds the kit from the plugin or the skill library cache and never throws", () => {
+  const f = K.findKit(); assert(f === null || fs.existsSync(path.join(f, "build.py")));
+  const c = K.kitFromSkillCache(); assert(c === null || fs.existsSync(path.join(c, "build.py")));
+  const old = process.env.SKILLBOX_MJS; process.env.SKILLBOX_MJS = path.join(os.tmpdir(), "no-existe.mjs");
+  assert.doesNotThrow(() => K.kitFromLibrary()); if (old === undefined) delete process.env.SKILLBOX_MJS; else process.env.SKILLBOX_MJS = old;
+});
 if (K.findKit()) {
   t("teaching a resource with screenshots: aprender_recurso -> the webview shows those screenshots", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aprender-")); const caps = path.join(dir, "caps"); fs.mkdirSync(caps);
