@@ -61,14 +61,35 @@ function buildGuion(sow, opts = {}) {
     [/fecha/i, () => "22/10/2026"], [/hora|horario/i, () => "14:05"],
     [/correo|email|mail/i, () => "ana.torres@ejemplo.com"], [/nombre/i, () => usuario.nombre],
     [/tel[eé]fono|celular|whatsapp/i, () => usuario.telefono],
+    [/documento|c[eé]dula|identificaci[oó]n|\bdni\b|\bruc\b|pasaporte/i, () => "0912345678"],
     [/n[uú]mero|c[oó]digo|\bid\b|referencia|ticket|autorizaci/i, () => "000123"],
     [/url|enlace|link/i, () => "https://ejemplo.com/enlace"], [/reintento|intentos|veces/i, () => "3"],
   ];
+  // Valores típicos por tema (planta, logística, salud, seguros, retail…). Se prueban sobre la etiqueta y, si no hay coincidencia, sobre el texto del paso.
+  const DOMINIO = [
+    [/orden de trabajo|\bot\b|orden de produccion|\bop\b/, () => "OT-10234"], [/pedido|orden de compra|\boc\b/, () => "PED-48213"],
+    [/placa|matricula|patente/, () => "ABC-1234"], [/guia|rastreo|tracking|envio/, () => "GU-7740123"], [/factura|comprobante|recibo/, () => "001-001-000045812"],
+    [/poliza|siniestro|reclamo/, () => "POL-2026-0457"], [/contrato|cuenta|credito|prestamo/, () => "CT-2026-1187"], [/cita|turno|reserva/, () => "RES-3021"],
+    [/material|insumo|materia prima/, () => "Resina PP-20"], [/cantidad|unidades|piezas|peso|kilos|litros/, () => "25"], [/proveedor|fabricante/, () => "Proveedor Aliado S.A."],
+    [/modelo|referencia de producto|sku/, () => "MOD-200"], [/atributo|caracteristica|especificacion|tipo de/, () => "Estándar"], [/motivo|razon|causa|asunto/, () => "Consulta general"],
+    [/observacion|comentario|nota|descripcion|detalle|novedad/, () => "Sin novedades"], [/ciudad/, () => CAPITAL[norm(meta.pais)] || "Quito"], [/direccion|domicilio|ubicacion/, () => "Av. Principal 123"],
+    [/sucursal|sede|planta|bodega|almacen|oficina|agencia/, () => "Sucursal Centro"], [/area|departamento|turno de trabajo|linea/, () => "Línea 2"], [/producto|articulo|servicio|plan/, () => "Plan Plus"],
+    [/edad|anos/, () => "34"], [/placa del equipo|equipo|maquina|activo/, () => "EQ-0457"], [/calificacion|satisfaccion|puntaje/, () => "5"], [/cargo|puesto|rol/, () => "Supervisor"],
+  ];
+  const sinInferir = [];
+  // Último recurso: nunca «dato de ejemplo»; un código creíble con la palabra clave de lo que se pide («Atributo 01»). Se avisa para completarlo desde el presow/Diio.
+  const deEtiqueta = (hint, ctx) => {
+    const base = norm(hint || ctx || "").replace(/\b(de|del|la|el|los|las|y|o|que|con|para|por|un|una|ingresa|escribe|indica|numero|dato|datos|valor|informacion|faltante)\b/g, " ").trim().split(/\s+/).filter((w) => w.length > 2)[0] || "registro";
+    const palabra = base.charAt(0).toUpperCase() + base.slice(1); sinInferir.push(String(hint || ctx || "").trim().slice(0, 60)); return `${palabra} 01`;
+  };
   const probable = (hint, ctx) => {
     for (const [k, v] of Object.entries(demo.datos || {})) if (new RegExp(k, "i").test(`${hint} ${ctx}`)) return String(v);
     for (const [re, f] of TABLA) if (re.test(hint)) return f();
+    for (const [re, f] of DOMINIO) if (re.test(norm(hint))) return f();
     for (const [re, f] of TABLA) if (re.test(ctx)) return f();
-    return (demo.reemplazos && (demo.reemplazos["POR DEFINIR"] || demo.reemplazos["POR COMPLETAR"])) || "dato de ejemplo";
+    for (const [re, f] of DOMINIO) if (re.test(norm(ctx))) return f();
+    const r = demo.reemplazos && (demo.reemplazos["POR DEFINIR"] || demo.reemplazos["POR COMPLETAR"]); if (r) return r;
+    return deEtiqueta(hint, ctx);
   };
   // Variables de plantilla del SOW («{{nombre}}», «{{monto}}»…): el simulador muestra valores simulados, nunca la variable. Se respetan
   // las variables que el motor del kit resuelve solo ({{form.x}}, {{etq.x}}, {{usuario.x}}, {{eleccion}}, {{marca.x}}).
@@ -88,7 +109,8 @@ function buildGuion(sow, opts = {}) {
     const n = norm(key.replace(/[._-]+/g, " ")); const ov = demo.variables || {};
     for (const [k, v] of Object.entries(ov)) if (norm(k) === n) return String(v);
     for (const [re, f] of VARIABLES) if (re.test(n)) return f(n);
-    return "dato de ejemplo";
+    for (const [re, f] of DOMINIO) if (re.test(n)) return f(n);
+    return deEtiqueta(key, "");
   };
   const simularVariables = (t) => String(t).replace(VAR_RE, (m, k) => (KIT_VARS.test(k.trim()) ? m : valorVariable(k.trim())));
   const limpiarVariables = (v) => {
@@ -98,7 +120,7 @@ function buildGuion(sow, opts = {}) {
     return v;
   };
   let mockedNow = false;
-  const mock = (t) => simularVariables(String(t == null ? "" : t)).replace(PEND_RE, (m, hint, off, whole) => { mockedNow = true; const v = probable(hint || "", whole.slice(Math.max(0, off - 40), off)); datosProbables.push(v); return v; });
+  const mock = (t, extra = "") => simularVariables(String(t == null ? "" : t)).replace(PEND_RE, (m, hint, off, whole) => { mockedNow = true; const v = probable(hint || "", `${whole.slice(Math.max(0, off - 40), off)} ${extra}`); datosProbables.push(v); return v; });
 
   // ---------- pasos: sobrescrituras de sow.demo.pasos ----------
   const ov = demo.pasos || {};
@@ -129,13 +151,24 @@ function buildGuion(sow, opts = {}) {
   };
 
   // ---------- formularios -> Flow de Meta / webview con campos ----------
+  // Valor que la persona escribiría en un campo: el ejemplo del SOW si existe; si no, se infiere de la etiqueta, el tipo y el título del formulario.
+  const POR_TIPO = { correo: "ana.torres@ejemplo.com", telefono: null, numero: "1", clave: "1234" };
+  function valorCampo(c, def) {
+    const et = mock(c.etiqueta || "");
+    if (c.tipo === "telefono") return usuario.telefono; if (c.tipo === "correo") return POR_TIPO.correo;
+    for (const [k, v] of Object.entries(demo.datos || {})) if (new RegExp(k, "i").test(`${et} ${def.titulo || ""}`)) return String(v);
+    for (const [re, f] of TABLA) if (re.test(et)) return f();
+    for (const [re, f] of DOMINIO) if (re.test(norm(et))) return f();
+    if (c.tipo === "numero") return "25"; if (c.tipo === "clave") return POR_TIPO.clave;
+    return deEtiqueta(et, def.titulo || "");
+  }
   function flowDesdeDef(def, id, notaTxt) {
     const names = new Set(); const demoV = {}; const campos = arr(def.campos);
     const name = (c) => { let n = slug(c.etiqueta).slice(0, 30); let k = 2; while (names.has(n)) n = slug(c.etiqueta).slice(0, 26) + "_" + k++; names.add(n); return n; };
     const children = [{ type: "TextHeading", text: cut(mock(def.titulo || "Formulario"), 80) }, ...arr(def.intro).map((t) => ({ type: "TextBody", text: cut(mock(t), 400) }))];
     const inForm = []; const payload = {};
     for (const c of campos) {
-      const n = name(c); const label = mock(c.etiqueta); const req = c.obligatorio !== false; const ej = c.ejemplo != null ? mock(c.ejemplo) : "";
+      const n = name(c); const label = mock(c.etiqueta); const req = c.obligatorio !== false; const ej = c.ejemplo != null && !/^s*POR (DEFINIR|COMPLETAR)s*$/i.test(c.ejemplo) ? mock(c.ejemplo, `${c.etiqueta} ${def.titulo || ""}`) : valorCampo(c, def);
       payload[n] = `\${form.${n}}`;
       switch (c.tipo) {
         case "casilla": inForm.push({ type: "TextBody", text: cut(label, 400) }, { type: "OptIn", name: n, label: "Acepto", required: req }); demoV[n] = true; break;
@@ -296,7 +329,7 @@ function buildGuion(sow, opts = {}) {
           const adj = X.adjunto;
           if (adj && adj.tipo === "audio") { out.push({ tipo: "usuario", texto: "", audio: { duracion: adj.duracion || "0:08" }, nota: nota() }); break; }
           const ab = rz && (rz.recurso.id === "foto-usuario" || adj) ? abrir(X, key, null, nota) : null;
-          if (ab && ab.pasos.length) out.push(...ab.pasos); else out.push({ tipo: "usuario", texto: mock(X.mensaje || X.diagrama || ""), nota: nota() });
+          if (ab && ab.pasos.length) out.push(...ab.pasos); else out.push({ tipo: "usuario", texto: mock(X.mensaje || X.diagrama || "", `${X.etapa || ""} ${X.diagrama || ""}`), nota: nota() });
           break; }
         case "mensaje": {
           const body = mock(X.mensaje || X.diagrama || ""); const bts = arr(X.botones).map(mock); const outs = o.outs || [];
@@ -344,11 +377,20 @@ function buildGuion(sow, opts = {}) {
 
     // ---- recorrido principal: grafo con ramas del usuario y reintentos ----
     const registrarLlegada = (outs, desde) => { for (const o of outs) if (o.to && !llegada[o.to.id]) { llegada[o.to.id] = { via: o.via, label: o.label }; if (!padre[o.to.id]) padre[o.to.id] = { de: desde, label: o.label }; } };
+    // Salidas de un paso en el orden en que se recorre el camino PRINCIPAL del simulador: primero las que avanzan y las de éxito; al final las que
+    // vuelven a un paso que ya está en el camino (reintentos, ciclos) y las de error. Si no, una decisión «no válido → volver» listada primero
+    // dejaría el recorrido en un bucle que nunca llega al final. Los reintentos salen como recorridos alternos.
+    const NEG = /\b(no\b|inv[aá]lid|incorrect|error|fall|rechaz|negad|reintent|sin resultado|no encontr|expir|vencid|fuera de|cancel)/i;
+    const pila = new Set();
+    const ordenar = (outs, enCamino = pila) => outs.map((o, i) => ({ o, i, k: (o.to && enCamino.has(o.to.id) ? 2 : 0) + (NEG.test(o.label || "") ? 1 : 0) })).sort((a, b) => a.k - b.k || a.i - b.i).map((x) => x.o);
     function visitar(X) {
-      if (!X || emitido.has(X.id)) return; emitido.add(X.id);
-      let outs = succ(X); registrarLlegada(outs, X);
+      if (!X || emitido.has(X.id)) return; emitido.add(X.id); pila.add(X.id);
+      try { visitarPaso(X); } finally { pila.delete(X.id); }
+    }
+    function visitarPaso(X) {
+      let outs = ordenar(succ(X)); registrarLlegada(outs, X);
       const ctx = { outs }; const steps = conv(X, ctx);
-      if (ctx.consumido) { emitido.add(ctx.consumido.id); outs = succ(ctx.consumido); registrarLlegada(outs, X); }
+      if (ctx.consumido) { emitido.add(ctx.consumido.id); outs = ordenar(succ(ctx.consumido)); registrarLlegada(outs, X); }
       const principal = outs[0] || {};
       const eleccion = esEleccion(X, outs);
       if (!eleccion && outs.length > 1) alternos.push(...outs.slice(1).map((o, k) => ({ X, o, k: k + 1 })));
@@ -387,7 +429,7 @@ function buildGuion(sow, opts = {}) {
     for (const { X, o } of alternos) {
       if (n >= 8 || !o.to || X._de) continue;   // las ramas del flujo al que se continúa ya salen en su propio recorrido
       const pre = camino(X); const seguir = []; const g = new Set(pre.map((x) => x.id)); let t = o.to;
-      while (t && !g.has(t.id)) { g.add(t.id); seguir.push(t); const so = succ(t); t = (so[0] || {}).to; }
+      while (t && !g.has(t.id)) { g.add(t.id); seguir.push(t); const so = ordenar(succ(t), g); t = (so[0] || {}).to; }
       const ruta = [...pre, ...seguir]; const sig = ruta.map((x) => x.id).join(">"); if (vistos.has(sig)) continue; vistos.add(sig);
       const ps = []; let k = 0;
       while (k < ruta.length) {
@@ -432,6 +474,7 @@ function buildGuion(sow, opts = {}) {
     if (m && !stepOf(a, s).adjunto && !hayVisual) avisos.push(`${a.id}.${s.id} menciona un recurso visual («${m[0]}») y no se dibuja nada: agrega \`adjunto\`/\`recurso\` al paso o define \`demo.pasos.${s.id}\`.`);
   }
   avisos.push(...sinCampos);
+  if (sinInferir.length) avisos.push(`No se pudo inferir un valor realista para: ${[...new Set(sinInferir)].join("; ")}. Se usó un código genérico; defínelo en el SOW (campo «ejemplo» / paso «mensaje») con lo que digan el presow y Diio, o en sow.demo.datos.`);
   const sistemaSteps = todos.filter((p) => p.tipo === "sistema" && p.estilo !== "asesor").length;
   if (sistemaSteps) avisos.push(`${sistemaSteps} paso(s) de sistema visibles en el chat: revisa que no sean llamadas a API.`);
   const porRecurso = {}; for (const [, u] of usados) porRecurso[u.id] = (porRecurso[u.id] || 0) + 1;
