@@ -45,20 +45,22 @@ function detectarCanales(texto) {
 // texto libre (`meta.canal`, brief y objetivos). Del texto libre solo se leen canales de mensajería: «correo», «voz» o «sitio web» aparecen en casi
 // cualquier SOW de WhatsApp (facturas por correo, OTP, portales) y no indican el canal del bot. Si el texto libre nombra WhatsApp, el canal es solo WhatsApp.
 // Por defecto WhatsApp.
-function canalesDeAgente(sow, agente) {
+function canalesDeAgente(sow, agente) { return infoCanales(sow, agente).canales; }
+// { canales, origen }: origen = explicito (demo.canal / agentes[].canal) | fases (alcance.fases) | texto (brief, objetivos) | defecto (nada declarado: se asume WhatsApp)
+function infoCanales(sow, agente) {
   const meta = sow.meta || {}; const demo = sow.demo || {};
   const explicitos = [demo.canal, agente.canal].filter(Boolean);
-  for (const e of explicitos) { const d = detectarCanales(Array.isArray(e) ? e.join(" ") : e); if (d.length) return orden(d); }
+  for (const e of explicitos) { const d = detectarCanales(Array.isArray(e) ? e.join(" ") : e); if (d.length) return { canales: orden(d), origen: "explicito" }; }
   const norm = (s) => sinAcentos(s).toLowerCase(); const idA = norm(agente.id); const nomA = norm(String(agente.nombre || "").slice(0, 12));
   const delAgente = (req) => !req || arr(sow.agentes).length === 1 || norm(req).includes(idA) || (nomA.length > 3 && norm(req).includes(nomA));
   const fases = arr((sow.alcance || {}).fases).filter((f) => f.canal && delAgente(f.requerimiento));
-  for (const f of fases) { const d = detectarCanales(f.canal); if (d.length) return orden(d); }
+  for (const f of fases) { const d = detectarCanales(f.canal); if (d.length) return { canales: orden(d), origen: "fases" }; }
   const libre = [meta.canal, ...arr(sow.brief), (sow.objetivos || {}).general, ...arr((sow.objetivos || {}).especificos)].filter(Boolean).join(" . ");
   const d = detectarCanales(libre).filter((c) => ["whatsapp", "instagram", "messenger", "x", "teams", "slack"].includes(c) || (c === "widget" && /widget|web ?chat|chat web|canal web|chat del sitio/i.test(sinAcentos(libre))));
-  if (d.includes("whatsapp")) return ["whatsapp"];
-  return d.length ? orden(d) : ["whatsapp"];
+  if (d.includes("whatsapp")) return { canales: ["whatsapp"], origen: "texto" };
+  return d.length ? { canales: orden(d), origen: "texto" } : { canales: ["whatsapp"], origen: "defecto" };
 }
 // WhatsApp primero si está entre los canales; el resto en el orden en que aparecen
 const orden = (ids) => [...new Set(ids)].sort((a, b) => (a === "whatsapp" ? -1 : b === "whatsapp" ? 1 : 0));
 
-module.exports = { CANALES, detectarCanales, canalesDeAgente };
+module.exports = { CANALES, detectarCanales, canalesDeAgente, infoCanales };

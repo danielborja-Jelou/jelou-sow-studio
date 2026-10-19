@@ -149,6 +149,27 @@ Never create, duplicate, deploy or change variables from this skill: that is imp
 | **Voice** | Inbound or outbound calls, voice agent prompt, voice, language, tools (HTTP to the client's API), knowledge base, number provisioning (ElevenLabs channel, SIP trunk or Twilio) or calls over the WhatsApp number, recordings and transcripts, campaigns, webhooks | Agent and number are configured separately and then connected. No implementation skill yet: verify everything in `/guides/voice/`. | Jelou team (docs) |
 | **Web, Facebook, Instagram, email, Teams, Slack, X** | Which channels, and what changes per channel | WhatsApp-only features (Flows, contact request, templates) do not exist there; a Facebook/Instagram user id is never a phone | `jelou-project` |
 
+### 6.1 What can be promised on each channel (decide the channel BEFORE choosing tools)
+Source: Jelou Docs (`guides/nodos/*`, `api/envia-mensajes/*`, `guides/activacion-canales/*`, changelog Sept 2026). The linter (`CANAL`) enforces the hard ones.
+
+| Feature | WhatsApp | Instagram | Messenger | Widget web | X, Teams, Slack, email, voice |
+|---|---|---|---|---|---|
+| Text per message | 4 096 | 1 000 | 2 000 (node guide; the send API says 1 000) | 4 096 | 4 096 (confirm per channel) |
+| Reply buttons | Up to 3, 20 characters | `postback` buttons under the text, 20 characters | same as Instagram | Yes (confirm the limit in the widget) | Confirm per channel |
+| List with a drop-down (up to 10 rows) | **Yes** | No: buttons or a numbered list | No: buttons or a numbered list | No: buttons or a numbered list | No |
+| Numbered list | Yes | Yes (all channels) | Yes | Yes | Yes |
+| Link buttons (message with URL) | Yes | Up to 3 | Up to 3 | Confirm | Confirm |
+| **WhatsApp Flows** (native forms) | **Yes (WhatsApp Cloud, verified account)** | **No** → web form (webview) | **No** → web form | **No** → web form | **No** |
+| **Templates (HSM)**, campaigns by template | **Yes** | No: the bot writes first only inside Meta's 24 h window (Meta policy) | Same | No | No |
+| Carousel | WhatsApp Cloud only | No | No | No | No |
+| Native location / contact request, sticker, contact, call permission | **WhatsApp only** | No | No | No | No |
+| Image, video, audio, file | Yes; caption on the file | Images up to 8 MB; video, audio, PDF up to 25 MB; no caption | same | Yes (confirm limits) | Confirm |
+| Embedded WebView (payment, form, store, signature) | Yes, with a Meta-verified WhatsApp account | Opens in the phone's browser | Opens in the phone's browser | Opens in the page/browser | Opens in the browser |
+| User identifier | Phone or BSUID | Meta user id, **never a phone** | Meta user id, **never a phone** | Session id | Channel-specific |
+| Channel activation | Meta sign-in, number, Business Manager | Dashboard + Meta sign-in via the Facebook page | Dashboard + Meta sign-in; each skill needs its own Facebook channel | `jelou channels create --type web`; script on the site | See `guides/activacion-canales/*` |
+
+Rules for the SOW: write the channel(s) in `agentes[].canal` and `alcance.fases[].canal`; never promise Flows, templates, drop-down lists, carousel or native location/contact requests outside WhatsApp; on other channels forms are web pages (webview), choices are reply buttons or a numbered list, and an outbound flow needs a different mechanism (confirm with the client). If a flow must run on several channels, say which parts are WhatsApp-only. Unverified cells say «confirm»: ask Jelou's technical owner before writing a promise.
+
 ## 7. Human attention (Connect / PMA)
 
 Teams, operators, **scheduled hours**, automatic and out-of-hours messages, transfers between teams, close reasons, CRM link (HubSpot, Genesys), mobile app, live monitoring. The SOW writes per escalation: trigger, automatic or offered, team, hours, out-of-hours message. Docs: `/connect/configuraciones/`, `/connect/panel-multi-agente/`. Handoff wiring: `jelou-build-workflows`.
