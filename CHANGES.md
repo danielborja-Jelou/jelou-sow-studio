@@ -1,3 +1,46 @@
+> **Dependency:** the WhatsApp simulator needs the separate plugin `jelou-demos-whatsapp` (skill `jelou-demo-whatsapp`, v0.4.0+), installed with `node scripts/instalar_plugin_demos.js`. It is not bundled in this skill.
+
+# Review round: Jelou docs as a source of real screens, Jelou Shop webview
+- `scripts/aprender_desde_docs.js`: searches docs.jelou.ai (`--buscar`), reads a page as markdown, downloads the screenshots of what the end user sees (filters out node/canvas/config images), takes distinct frames from GIFs (Pillow) and videos (ffmpeg) and registers them with `aprender_recurso.js` in the user catalog. `--sembrar` learns everything in `assets/visuales/fuentes-docs.json` (Wompi, PayPal, Mercado Pago ×6 countries, Stripe, Deuna). Screenshots are Jelou documentation: kept in the user's folder, not shipped in the skill. Known gaps listed there (e-signature, biometrics/KYC, ID capture, Jelou Shop cart/checkout, other gateways' own checkouts).
+- Engine: provider chosen by `meta.pais` (per-country providers inherit from the base provider with the same `match`), provider-level `mensaje`, full-screen `captura` blocks (`completa`, `recorte`), array variables spread inside block lists, `accion: "repetir"` buttons that loop back, `header` image on the opening message.
+- Standard Jelou payment message (webview): «¡Es hora de procesar tu pago de forma segura! … [Proceder al pago]» and Mercado Pago's own message.
+- `ecommerce` rebuilt as the **Jelou Shop webview** (whatever the source platform): image message + «Ver Detalles», catalog (search, rows, color/size chips), product detail, cart with IVA, «✅ ¡Pedido confirmado!» with «Agregar más» looping back; `externo` variant for the store's checkout (`demo.ecommerce.checkout`). New extension blocks `cabecera buscador producto_fila chips boton_oscuro titulo_precio`.
+- Tests: 27 simulator tests (Jelou Shop structure and loop, provider by country with its own message).
+- Local change, not uploaded to the library.
+
+# Review round: visual resources as a catalog (any client), teachable
+Feedback: the first fix (QR, payment, invoice) was a patch for one case; it must adapt to any client (other gateways, ecommerce, biometrics, e-signature in webview, images).
+- **Resource catalog (data, not code):** `assets/visuales/recursos.json` (replaces `pagos.json`): foto-usuario, pago (14 providers, webview or native), documento-pdf, firma-electronica (Dátil, Firmaza, DocuSign, Signaturit), biometria, captura-documento, ecommerce, ubicacion and a generic fallback. Each = signals + recipe with variables. `scripts/lib/demo-recursos.js` matches (score over etapa/componente/diagrama/mensaje/integration, `excluir`, explicit `recurso`), picks the provider and applies the recipe. `sow_a_demo.js` no longer has per-resource rules.
+- **Three catalog layers, last wins by id:** the skill, the user's (`~/.claude/jelou-sow-studio/visuales/`, survives skill updates) and `sow.demo.recursos` (one client).
+- **Visual extension of the kit without touching the plugin:** `assets/visuales/kit-extension.js` is injected into the HTML and wraps `wvBlock` with blocks `imagen, captura, camara, firma, codigo, productos, lista, progreso, documento, checklist, boton`; it warns and degrades if the kit's engine changes.
+- **More synthetic images:** ticket+QR, ID document, selfie, invoice, product, signature, generic screen (`lib/demo-assets.js`); real files from the user supported.
+- **Teaching:** `scripts/aprender_recurso.js` registers a provider or a new resource from screenshots (`--capturas`), button labels, marketplace info (`--desde-marketplace`, read-only) in the user catalog, the skill or one client's sow.json. Screenshots become the webview screens.
+- Warnings: generic fallback in use («enséñasela a la skill»), visual mention not drawn. Tests: `demo-recursos-fixture.json` (store: ecommerce, ID photo, biometrics, e-signature, PayPhone, location, unknown system) and 8 new assertions including the teaching round trip. SKILL.md A3/A7, `references/simulador-visual.md` (rewritten) and `sow-json-format.md` updated.
+- Local change, not uploaded to the library.
+
+# Review round: simulator shows the SOW 1:1 as a WhatsApp experience
+Result of the Malecón test (no QR image, no payment gateway, no invoice; the chat read like a log).
+- `scripts/sow_a_demo.js` rewritten: graph conversion instead of linear paths. The person's own choices (buttons/lists matching the decision exits) stay in ONE journey with `ir` and loop back on retries; only system-decided branches become alternative journeys (named by the decision, e.g. «Resultado del pago: pago no completado»; none duplicated for flows that continue into another one).
+- API calls, decisions and routers are no longer chat bubbles: they go into the presenter note of the next visible step. A user step that only repeats a button tap is hidden (fuzzy match).
+- Visual resources: photo/QR sent by the person (synthetic ticket PNG, `scripts/lib/demo-assets.js`, QR not readable), payment gateway screen (webview checkout or native card Flow; `assets/visuales/pagos.json`, built from the Jelou docs and `jelou marketplace inspect`; flags the Datafast marketplace-vs-docs discrepancy; never invents other brands' colors), receipt/invoice PDF documents, bot images/locations/videos via `adjunto`.
+- Probable data instead of «dato por confirmar» (`demo.datos`, `demo.monto`, `demo.concepto`, `demo.pago`).
+- Per-step enrichment that survives rebuilds: `demo.pasos`, plus `adjunto` / `pantalla` on steps. Coverage line and warnings («menciona un recurso visual… y no se dibuja nada»).
+- New `references/simulador-visual.md` (mapping table, probable data, payment gateways, how to train the skill with screenshots, mandatory visual QA); SKILL.md A3 and A7 and the tools table updated.
+- Tests: `test/demo-pago-fixture.json` (anonymized parking-payment case) and 9 new assertions in `test/demo.test.js`.
+- Local change, not uploaded to the library.
+
+# Review round: simulator through the jelou-demo-whatsapp plugin
+- The simulator is now generated with the kit of the `jelou-demo-whatsapp` skill (plugin `jelou-demos-whatsapp` v0.4.0, from `jelou-demos-plugin-v0.4.0.zip`): `scripts/sow_a_demo.js` converts `agentes[].pasos` into the kit's `guion.json` (journeys per flow + alternative paths per decision, Meta Flows for `formulario`, webviews for `tercero`, plantilla + notificación for outbound), runs the kit's validator (Meta's Flow validator) and builds the HTML. Missing data is mocked as probable and noted; rebuilt from the final `sow.json` in later versions. Optional `demo` section in sow.json.
+- `scripts/lib/demo-kit.js` + `scripts/instalar_plugin_demos.js`: find the installed plugin (`claude plugin list`), or install it (source: `--fuente`, `JELOU_DEMOS_PLUGIN`, `assets/jelou-demos-plugin*.zip`, Downloads) as a local marketplace under `~/.claude/marketplaces-locales/` + `claude plugin install`. `build_all.js` installs it automatically when missing; the old `lib/simulator.js` stays only as a fallback.
+- Local change, not uploaded to the library. When the plugin is published in the library, point `--fuente`/`JELOU_DEMOS_PLUGIN` to it.
+
+# Review round: WhatsApp-look simulator, pre-kickoff simulator, upgrade reading
+
+1. **Scope lock widened:** anything said in ANY Diio (handoff, pre-kickoff session, later ones), email or note that is not in the presales SOW becomes a `por_decidir` addition with ONE question owned by Comercial (SKILL.md, `references/prekickoff.md`). Each Diio is compared line by line against the presales SOW before the scope is closed.
+2. **Simulator also in pre-kickoff:** `build_all.js --modo prekickoff` now writes `*-simulador.html` next to the deck and the two faltantes documents (also generated when the context is enough and the flow goes straight to the full SOW).
+3. **Simulator redesigned 1:1 with WhatsApp** (`lib/simulator.js`, UI layer only; the engine and the sow.json format are unchanged): Android-style header (back, avatar, business account, video/call/menu), doodle wallpaper, date chip, encryption and business notices, bubbles with tails, time and blue double tick, WhatsApp text formatting (`*bold*`, `_italic_`, `~strike~`), reply buttons attached under the bubble, list message with bottom sheet (radio + Enviar), WhatsApp Flow as bottom sheet ("Gestionado por la empresa") and WebView as in-app browser, input bar with emoji/attach/camera/mic-send, "escribiendo…" in the header, light/dark (auto + toggle), phone bezel on desktop and full-bleed on mobile. System steps (API, router, third party, handoff, simulated outcomes) no longer pollute the chat: they go to a "Detrás de escena" panel with the current step, the choice of simulated result and a log; "Ritmo rápido" and "Reiniciar". Tabs: Simular (default), Pantallas (same look, annotated), Diagrama. Still a single HTML with no external resources; can also be published as a private artifact on request.
+4. **Upgrade / upselling with an existing bot:** SKILL.md A1b and mode 0: ask for the Jelou CLI profile, read the bot read-only (`--profile`, never `auth switch`, scratch folder), build the SOW as close to the real bot as possible (existing vs new work, deviations vs presales, no credentials or personal data), never push or publish.
+
 # Review round: pre-kickoff mode, scope lock, hours cap, tests in the schedule
 
 ## A. Mode 0: pre-kickoff (before the SOW)
@@ -28,9 +71,16 @@
 6. **Team:** SKILL.md A2 requires asking before building even when sources name people; lint warns when `equipo` has names and `meta.equipo_confirmado` is not true.
 7. Docs, example and tests updated (`test/figuras.test.js`, `test/figuras-fixture.json` anonymized from the 31-step Colfondos graph; simulator and lint tests extended).
 
+> **Dependency:** the simulator needs the separate plugin `jelou-demos-whatsapp` (skill `jelou-demo-whatsapp`, v0.4.0+). It is not part of this skill: `node scripts/instalar_plugin_demos.js` installs it from a zip (`--fuente`), the env var `JELOU_DEMOS_PLUGIN`, `assets/` or Downloads.
+
+# Review round: hours and dates only after approval
+- SKILL.md (A5, A5b, A7, A8, mode B, rules): the SOW under review has ONE schedule table (phase, deliverable, description) with no times, days or dates and no AI-effort table. Hours, business days and dates are added when the SOW is approved (`meta.estado: "aprobado"`, then set `cronograma.inicio`); the Gantt and the proposal are generated only then. `esfuerzo` stays in sow.json (72 h cap still checked).
+- `build_sow_docx.js` applies it (effort table and schedule days/dates only when approved); `lint_sow.js` asks for `cronograma.inicio` and the UAT date only when approved; references `sow-json-format.md` and `paquete-de-entrega.md` updated.
+- Local change, not uploaded to the library. The pre-kickoff deck still shows days and dates in its next-steps slide.
+
 # jelou-sow-studio: what this folder is
 
-Local merge of the library skill `jelou-sow-studio` (revision f2a9a92d-1008-4ebd-93f5-7272a1952c4c) and the local skill `jelou-sow`, with the **look of jelou-sow**. Nothing was published or uploaded; `jelou-sow` was only read.
+Local merge of the library skill `jelou-sow-studio` (revision 8a6ee25d-cd14-4dbf-b281-6cf2967bc371 as of 2026-10-15) and the local skill `jelou-sow`, with the **look of jelou-sow**. Nothing was published or uploaded; `jelou-sow` was only read.
 
 ## From the library skill (jelou-sow-studio)
 - Modes A (new SOW), B (new version, vX.Y), C (package), D (deliver) and the tools table (Jelou AI Docs MCP, Webview Studio MCP, Jelou MCP/CLI read-only, Diio, ClickUp).

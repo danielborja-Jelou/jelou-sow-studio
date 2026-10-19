@@ -1,12 +1,12 @@
 # The delivery package: Word, diagrams, simulator, Gantt and proposal
 
-Every SOW version (new or updated) goes out as a package with the same base name and version. All of it comes from `sow.json`; the whole package uses the look of `assets/brand.json` (Poppins, teal and dark palette).
+Every SOW version (new or updated) goes out as a package with the same base name and version. **The Gantt (`_cronograma.*`) and the one-page proposal carry dates and hours, so they belong only to the approved package (`meta.estado: "aprobado"` with `cronograma.inicio`); a version `en_revision` ships the Word (schedule table without times), diagrams and simulator only.** All of it comes from `sow.json`; the whole package uses the look of `assets/brand.json` (Poppins, teal and dark palette).
 
 | File | Purpose | Made by | Sent to the client |
 |---|---|---|---|
 | `SOW-<Cliente>-vX.Y.docx` | The SOW on the jelou-sow Word template (letterhead, Poppins), diagrams embedded, schedule table | `build_all.js` | Yes |
 | `diagramas/F1.1.png` / `.svg`, `F1.2`…, `figuras.json` | Figure set: one figure per small agent; overview + one per stage + common handoff per large agent (`F<n>.k`), and `FG` for a user-defined general diagram | `build_all.js` (engine `lib/diagram.js`) | Yes, when useful |
-| `SOW-<Cliente>-vX.Y-simulador.html` | Phone screens per step and an interactive chat of the bot | `build_all.js` (`lib/simulator.js`) | Yes, for validation |
+| `SOW-<Cliente>-vX.Y-simulador.html` | WhatsApp simulator built with the kit of the `jelou-demo-whatsapp` skill (plugin `jelou-demos-whatsapp`, see SKILL.md "Prerequisite"): one journey per flow plus alternative paths (each branch of a decision), real Meta Flows for the forms (validated with Meta's validator), webviews, templates for outbound, presenter panel, iPhone/Android. One self-contained HTML (no server, no internet). Built in pre-kickoff mode too, with probable data for what is missing; rebuilt from the final `sow.json`. `*-simulador.guion.json` is the derived script (do not edit) | `build_all.js` → `sow_a_demo.js` (+ `lib/demo-kit.js`, `instalar_plugin_demos.js`) | Yes, for validation (not as a public artifact when the brand is a real client's) |
 | `…-lint.txt` | Linter report | `build_all.js` | No |
 | `<base>_cronograma.xlsx` | **Editable** Gantt (the PM adjusts it) + Entregables sheet | `cronograma.py` | Yes |
 | `<base>_cronograma_gantt.png` / `.pdf` / `.svg` | Gantt readable without Excel | `cronograma.py` | Yes |

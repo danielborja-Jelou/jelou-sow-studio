@@ -2,7 +2,7 @@
 // Generates every deliverable from sow.json.
 //
 //   Full SOW (default):   lint report, Word SOW, diagrams (PNG + SVG), HTML bot simulator.
-//   Pre-kickoff:          lint report (tolerant), diagrams, pre-kickoff deck (.pptx) and the two "faltantes" Word documents
+//   Pre-kickoff:          lint report (tolerant), diagrams, simulator, pre-kickoff deck (.pptx) and the two "faltantes" Word documents
 //                         (client + internal). Activated by `--modo prekickoff` or by meta.fase = "prekickoff".
 //
 // Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--force]
@@ -36,7 +36,7 @@ if (lint.status !== 0 && !force) {
   console.error("\nThe linter reported errors. Fix them (or use --force to build anyway).");
   process.exit(1);
 }
-if (prek) console.log("\nModo pre-kickoff: se generan el deck, los dos documentos de faltantes y los diagramas (no el SOW completo).");
+if (prek) console.log("\nModo pre-kickoff: se generan el deck, los dos documentos de faltantes, el simulador y los diagramas (no el SOW completo).");
 
 // 2. Word SOW (full mode only; diagrams are rendered inside the builder)
 if (!prek) {
@@ -70,16 +70,30 @@ try {
   console.log(`Diagrams: ${set.figuras.length} figure(s) (PNG + SVG)${split ? `, ${split} from split flows` : ""} in ${dd}`);
 } catch (e) { console.warn("Diagrams skipped:", e.message); }
 
-if (!prek) {
+// 4. WhatsApp simulator: the kit of the `jelou-demo-whatsapp` skill (plugin jelou-demos-whatsapp), built from sow.json.
+//    Both modes: in pre-kickoff what is missing is simulated with probable data; the final SOW rebuilds it from the graph.
+//    If the plugin is not installed it is installed first (instalar_plugin_demos.js); the old built-in simulator is only a fallback.
+{
+  const out = path.join(outDir, `${base}-simulador.html`);
+  let ok = false;
   try {
-    const S = require("./lib/simulator");
-    const html = S.buildHtml(sow, { diagramas });
-    const out = path.join(outDir, `${base}-simulador.html`);
-    fs.writeFileSync(out, html);
-    console.log(`Simulator: ${out}`);
-  } catch (e) { console.warn("Simulator skipped:", e.message); }
-} else {
-  // 4. pre-kickoff deck + faltantes documents (client and internal)
+    const K = require("./lib/demo-kit");
+    if (!K.findKit()) { const r = K.install(); console.log(`Plugin ${K.PLUGIN} ${r.accion}. Abre una sesión nueva de Claude Code para cargar su skill.`); }
+    const r = node("sow_a_demo.js", [inFile, out]);
+    process.stdout.write(r.stdout); process.stderr.write(r.stderr);
+    ok = r.status === 0;
+  } catch (e) { console.warn("Simulator (kit) skipped:", e.message); }
+  if (!ok) {
+    try {
+      const S = require("./lib/simulator");
+      fs.writeFileSync(out, S.buildHtml(sow, { diagramas }));
+      console.warn(`Simulator: the jelou-demo-whatsapp kit could not be used; wrote the basic built-in simulator instead: ${out}`);
+    } catch (e) { console.warn("Simulator skipped:", e.message); }
+  }
+}
+
+if (prek) {
+  // 5. pre-kickoff deck + faltantes documents (client and internal)
   const pptx = path.join(outDir, `${base}-prekickoff.pptx`);
   const k = node("build_kickoff_pptx.js", [inFile, pptx, "--diagramas", path.join(outDir, "diagramas")]);
   process.stdout.write(k.stdout); process.stderr.write(k.stderr);

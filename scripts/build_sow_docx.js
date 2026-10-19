@@ -246,12 +246,14 @@ if (arr(sow.pruebas).length) {
 const hasUat = C.testMilestones(sow).uat.length > 0;
 if (hasUat) {
   add(H2("Tiempos de la UAT y aceptación"));
-  add(text(C.uatClauseWithDate(sow)));
+  add(text(meta.estado === "aprobado" ? C.uatClauseWithDate(sow) : "Las pruebas del cliente (UAT) deben ejecutarse dentro de las fechas estipuladas en el cronograma aprobado. Si vencida la fecha de cierre de UAT el cliente no ha reportado observaciones por escrito, se entiende que el entregable fue probado y aceptado a conformidad y el proyecto se considera cerrado; las solicitudes posteriores se gestionan como control de cambios."));
 }
 
 // Effort
+// Hours and dates are added only once the SOW is approved (estado "aprobado"); before that the schedule is a single table of milestones without times
+const approved = meta.estado === "aprobado";
 const eff = C.computeEffort(sow.esfuerzo);
-if (eff.rows.length) {
+if (approved && eff.rows.length) {
   add(H1("Resumen de esfuerzo estimado (con apoyo de IA)"));
   add(text("Estimación de horas de trabajo con IA como apoyo en el borrador y revisión humana; son rangos orientativos y se calibran con horas reales."));
   add(table(["Entregable", "Tipo", "Cant.", "Horas (mín – máx)"], [
@@ -272,18 +274,24 @@ if (eff.rows.length) {
 add(H1("Entregables y cronograma"));
 const sched = C.scheduleDates(sow.cronograma);
 const totalDays = C.totalBusinessDays(sow.cronograma);
-add(text(`Fechas tentativas en días hábiles${arr((sow.cronograma || {}).festivos).length ? " (feriados declarados considerados)" : ""}, sujetas a la firma del SOW y a la entrega de los insumos del cliente. El proyecto completo se ejecuta en ${totalDays} días hábiles${meta.excepcion_plazo ? "; excepción al plazo estándar de 20 días hábiles: " + meta.excepcion_plazo : ""}.`));
-add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve", "Días hábiles", "Fechas tentativas"], sched.map(({ hito: h, inicio, fin }) => [val(h.fase), val(h.nombre), val(h.entregable ? `${h.descripcion || ""}${h.descripcion ? ". " : ""}Entregable: ${h.entregable}` : h.descripcion), String(h.dias_habiles), inicio ? (h.dias_habiles > 1 ? `${C.fmtShort(inicio)} a ${C.fmtShort(fin)}` : C.fmtShort(inicio)) : "POR DEFINIR"]), [8, 24, 38, 10, 20]));
-add(text("La distribución de las horas hombre se realiza dentro de los días hábiles. Un retraso en los insumos del cliente mueve las fechas en la misma medida."));
+if (approved) {
+  add(text(`Fechas tentativas en días hábiles${arr((sow.cronograma || {}).festivos).length ? " (feriados declarados considerados)" : ""}, sujetas a la firma del SOW y a la entrega de los insumos del cliente. El proyecto completo se ejecuta en ${totalDays} días hábiles${meta.excepcion_plazo ? "; excepción al plazo estándar de 20 días hábiles: " + meta.excepcion_plazo : ""}.`));
+  add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve", "Días hábiles", "Fechas tentativas"], sched.map(({ hito: h, inicio, fin }) => [val(h.fase), val(h.nombre), val(h.entregable ? `${h.descripcion || ""}${h.descripcion ? ". " : ""}Entregable: ${h.entregable}` : h.descripcion), String(h.dias_habiles), inicio ? (h.dias_habiles > 1 ? `${C.fmtShort(inicio)} a ${C.fmtShort(fin)}` : C.fmtShort(inicio)) : "POR DEFINIR"]), [8, 24, 38, 10, 20]));
+  add(text("La distribución de las horas hombre se realiza dentro de los días hábiles. Un retraso en los insumos del cliente mueve las fechas en la misma medida."));
+} else {
+  add(text("Los tiempos y las fechas de cada entregable se definen al aprobar el SOW y quedan sujetos a la firma y a la entrega de los insumos del cliente."));
+  add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve"], sched.map(({ hito: h }) => [val(h.fase), val(h.nombre), val(h.entregable ? `${h.descripcion || ""}${h.descripcion ? ". " : ""}Entregable: ${h.entregable}` : h.descripcion)]), [10, 30, 60]));
+}
 {
   const tm = C.testMilestones(sow);
   const rowOf = (h) => sched.find((x) => x.hito === h);
   const when = (h) => { const r = rowOf(h); return r && r.inicio ? (h.dias_habiles > 1 ? `del ${C.fmtShort(r.inicio)} al ${C.fmtShort(r.fin)}` : `el ${C.fmtShort(r.inicio)}`) : "en fechas POR DEFINIR"; };
+  const detail = (h) => (approved ? `: ${h.dias_habiles} día(s) hábil(es), ${when(h)}` : "");
   if (tm.internas.length || tm.uat.length) {
     add(P(run("Pruebas dentro del cronograma", { sb: true }), { keepNext: true, after: 60 }));
-    tm.internas.forEach((h) => add(bullet(`Pruebas internas de Jelou (${h.nombre}): ${h.dias_habiles} día(s) hábil(es), ${when(h)}.`)));
-    tm.uat.forEach((h) => add(bullet(`Pruebas del cliente — UAT (${h.nombre}): ${h.dias_habiles} día(s) hábil(es), ${when(h)}.`)));
-    if (tm.uat.length) add(text(C.uatClauseWithDate(sow)));
+    tm.internas.forEach((h) => add(bullet(`Pruebas internas de Jelou (${h.nombre})${detail(h)}.`)));
+    tm.uat.forEach((h) => add(bullet(`Pruebas del cliente — UAT (${h.nombre})${detail(h)}.`)));
+    if (tm.uat.length) add(text(approved ? C.uatClauseWithDate(sow) : "Las pruebas del cliente (UAT) deben ejecutarse dentro de las fechas estipuladas en el cronograma aprobado; las fechas se definen al aprobar el SOW."));
   }
 }
 

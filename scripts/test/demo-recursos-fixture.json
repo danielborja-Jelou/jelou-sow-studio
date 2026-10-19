@@ -1,0 +1,29 @@
+{
+  "meta": { "proyecto": "Compra y contratación por WhatsApp", "cliente": "Tienda Ejemplo", "pais": "Ecuador", "version": "1.0", "estado": "en_revision", "fase": "prekickoff" },
+  "integraciones": [
+    { "id": "INT-1", "nombre": "Catálogo de productos (Shopify)", "sistema": "Shopify", "documentacion": "pendiente" },
+    { "id": "INT-2", "nombre": "Pasarela de pagos PayPhone", "sistema": "PayPhone", "documentacion": "pendiente" },
+    { "id": "INT-3", "nombre": "Verificación facial", "sistema": "Proveedor de biometría", "documentacion": "pendiente" },
+    { "id": "INT-4", "nombre": "Firma electrónica Dátil", "sistema": "Dátil", "documentacion": "pendiente" },
+    { "id": "INT-5", "nombre": "Sistema de garantías", "sistema": "Garantías Ejemplo", "documentacion": "pendiente" }
+  ],
+  "agentes": [{
+    "id": "F1", "nombre": "Flujo_1: Compra y contrato", "entrada": "inbound",
+    "pasos": [
+      { "id": "A1", "tipo": "usuario", "etapa": "Entrada", "mensaje": "Hola, quiero comprar", "siguiente": [{ "a": "A2" }] },
+      { "id": "A2", "tipo": "api", "etapa": "Catálogo", "diagrama": "Consulta el catálogo de productos", "integracion": "INT-1", "siguiente": [{ "a": "A3" }] },
+      { "id": "A3", "tipo": "mensaje", "etapa": "Catálogo", "mensaje": "Mira nuestros productos 👇", "siguiente": [{ "a": "A4" }] },
+      { "id": "A4", "tipo": "usuario", "etapa": "Foto de la cédula", "mensaje": "[Foto de la cédula]", "siguiente": [{ "a": "A5" }] },
+      { "id": "A5", "tipo": "mensaje", "etapa": "Biometría", "mensaje": "Ahora verifiquemos tu identidad.", "botones": ["Verificar"], "siguiente": [{ "a": "A6" }] },
+      { "id": "A6", "tipo": "tercero", "etapa": "Verificación biométrica", "diagrama": "Prueba de vida en webview", "integracion": "INT-3", "siguiente": [{ "a": "A7" }] },
+      { "id": "A7", "tipo": "mensaje", "etapa": "Contrato", "mensaje": "Para firmar tu contrato abre el enlace seguro.", "botones": ["Firmar"], "siguiente": [{ "a": "A8" }] },
+      { "id": "A8", "tipo": "tercero", "etapa": "Firma del contrato", "diagrama": "Firma electrónica del contrato en webview", "integracion": "INT-4", "siguiente": [{ "a": "A9" }] },
+      { "id": "A9", "tipo": "mensaje", "etapa": "Pago", "mensaje": "Para finalizar, paga tu pedido.", "botones": ["Pagar"], "siguiente": [{ "a": "A10" }] },
+      { "id": "A10", "tipo": "api", "etapa": "Pago con tarjeta", "diagrama": "Cobro con tarjeta (PayPhone)", "integracion": "INT-2", "siguiente": [{ "a": "A11" }] },
+      { "id": "A11", "tipo": "mensaje", "etapa": "Entrega", "mensaje": "Comparte tu ubicación para la entrega.", "siguiente": [{ "a": "A12" }] },
+      { "id": "A12", "tipo": "mensaje", "etapa": "Garantía", "mensaje": "Registraremos tu garantía.", "botones": ["Registrar"], "siguiente": [{ "a": "A13" }] },
+      { "id": "A13", "tipo": "tercero", "etapa": "Registro de garantía", "diagrama": "Registro en el sistema de garantías", "integracion": "INT-5", "siguiente": [{ "a": "AF" }] },
+      { "id": "AF", "tipo": "fin", "diagrama": "Fin", "siguiente": [] }
+    ]
+  }]
+}

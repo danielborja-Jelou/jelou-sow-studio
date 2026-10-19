@@ -146,7 +146,7 @@ function engineFactory() {
         var wv = formDef(node);
         ev.push(sys("form", "Se abre el formulario: " + (wv.titulo || node.etapa || "Formulario")));
         // `kind: "webview"` es el nombre interno de la espera de un formulario (WhatsApp Flow o WebView).
-        return { events: ev, wait: { kind: "webview", id: node.id, options: [], buttons: [], list: [], webview: wv, herramienta: formTool(node), etapa: node.etapa || "" } };
+        return { events: ev, wait: { kind: "webview", id: node.id, options: [], buttons: [], list: [], webview: wv, herramienta: formTool(node), etapa: node.etapa || "", text: node.mensaje == null ? "" : String(node.mensaje) } };
       }
       if (t === "asesor") {
         if (node.mensaje) ev.push(bot(node));
@@ -367,42 +367,95 @@ function buildScreens(agent, o) {
 }
 
 // ---------------------------------------------------------------------------
-// Render HTML
+// Render HTML — aspecto de WhatsApp (móvil), claro y oscuro, archivo único sin dependencias externas.
 // ---------------------------------------------------------------------------
 const esc = E.esc, fmt = E.fmt;
-const hhmm = (n) => "12:" + String(n % 60).padStart(2, "0");
 
-function bubbleHtml(b, t) {
-  if (b.r === "user") return `<div class="bo"><p class="bt">${fmt(b.text)}</p><div class="bm"><span class="btime">${t}</span><span class="bchk">✓✓</span></div></div>`;
-  if (b.r === "sys") return b.kind === "wait" ? `<div class="bi ghost"><p class="bt">🔍 ${fmt(b.text)}</p></div>` : `<div class="note ${b.kind === "derive" ? "adv" : ""}">${b.kind === "derive" ? "👤 " : ""}${fmt(b.text)}</div>`;
-  let h = `<div class="bi"><p class="bt">${fmt(b.text)}</p>`;
-  if (b.lista && b.lista.length) h += `<div class="cta"><span class="ctab">☰ Ver opciones</span></div>`;
-  h += `<div class="bm"><span class="btime">${t}</span></div></div>`;
-  if (b.botones && b.botones.length) h += `<div class="qr">${b.botones.map((x, i) => `<span class="${i === 0 ? "qg" : "qw"}">↩ ${fmt(x)}</span>`).join("")}</div>`;
-  return h;
+// Iconos (Material, viewBox 24). Van también en #sow-data para que los use el navegador.
+const ICONS = {
+  back: "M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z",
+  video: "M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z",
+  call: "M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.24c1.12.37 2.33.57 3.57.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1.02l-2.2 2.2z",
+  more: "M12 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4z",
+  emoji: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm3.5-9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm-7 0a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM12 17.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z",
+  attach: "M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5z",
+  camera: "M12 9a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8-3h-3.17L15 4H9L7.17 6H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm-8 12.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z",
+  mic: "M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z",
+  send: "M2 21l21-9L2 3v7l15 2-15 2z",
+  reply: "M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z",
+  list: "M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z",
+  ticks: "M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z",
+  lock: "M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6z",
+  close: "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
+  chevron: "M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z",
+  form: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z",
+  person: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+  search: "M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z",
+  ext: "M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z",
+  info: "M11 7h2v2h-2zm0 4h2v6h-2zm1-9a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16z",
+  stop: "M6 6h12v12H6z",
+  play: "M8 5v14l11-7z",
+  sun: "M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM2 13h2v-2H2v2zm18 0h2v-2h-2v2zM11 2v2h2V2h-2zm0 18v2h2v-2h-2zM5.99 4.58 4.58 5.99l1.41 1.41 1.41-1.41-1.41-1.41zm12.37 12.37-1.41 1.41 1.41 1.41 1.41-1.41-1.41-1.41zm1.41-10.96-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM7.4 18.36 5.99 19.77l1.41 1.41 1.41-1.41-1.41-1.41z",
+  bolt: "M7 2v11h3v9l7-12h-4l4-8z",
+  reset: "M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z",
+};
+const ic = (n, c) => `<svg class="ic${c ? " " + c : ""}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n]}"/></svg>`;
+
+// Formato de WhatsApp (*negrita*, _cursiva_, ~tachado~) sobre texto ya escapado.
+const WA_B = /(^|[\s(>])\*([^*\n<]+)\*(?=$|[\s).,!?:;<])/g;
+const WA_I = /(^|[\s(>])_([^_\n<]+)_(?=$|[\s).,!?:;<])/g;
+const WA_S = /(^|[\s(>])~([^~\n<]+)~(?=$|[\s).,!?:;<])/g;
+function wa(s) { return fmt(s).replace(WA_B, "$1<b>$2</b>").replace(WA_I, "$1<i>$2</i>").replace(WA_S, "$1<s>$2</s>"); }
+const clock = (n) => { const m = 9 * 60 + 41 + n; return String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+
+const STATUS_BAR = `<div class="sbar"><span>9:41</span><span class="sbi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 22h20V2z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21 1 9a15 15 0 0 1 22 0z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h-1V2H9v2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/></svg></span></div>`;
+const NOTICES = `<div class="dchip"><span>HOY</span></div><div class="nchip enc">${ic("lock")}<span>Los mensajes y las llamadas están cifrados de extremo a extremo. Solo las personas en este chat pueden leerlos.</span></div><div class="nchip biz"><span>Esta empresa usa un servicio seguro de Meta para administrar este chat. Toca para obtener más información.</span></div>`;
+
+function headerHtml(ctx, status) {
+  const name = ctx.pendiente ? '<span class="pendh">POR DEFINIR</span>' : esc(ctx.nombre);
+  return `<div class="wh">${ic("back", "hb")}<div class="av${ctx.pendiente ? " avp" : ""}">${esc(ctx.initial)}</div><div class="who"><div class="wn">${name}</div><div class="ws" data-role="status">${status || "cuenta de empresa"}</div></div>${ic("video")}${ic("call")}${ic("more")}</div>`;
+}
+function barHtml(disabled) {
+  return `<div class="bar"><div class="pill">${ic("emoji")}<span class="ph-in">Mensaje</span>${ic("attach")}${ic("camera")}</div><div class="fab">${ic("mic")}</div></div>`;
 }
 
-// Campo de la pantalla de formulario, dibujado con lo que define el SOW (etiqueta, tipo, opciones, ejemplo, obligatorio).
+function bubbleHtml(b, t, first) {
+  const tail = first ? " first" : "";
+  if (b.r === "user") return `<div class="msg out${tail}"><div class="bub"><span class="tx">${wa(b.text)}</span><span class="mt">${t}${ic("ticks", "tk")}</span></div></div>`;
+  if (b.r === "sys") {
+    if (b.kind === "derive") return `<div class="schip adv">${ic("person")}<span>Un asesor se unió a la conversación</span></div>`;
+    if (b.kind === "end") return `<div class="schip">${b.text ? esc(b.text) : "Fin de la conversación simulada"}</div>`;
+    // anotación de la galería (no es un mensaje de WhatsApp): lo que hace el sistema entre dos mensajes
+    return `<div class="schip note">${ic("search")}<span>${fmt(b.text)}</span></div>`;
+  }
+  let h = `<div class="msg in${tail}"><div class="bub"><span class="tx">${wa(b.text)}</span><span class="mt">${t}</span></div>`;
+  const acts = [];
+  (b.botones || []).forEach((x) => acts.push(`<div class="abtn">${ic("reply")}<span>${wa(x)}</span></div>`));
+  if (b.lista && b.lista.length) acts.push(`<div class="abtn">${ic("list")}<span>Ver opciones</span></div>`);
+  if (acts.length) h += `<div class="acts">${acts.join("")}</div>`;
+  return h + "</div>";
+}
+
+// Campo de formulario, dibujado con lo que define el SOW (etiqueta, tipo, opciones, ejemplo, obligatorio).
 function fieldHtml(c) {
   const req = c.obligatorio ? ' <span class="req">*</span>' : "";
-  const lab = `<div class="fl">${fmt(c.etiqueta || "Campo")}${req}</div>`;
   const ej = c.ejemplo != null && String(c.ejemplo) !== "" ? String(c.ejemplo) : "";
   const ops = Array.isArray(c.opciones) ? c.opciones.map(String) : [];
-  const val = (v, ph) => (v ? `<div class="fi">${fmt(v)}</div>` : `<div class="fi ph-txt">${ph}</div>`);
+  const box = (inner, extra) => `<div class="fld"><span class="fll">${fmt(c.etiqueta || "Campo")}${req}</span><div class="fin${extra ? " " + extra : ""}">${inner}</div></div>`;
+  const val = (v, ph) => (v ? fmt(v) : `<span class="ph-txt">${ph}</span>`);
   switch (c.tipo) {
     case "casilla": return `<div class="fck"><div class="fckb">✓</div><span class="fckt">${fmt(c.etiqueta || "Acepto")}${req}</span></div>`;
     case "selector": {
       const shown = ej || ops[0];
-      const cur = shown ? `<span class="fv">${fmt(shown)}</span>` : `<span class="ph-txt">Elige una opción</span>`;
       const hint = ops.length ? `<div class="fopt">Opciones: ${ops.slice(0, 4).map(fmt).join(" · ")}${ops.length > 4 ? " · …" : ""}</div>` : `<div class="fopt">[opciones por definir]</div>`;
-      return `<div>${lab}<div class="fs">${cur}<span class="fsa">›</span></div>${hint}</div>`;
+      return `<div>${box(`<span class="fv">${shown ? fmt(shown) : '<span class="ph-txt">Elige una opción</span>'}</span>${ic("chevron", "fchev")}`, "sel")}${hint}</div>`;
     }
-    case "archivo": return `<div>${lab}<div class="fup">📎 ${ej ? fmt(ej) : "Adjuntar archivo"}</div></div>`;
-    case "correo": return `<div>${lab}${val(ej, "nombre@ejemplo.com")}</div>`;
-    case "numero": return `<div>${lab}${val(ej, "Solo números")}</div>`;
-    case "fecha": return `<div>${lab}${val(ej, "dd/mm/aaaa")}</div>`;
-    case "telefono": return `<div>${lab}${val(ej, "Número de celular")}</div>`;
-    default: return `<div>${lab}${val(ej, "Escribe aquí")}</div>`;
+    case "archivo": return box(`${ic("attach")}<span>${ej ? fmt(ej) : "Adjuntar archivo"}</span>`, "up");
+    case "correo": return box(val(ej, "nombre@ejemplo.com"));
+    case "numero": return box(val(ej, "Solo números"));
+    case "fecha": return box(val(ej, "dd/mm/aaaa"));
+    case "telefono": return box(val(ej, "Número de celular"));
+    default: return box(val(ej, "Escribe aquí"));
   }
 }
 
@@ -415,28 +468,32 @@ function linkLines(links) {
   }).join("");
 }
 
+// Hoja de formulario (WhatsApp Flow = hoja inferior; WebView = navegador integrado). Estática, para la galería.
+function flowStatic(s, ctx) {
+  const wv = s.webview || {}, campos = Array.isArray(wv.campos) ? wv.campos : [], shown = campos.slice(0, 7);
+  const isWv = s.herramienta === "webview";
+  const head = isWv
+    ? `<div class="fhd wvh">${ic("close")}<div class="fti"><b>${fmt(wv.titulo || s.etapa || "Formulario")}</b><small>${ic("lock")}Página segura · dentro de WhatsApp</small></div>${ic("more")}</div>`
+    : `<div class="fhd">${ic("close")}<div class="fti"><b>${fmt(wv.titulo || s.etapa || "Formulario")}</b></div>${ic("more")}</div>`;
+  const foot = `<div class="ffo"><div class="fbtn${isWv ? " wvb" : ""}">${fmt(wv.boton || (isWv ? "Enviar" : "Continuar"))}</div><div class="fman">${ic("lock")}Gestionado por la empresa</div></div>`;
+  return `${head}<div class="fbd">${shown.map(fieldHtml).join("")}${campos.length > 7 ? `<div class="more">+ ${campos.length - 7} campos más</div>` : ""}${campos.length ? "" : '<div class="more">Formulario sin campos definidos</div>'}</div>${foot}`;
+}
+
 function phoneHtml(s, idx, ctx) {
-  const t = hhmm(idx);
-  const sb = `<div class="sb"><span class="st">${t}</span><div class="si">▲▲▲</div></div>`;
-  const wh = `<div class="wh"><div class="wv${ctx.pendiente ? " wvp" : ""}">${esc(ctx.initial)}</div><div><div class="wn">${ctx.pendiente ? '<span class="pendh">POR DEFINIR</span>' : esc(ctx.nombre)}</div><div class="ws">${ctx.pendiente ? "Nombre de la persona del bot pendiente de definir" : "Asistente Virtual"}</div></div><div class="wi">⋮</div></div>`;
-  const ib = `<div class="ib"><div class="ip">Escribe un mensaje</div><div class="mc">🎤</div></div>`;
+  const t = clock(idx);
   let inner;
   if (s.kind === "form") {
-    const wv = s.webview || {}, campos = Array.isArray(wv.campos) ? wv.campos : [];
-    const shown = campos.slice(0, 7);
-    inner = `${sb}<div class="fh"><div class="fx">✕</div><div class="ft">${fmt(wv.titulo || s.etapa || "Formulario")}</div><div class="fd">⋮</div></div>
-<div class="fb">${shown.map(fieldHtml).join("")}${campos.length > 7 ? `<div class="more">+ ${campos.length - 7} campos más</div>` : ""}${campos.length ? "" : '<div class="more">Formulario sin campos definidos</div>'}</div>
-<div class="ff"><button class="ffb" type="button" tabindex="-1">${fmt(wv.boton || "Enviar")}</button><div class="ffm">Formulario (${esc(TOOL_LABEL[s.herramienta] || TOOL_LABEL.por_definir)}) · <span class="ffml">${esc(ctx.cliente || "Jelou")}</span></div></div>`;
+    inner = `${STATUS_BAR}<div class="flowfull">${flowStatic(s, ctx)}</div>`;
   } else if (s.kind === "ext") {
-    inner = `${sb}<div class="eh"><div class="ex">✕</div><div class="et">${fmt(s.ext.titulo)}</div></div>
-<div class="ecl-body"><div class="ecl-title">Proceso del cliente / tercero</div><div class="ecl-sub">${fmt(s.ext.texto || "Pantalla gestionada por un sistema externo.")}</div><div class="es"><span>🔗</span>Se abre fuera de WhatsApp (WebView externo)</div><div class="ecl-end">→ Jelou recibe solo el resultado (éxito/error)</div></div>`;
+    inner = `${STATUS_BAR}<div class="flowfull"><div class="fhd wvh">${ic("close")}<div class="fti"><b>${fmt(s.ext.titulo)}</b><small>${ic("ext")}Se abre fuera de WhatsApp</small></div>${ic("more")}</div><div class="fbd"><p class="ext-t">Proceso del cliente / tercero</p><p class="ext-s">${fmt(s.ext.texto || "Pantalla gestionada por un sistema externo.")}</p><p class="ext-e">Jelou recibe solo el resultado (éxito o error).</p></div></div>`;
   } else {
-    const bubbles = s.hist.map((b) => bubbleHtml(b, t)).join("");
-    const sheet = s.kind === "sheet" ? `<div class="bsw"><div class="bsh"></div><div class="bshdr"><span class="bsbk">←</span><span class="bst">Opciones</span><span class="dots">⋮</span></div>${s.lista.slice(0, 10).map((x, i) => `<div class="bsi${i === 0 ? " sel" : ""}">${fmt(x)}${i === 0 ? '<span class="bsck">✓</span>' : ""}</div>`).join("")}</div>` : "";
-    inner = `${sb}${wh}<div class="cb${s.kind === "sheet" ? " short" : ""}"><div class="dp"><span>Hoy</span></div>${bubbles}</div>${sheet || ib}`;
+    let prev = "";
+    const bubbles = s.hist.map((b) => { const f = b.r !== prev; prev = b.r; return bubbleHtml(b, t, f); }).join("");
+    const sheet = s.kind === "sheet" ? `<div class="scrim"></div><div class="lsheet"><div class="grab"></div><div class="lhd">${ic("close")}<b>Opciones</b></div>${s.lista.slice(0, 10).map((x, i) => `<div class="lrow">${wa(x)}<span class="rad${i === 0 ? " on" : ""}"></span></div>`).join("")}<div class="lbtn">Enviar</div></div>` : "";
+    inner = `${STATUS_BAR}${headerHtml(ctx)}<div class="chat">${NOTICES}${bubbles}</div>${barHtml()}${sheet}`;
   }
-  const lbl = `<div class="lbl"><strong>${fmt(s.label)}</strong>${s.main ? '<span class="tag main">Camino principal</span>' : `<span class="tag ${s.tone}">${s.tone === "adv" ? "Asesor" : s.tone === "err" ? "Error" : "Rama"}: ${fmt(s.branch || "alternativa")}</span>`}${linkLines(s.links)}</div>`;
-  return `<figure class="ph-wrap" aria-label="${esc(s.label)}"><div class="ph"><div class="nc"></div><div class="sc"${s.kind === "sheet" ? ' style="background:#E5DDD5"' : ""}>${inner}</div><div class="hb"></div></div><figcaption>${lbl}</figcaption></figure>`;
+  const lbl = `<div class="lbl"><strong>${fmt(s.label)}</strong>${s.main ? '<span class="tag main">Camino principal</span>' : `<span class="tag ${s.tone}">${s.tone === "adv" ? "Asesor" : s.tone === "err" ? "Error" : "Rama"}: ${fmt(s.branch || "alternativa")}</span>`}${s.kind === "form" ? `<span class="tool">Formulario (${esc(TOOL_LABEL[s.herramienta] || TOOL_LABEL.por_definir)}) · ${esc(ctx.cliente || "Jelou")}</span>` : ""}${linkLines(s.links)}</div>`;
+  return `<figure class="ph-wrap" aria-label="${esc(s.label)}"><div class="phone mini"><div class="screen">${inner}</div></div><figcaption>${lbl}</figcaption></figure>`;
 }
 
 function sanitizeSvg(svg) {
@@ -455,15 +512,32 @@ function safeJson(o) {
 function pageScript() {
   var Eng = window.SimEngine;
   var DATA = JSON.parse(document.getElementById("sow-data").textContent);
+  var IC = DATA.icons;
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
   var esc = Eng.esc, fmt = Eng.fmt;
+  function ic(n, c) { return '<svg class="ic' + (c ? " " + c : "") + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + IC[n] + '"/></svg>'; }
+  function wa(s) {
+    return fmt(s).replace(/(^|[\s(>])\*([^*\n<]+)\*(?=$|[\s).,!?:;<])/g, "$1<b>$2</b>").replace(/(^|[\s(>])_([^_\n<]+)_(?=$|[\s).,!?:;<])/g, "$1<i>$2</i>").replace(/(^|[\s(>])~([^~\n<]+)~(?=$|[\s).,!?:;<])/g, "$1<s>$2</s>");
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function clock(n) { var m = 9 * 60 + 41 + n; return pad(Math.floor(m / 60) % 24) + ":" + pad(m % 60); }
+
+  // --- tema (auto / claro / oscuro)
+  function applyTheme(t) {
+    if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", t);
+    $$("[data-act=theme]").forEach(function (b) { b.textContent = t === "auto" ? "Tema: auto" : t === "dark" ? "Tema: oscuro" : "Tema: claro"; });
+  }
+  var themeState = "auto";
+  applyTheme("auto");
 
   // --- pestañas de agente y de vista
   function showAgent(id) {
     $$(".agent").forEach(function (s) { s.hidden = s.id !== "ag-" + String(id).replace(/[^A-Za-z0-9_-]/g, "_"); });
     $$(".agent-tab").forEach(function (b) { b.setAttribute("aria-selected", b.getAttribute("data-agent") === id ? "true" : "false"); });
+    var sec = $("#ag-" + String(id).replace(/[^A-Za-z0-9_-]/g, "_")), sel = sec && $("[role=tab][aria-selected=true]", sec);
+    if (sel) showTab(sel);
   }
   function showTab(btn) {
     var tabs = btn.closest(".tabs"), sec = btn.closest(".agent");
@@ -475,6 +549,8 @@ function pageScript() {
     }
   }
   document.addEventListener("click", function (ev) {
+    var th = ev.target.closest && ev.target.closest("[data-act=theme]");
+    if (th) { themeState = themeState === "auto" ? "light" : themeState === "light" ? "dark" : "auto"; applyTheme(themeState); return; }
     var a = ev.target.closest && ev.target.closest(".agent-tab");
     if (a) { showAgent(a.getAttribute("data-agent")); return; }
     var t = ev.target.closest && ev.target.closest(".tabs [role=tab]");
@@ -494,76 +570,103 @@ function pageScript() {
     var per = agent.persona && typeof agent.persona === "object" ? agent.persona : { nombre: typeof agent.persona === "string" ? agent.persona : "" };
     var pend = !!per.nombre && /POR DEFINIR|POR COMPLETAR/i.test(per.nombre);
     var nombre = pend ? "POR DEFINIR" : per.nombre || agent.nombre || "Bot";
+    var BASE_STATUS = "cuenta de empresa";
+    var NOTICES = '<div class="dchip"><span>HOY</span></div><div class="nchip enc">' + ic("lock") + "<span>Los mensajes y las llamadas están cifrados de extremo a extremo. Solo las personas en este chat pueden leerlos.</span></div>" +
+      '<div class="nchip biz"><span>Esta empresa usa un servicio seguro de Meta para administrar este chat. Toca para obtener más información.</span></div>';
     box.innerHTML =
-      '<div class="simwrap"><div class="ph sim"><div class="nc"></div><div class="sc simsc">' +
-      '<div class="sb"><span class="st">12:00</span><div class="si">▲▲▲</div></div>' +
-      '<div class="wh"><div class="wv' + (pend ? " wvp" : "") + '">' + (pend ? "?" : esc(nombre.charAt(0).toUpperCase())) + '</div><div><div class="wn">' + (pend ? '<span class="pendh">POR DEFINIR</span>' : esc(nombre)) + '</div><div class="ws" data-role="status">' + (pend ? "Nombre de la persona del bot pendiente de definir" : "Asistente Virtual") + '</div></div><div class="wi">⋮</div></div>' +
-      '<div class="cb chat" data-role="chat" tabindex="0" aria-live="polite" aria-label="Conversación simulada"></div>' +
-      '<div class="hints" data-role="hints"></div>' +
-      '<div class="outcome" data-role="outcome" hidden></div>' +
-      '<form class="ib" data-role="form"><input class="ipt" data-role="input" type="text" placeholder="Escribe un mensaje" aria-label="Escribe un mensaje" autocomplete="off"><button class="mc" type="submit" aria-label="Enviar mensaje">➤</button></form>' +
-      '<div class="ov" data-role="sheet" hidden></div><div class="ov" data-role="wv" hidden></div>' +
-      '</div><div class="hb"></div></div>' +
-      '<aside class="simside"><button type="button" class="btn" data-role="reset">↻ Reiniciar</button>' +
-      '<p class="hint"><strong>Cómo usarlo.</strong> Pulsa botones o filas de lista, completa el formulario o escribe texto libre. Los pasos automáticos (router, API, tercero) se resuelven solos; en decisiones y APIs con varias salidas eliges el resultado a simular.</p>' +
-      '<p class="hint" data-role="step"></p></aside></div>';
-    var chat = $("[data-role=chat]", box), hints = $("[data-role=hints]", box), outc = $("[data-role=outcome]", box),
-      form = $("[data-role=form]", box), input = $("[data-role=input]", box), sheet = $("[data-role=sheet]", box),
-      wvBox = $("[data-role=wv]", box), stepEl = $("[data-role=step]", box);
-    var S = { shown: [], wait: null, pending: null, queue: [], busy: false, ctx: null, timer: null, min: 0 };
+      '<div class="stage"><div class="phone"><div class="screen">' +
+      '<div class="sbar"><span>9:41</span><span class="sbi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 22h20V2z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21 1 9a15 15 0 0 1 22 0z"/></svg><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4h-1V2H9v2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/></svg></span></div>' +
+      '<div class="wh">' + ic("back", "hb") + '<div class="av' + (pend ? " avp" : "") + '">' + (pend ? "?" : esc(nombre.charAt(0).toUpperCase())) + '</div><div class="who"><div class="wn">' + (pend ? '<span class="pendh">POR DEFINIR</span>' : esc(nombre)) + '</div><div class="ws" data-role="status">' + BASE_STATUS + "</div></div>" + ic("video") + ic("call") + ic("more") + "</div>" +
+      '<div class="chat" data-role="chat" tabindex="0" aria-live="polite" aria-label="Conversación simulada"></div>' +
+      '<form class="bar" data-role="form"><div class="pill">' + ic("emoji") + '<input class="ipt" data-role="input" type="text" placeholder="Mensaje" aria-label="Escribe un mensaje" autocomplete="off">' + ic("attach") + ic("camera") + '</div><button class="fab" type="submit" aria-label="Enviar mensaje" data-role="fab">' + ic("mic") + "</button></form>" +
+      '<div class="ov" data-role="sheet" hidden></div><div class="ov" data-role="flow" hidden></div>' +
+      '</div></div>' +
+      '<aside class="back"><h3>Detrás de escena</h3>' +
+      '<div class="now" data-role="now"></div>' +
+      '<div class="tools"><button type="button" class="btn" data-role="reset">' + ic("reset") + ' Reiniciar</button><button type="button" class="btn ghost" data-role="fast" aria-pressed="false">' + ic("bolt") + ' Ritmo rápido</button><button type="button" class="btn ghost" data-act="theme">Tema: auto</button></div>' +
+      '<h4>Lo que pasa mientras conversas</h4><ol class="log" data-role="log"></ol></aside></div>';
+    var chat = $("[data-role=chat]", box), nowEl = $("[data-role=now]", box), logEl = $("[data-role=log]", box),
+      form = $("[data-role=form]", box), input = $("[data-role=input]", box), fab = $("[data-role=fab]", box),
+      sheet = $("[data-role=sheet]", box), flowBox = $("[data-role=flow]", box), statusEl = $("[data-role=status]", box), fastBtn = $("[data-role=fast]", box);
+    var S = { shown: [], wait: null, pending: null, queue: [], busy: false, ctx: null, timer: null, min: 0, log: [], sel: -1, fast: false };
 
-    function time(n) { return "12:" + String(n % 60).padStart(2, "0"); }
+    function setStatus(t) { statusEl.textContent = t; }
     function lastChoiceIndex() { for (var i = S.shown.length - 1; i >= 0; i--) { var e = S.shown[i]; if (e.t === "bot" && ((e.botones && e.botones.length) || (e.lista && e.lista.length))) return i; } return -1; }
+    function formMsg(e, i) {
+      var lines = String(e.text).split("\n"), head = lines.shift();
+      return '<span class="tx fsent"><span class="fsh">' + ic("form") + "<b>" + fmt(head.replace(/^📋\s*/, "")) + "</b></span>" + (lines.length ? '<span class="fsl">' + lines.map(function (l) { return fmt(l); }).join("<br>") + "</span>" : "") + "</span>";
+    }
     function render() {
       var active = !S.busy && S.wait && S.wait.kind === "choice", lc = active ? lastChoiceIndex() : -1;
-      var h = '<div class="dp"><span>Hoy</span></div>';
+      var h = NOTICES, prev = "";
       S.shown.forEach(function (e, i) {
-        if (e.t === "user") h += '<div class="bo"><p class="bt">' + fmt(e.text) + '</p><div class="bm"><span class="btime">' + e.time + '</span><span class="bchk">✓✓</span></div></div>';
-        else if (e.t === "bot") {
-          h += '<div class="bi"><p class="bt">' + fmt(e.text) + "</p>";
-          if (e.lista && e.lista.length) h += '<div class="cta">' + (i === lc ? '<button type="button" class="ctab" data-act="sheet">☰ Ver opciones</button>' : '<span class="ctab">☰ Ver opciones</span>') + "</div>";
-          h += '<div class="bm"><span class="btime">' + e.time + "</span></div></div>";
-          if (e.botones && e.botones.length) h += '<div class="qr">' + e.botones.map(function (b, k) { var c = k === 0 ? "qg" : "qw"; return i === lc ? '<button type="button" class="' + c + '" data-b="' + k + '">↩ ' + fmt(b) + "</button>" : '<span class="' + c + '">↩ ' + fmt(b) + "</span>"; }).join("") + "</div>";
-        } else if (e.kind === "wait") h += '<div class="bi ghost"><p class="bt">🔍 ' + fmt(e.text) + "</p></div>";
-        else h += '<div class="note ' + (e.kind === "derive" ? "adv" : e.kind === "sim" ? "simn" : "") + '">' + (e.kind === "derive" ? "👤 " : "") + fmt(e.text) + "</div>";
+        if (e.t === "sys") {
+          if (e.kind === "derive") h += '<div class="schip adv">' + ic("person") + "<span>Un asesor se unió a la conversación</span></div>";
+          else if (e.kind === "end") h += '<div class="schip">Fin de la conversación simulada</div>';
+          prev = ""; return;
+        }
+        var first = prev !== e.t; prev = e.t;
+        if (e.t === "user") {
+          h += '<div class="msg out' + (first ? " first" : "") + '"><div class="bub">' + (e.form ? formMsg(e, i) : '<span class="tx">' + wa(e.text) + "</span>") + '<span class="mt">' + e.time + ic("ticks", "tk") + "</span></div></div>";
+        } else {
+          var acts = "";
+          if (e.botones && e.botones.length) acts += e.botones.map(function (b, k) { return i === lc ? '<button type="button" class="abtn" data-b="' + k + '">' + ic("reply") + "<span>" + wa(b) + "</span></button>" : '<div class="abtn off">' + ic("reply") + "<span>" + wa(b) + "</span></div>"; }).join("");
+          if (e.lista && e.lista.length) acts += i === lc ? '<button type="button" class="abtn" data-act="sheet">' + ic("list") + "<span>Ver opciones</span></button>" : '<div class="abtn off">' + ic("list") + "<span>Ver opciones</span></div>";
+          h += '<div class="msg in' + (first ? " first" : "") + '"><div class="bub"><span class="tx">' + wa(e.text) + '</span><span class="mt">' + e.time + "</span></div>" + (acts ? '<div class="acts">' + acts + "</div>" : "") + "</div>";
+        }
       });
-      if (S.busy) h += '<div class="bi typing" aria-hidden="true"><span></span><span></span><span></span></div>';
+      var w = S.wait;
+      if (!S.busy && w && w.kind === "webview") {
+        var wv = w.webview || {};
+        h += '<div class="msg in first"><div class="bub"><span class="tx">' + (w.text ? wa(w.text) : "<b>" + fmt(wv.titulo || w.etapa || "Formulario") + "</b>") + '</span><span class="mt">' + clock(S.min) + '</span></div><div class="acts"><button type="button" class="abtn" data-act="openform">' + ic("form") + "<span>" + esc(wv.accion || "Abrir formulario") + "</span></button></div></div>";
+      }
       chat.innerHTML = h;
       chat.scrollTop = chat.scrollHeight;
     }
+    function toolName(t) { return { flows: "WhatsApp Flow", webview: "WebView" }[t] || "WhatsApp Flow / WebView"; }
     function controls() {
       var w = S.wait, k = w ? w.kind : "";
-      hints.innerHTML = ""; outc.hidden = true; outc.innerHTML = "";
       var canType = !S.busy && (k === "choice" || k === "text" || k === "outcome");
-      input.disabled = !canType; $("button", form).disabled = !canType;
-      input.placeholder = k === "end" ? "Conversación finalizada" : "Escribe un mensaje";
-      if (S.busy || !w) { stepEl.textContent = ""; return; }
-      stepEl.innerHTML = "<strong>Paso actual:</strong> " + esc(w.id || "—") + (w.etapa ? " — " + esc(w.etapa) : "");
-      if (k === "text") {
-        var h = "";
-        if (w.example) h += '<button type="button" class="chip" data-act="example">✎ Escribir: «' + esc(w.example.length > 40 ? w.example.slice(0, 40) + "…" : w.example) + "»</button>";
-        w.options.forEach(function (o, i) { h += '<button type="button" class="chip" data-o="' + i + '">' + esc(o) + "</button>"; });
-        hints.innerHTML = h || '<span class="hint">Escribe cualquier texto para continuar.</span>';
-      } else if (k === "webview") {
-        hints.innerHTML = '<button type="button" class="chip" data-act="openform">📋 Abrir formulario</button>';
-      } else if (k === "outcome") {
-        outc.hidden = false;
-        outc.innerHTML = '<div class="olabel">Simular resultado' + (w.title ? ": " + esc(w.title) : "") + '</div><div class="obtns">' + w.options.map(function (o, i) { return '<button type="button" class="obtn" data-o="' + i + '">' + esc(o) + "</button>"; }).join("") + "</div>";
-      } else if (k === "end") {
-        hints.innerHTML = '<button type="button" class="chip" data-act="reset">↻ Reiniciar conversación</button>';
+      input.disabled = !canType; fab.disabled = !canType && !input.value;
+      input.placeholder = k === "end" ? "Conversación finalizada" : "Mensaje";
+      var h = "";
+      if (S.busy || !w) h = '<p class="nowt">El bot está respondiendo…</p>';
+      else {
+        h = '<p class="nowt"><strong>Paso ' + esc(w.id || "—") + "</strong>" + (w.etapa ? " · " + esc(w.etapa) : "") + "</p>";
+        if (k === "text") {
+          h += '<p class="nowh">Escribe en el chat o elige una de estas respuestas:</p><div class="chips">';
+          if (w.example) h += '<button type="button" class="chip" data-act="example">✎ «' + esc(w.example.length > 44 ? w.example.slice(0, 44) + "…" : w.example) + "»</button>";
+          w.options.forEach(function (o, i) { h += '<button type="button" class="chip" data-o="' + i + '">' + esc(o) + "</button>"; });
+          h += "</div>";
+        } else if (k === "choice") h += '<p class="nowh">Toca un botón del chat o escribe tu respuesta con tus palabras.</p>';
+        else if (k === "webview") {
+          h += '<p class="nowh">El bot envía un formulario (' + toolName(w.herramienta) + "). Ábrelo desde el chat.</p>" + '<div class="chips"><button type="button" class="chip" data-act="openform">Abrir formulario</button>' + (flowBox.hidden ? "" : '<button type="button" class="chip" data-act="fill">Rellenar con datos de ejemplo</button>') + "</div>";
+        } else if (k === "outcome") {
+          h += '<p class="nowh">El sistema respondería' + (w.title ? " en «" + esc(w.title) + "»" : "") + ". Elige el resultado a simular:</p><div class=\"chips\">" + w.options.map(function (o, i) { return '<button type="button" class="chip warn" data-o="' + i + '">' + esc(o) + "</button>"; }).join("") + "</div>";
+        } else if (k === "end") h += '<p class="nowh">La conversación terminó.</p><div class="chips"><button type="button" class="chip" data-act="reset">Reiniciar conversación</button></div>';
       }
+      nowEl.innerHTML = h;
     }
-    function closeOv() { sheet.hidden = true; wvBox.hidden = true; }
+    function addLog(e) {
+      var icon = e.kind === "wait" ? "search" : e.kind === "form" ? "form" : e.kind === "derive" ? "person" : e.kind === "end" ? "stop" : "info";
+      var li = document.createElement("li"); li.className = "lg-" + e.kind;
+      li.innerHTML = ic(icon) + "<span>" + fmt(e.text) + "</span>";
+      logEl.appendChild(li); logEl.scrollTop = logEl.scrollHeight;
+    }
+    function closeOv() { sheet.hidden = true; flowBox.hidden = true; controls(); }
     function openSheet() {
       var w = S.wait; if (!w || !w.list.length) return;
-      sheet.innerHTML = '<div class="bsbg" data-act="closesheet"></div><div class="bsw"><div class="bsh"></div><div class="bshdr"><button type="button" class="bsbk" data-act="closesheet" aria-label="Cerrar">←</button><span class="bst">Opciones</span></div>' +
-        w.list.map(function (x, i) { return '<button type="button" class="bsi" data-l="' + i + '">' + esc(x) + "</button>"; }).join("") + "</div>";
+      S.sel = -1;
+      sheet.innerHTML = '<div class="scrim" data-act="closesheet"></div><div class="lsheet" role="dialog" aria-label="Opciones"><div class="grab"></div><div class="lhd"><button type="button" class="xb" data-act="closesheet" aria-label="Cerrar">' + ic("close") + "</button><b>Opciones</b></div>" +
+        '<div class="lrows">' + w.list.map(function (x, i) { return '<button type="button" class="lrow" data-l="' + i + '"><span>' + wa(x) + '</span><span class="rad"></span></button>'; }).join("") + '</div><button type="button" class="lbtn" data-act="sendlist" disabled>Enviar</button></div>';
       sheet.hidden = false;
-      var f = $(".bsi", sheet); if (f) f.focus();
+      var f = $(".lrow", sheet); if (f) f.focus({ preventScroll: true });
     }
     function openForm() {
       var w = S.wait; if (!w || w.kind !== "webview") return;
-      var wv = w.webview || {}, campos = wv.campos || [], sd = Eng.sampleData(wv), h = '<div class="fh"><button type="button" class="fx" data-act="closeform" aria-label="Cerrar formulario">✕</button><div class="ft">' + esc(wv.titulo || w.etapa || "Formulario") + '</div></div><form class="fb wvform" data-role="wvform" novalidate>';
+      var wv = w.webview || {}, campos = wv.campos || [], sd = Eng.sampleData(wv), isWv = w.herramienta === "webview", title = esc(wv.titulo || w.etapa || "Formulario");
+      var h = '<div class="scrim" data-act="closeform"></div><div class="flow' + (isWv ? " wvf" : "") + '" role="dialog" aria-label="' + title + '"><div class="grab"></div>' +
+        '<div class="fhd' + (isWv ? " wvh" : "") + '"><button type="button" class="xb" data-act="closeform" aria-label="Cerrar formulario">' + ic("close") + '</button><div class="fti"><b>' + title + "</b>" + (isWv ? "<small>" + ic("lock") + "Página segura · dentro de WhatsApp</small>" : "") + "</div>" + ic("more") + '</div><form class="fbd wvform" data-role="wvform" novalidate>';
       campos.forEach(function (c, i) {
         var id = "f" + i + "-" + Math.random().toString(36).slice(2, 6), lab = fmt(c.etiqueta || "Campo") + (c.obligatorio ? ' <span class="req">*</span>' : "");
         var ej = c.ejemplo != null && String(c.ejemplo) !== "" ? String(c.ejemplo) : "";
@@ -572,103 +675,118 @@ function pageScript() {
           var ops = (c.opciones && c.opciones.length ? c.opciones.map(String) : []);
           if (ej && ops.indexOf(ej) < 0) ops.unshift(ej);
           if (!ops.length) ops = [sd[i] ? sd[i].valor : "Opción de ejemplo"];
-          h += '<div><label class="fl" for="' + id + '">' + lab + '</label><select class="fi" id="' + id + '" data-f="' + i + '"><option value="">Elige una opción</option>' + ops.map(function (o) { return "<option>" + esc(o) + "</option>"; }).join("") + "</select>" + (c.opciones && c.opciones.length ? "" : '<div class="fopt">' + fmt("[opciones por definir]") + "</div>") + "</div>";
+          h += '<div><div class="fld"><label class="fll" for="' + id + '">' + lab + '</label><select class="fin" id="' + id + '" data-f="' + i + '"><option value="">Elige una opción</option>' + ops.map(function (o) { return "<option>" + esc(o) + "</option>"; }).join("") + "</select></div>" + (c.opciones && c.opciones.length ? "" : '<div class="fopt">' + fmt("[opciones por definir]") + "</div>") + "</div>";
         }
-        else if (c.tipo === "archivo") h += '<div><div class="fl">' + lab + '</div><button type="button" class="fup" data-f="' + i + '" data-file="">📎 Adjuntar archivo</button></div>';
+        else if (c.tipo === "archivo") h += '<div class="fld"><span class="fll">' + lab + '</span><button type="button" class="fin up" data-f="' + i + '" data-file="">' + ic("attach") + "<span>Adjuntar archivo</span></button></div>";
         else {
           var ph = ej ? "Ej.: " + ej : c.tipo === "correo" ? "nombre@ejemplo.com" : c.tipo === "numero" ? "Solo números" : c.tipo === "fecha" ? "dd/mm/aaaa" : c.tipo === "telefono" ? "Número de celular" : "Escribe aquí";
-          h += '<div><label class="fl" for="' + id + '">' + lab + '</label><input class="fi" id="' + id + '" data-f="' + i + '" type="' + (c.tipo === "correo" ? "email" : "text") + '"' + (c.tipo === "numero" || c.tipo === "telefono" ? ' inputmode="numeric"' : "") + ' placeholder="' + esc(ph) + '"></div>';
+          h += '<div class="fld"><label class="fll" for="' + id + '">' + lab + '</label><input class="fin" id="' + id + '" data-f="' + i + '" type="' + (c.tipo === "correo" ? "email" : "text") + '"' + (c.tipo === "numero" || c.tipo === "telefono" ? ' inputmode="numeric"' : "") + ' placeholder="' + esc(ph) + '"></div>';
         }
       });
       if (!campos.length) h += '<p class="more">Formulario sin campos definidos.</p>';
-      var tool = { flows: "WhatsApp Flow", webview: "WebView" }[w.herramienta] || "WhatsApp Flow / WebView";
-      h += '<p class="ferr" data-role="ferr" hidden>Completa los campos obligatorios (*) o usa «Rellenar con datos de ejemplo».</p><button type="button" class="linkb" data-act="fill">Rellenar con datos de ejemplo</button></form><div class="ff"><button type="button" class="ffb" data-act="submitform">' + esc(wv.boton || "Enviar") + '</button><div class="ffm">Formulario (' + tool + ') simulado · escribe o elige tus valores</div></div>';
-      wvBox.innerHTML = h; wvBox.hidden = false;
-      var f = $("input,select,button.fup", wvBox); if (f) f.focus();
+      h += '<p class="ferr" data-role="ferr" hidden>Completa los campos obligatorios (*).</p></form><div class="ffo"><button type="button" class="fbtn' + (isWv ? " wvb" : "") + '" data-act="submitform">' + esc(wv.boton || (isWv ? "Enviar" : "Continuar")) + '</button><div class="fman">' + ic("lock") + (isWv ? "Sitio seguro" : "Gestionado por la empresa") + "</div></div></div>";
+      flowBox.innerHTML = h; flowBox.hidden = false; controls();
+      var f = $("input,select,button.fin", flowBox); if (f) f.focus({ preventScroll: true });
     }
     // Campos obligatorios vacíos (los marca en rojo); devuelve cuántos faltan.
     function missingRequired() {
       var campos = (S.wait.webview && S.wait.webview.campos) || [], n = 0;
       campos.forEach(function (c, i) {
-        var el = $('[data-f="' + i + '"]', wvBox); if (!el) return;
+        var el = $('[data-f="' + i + '"]', flowBox); if (!el) return;
         var empty = el.type === "checkbox" ? !el.checked : el.hasAttribute("data-file") ? !el.getAttribute("data-file") : !String(el.value || "").trim();
         var bad = !!c.obligatorio && empty;
         el.classList.toggle("bad", bad); if (bad) n++;
       });
-      var er = $("[data-role=ferr]", wvBox); if (er) er.hidden = !n;
+      var er = $("[data-role=ferr]", flowBox); if (er) er.hidden = !n;
       return n;
     }
     function fillSamples(onlyEmpty) {
-      var w = S.wait, campos = (w.webview && w.webview.campos) || [], sd = Eng.sampleData(w.webview);
-      $$("[data-f]", wvBox).forEach(function (el) {
+      var w = S.wait, sd = Eng.sampleData(w.webview);
+      $$("[data-f]", flowBox).forEach(function (el) {
         var i = +el.getAttribute("data-f"), v = sd[i] ? sd[i].valor : "";
         if (el.type === "checkbox") { if (!onlyEmpty || !el.checked) el.checked = true; }
         else if (el.tagName === "SELECT") { if (!onlyEmpty || !el.value) el.value = v; }
-        else if (el.hasAttribute("data-file")) { if (!onlyEmpty || !el.getAttribute("data-file")) { el.setAttribute("data-file", v); el.textContent = "📎 " + v + " ✓"; } }
+        else if (el.hasAttribute("data-file")) { if (!onlyEmpty || !el.getAttribute("data-file")) { el.setAttribute("data-file", v); el.querySelector("span").textContent = v + " ✓"; } }
         else if (!onlyEmpty || !el.value) el.value = v;
       });
     }
     function collect() {
       var campos = (S.wait.webview && S.wait.webview.campos) || [], out = [];
       campos.forEach(function (c, i) {
-        var el = $('[data-f="' + i + '"]', wvBox), v = "";
+        var el = $('[data-f="' + i + '"]', flowBox), v = "";
         if (el) v = el.type === "checkbox" ? (el.checked ? "Sí" : "No") : el.hasAttribute("data-file") ? el.getAttribute("data-file") : el.value;
         out.push({ etiqueta: c.etiqueta || "Campo", tipo: c.tipo || "texto", valor: v });
       });
       return out;
     }
-    function delayFor(e) { if (reduce) return 0; return e.t === "user" ? 250 : e.t === "bot" ? 600 : e.kind === "wait" ? 850 : e.kind === "form" ? 300 : 350; }
+    function lead(e) {
+      if (reduce) return 0;
+      var ms = e.t === "user" ? 220 : e.t === "bot" ? 900 : e.kind === "wait" ? 700 : e.kind === "form" ? 250 : 300;
+      return S.fast ? Math.round(ms * 0.12) : ms;
+    }
     function play(events, wait) {
       closeOv(); S.wait = null; S.pending = wait; S.queue = events.slice(); S.busy = true; controls(); step();
     }
     function step() {
       if (!S.queue.length) {
-        S.busy = false; S.wait = S.pending; render(); controls();
-        if (S.wait && S.wait.kind === "webview") openForm();
+        S.busy = false; S.wait = S.pending; setStatus(BASE_STATUS); render(); controls();
+        if (S.wait && S.wait.kind === "webview" && !S.fast) { /* el formulario se abre desde el botón del chat, como en WhatsApp */ }
         return;
       }
-      var e = S.queue.shift(); e.time = time(S.min++); S.shown.push(e); render();
-      S.timer = setTimeout(step, delayFor(e));
+      var e = S.queue.shift(), ms = lead(e);
+      if (e.t === "bot" && ms) setStatus("escribiendo…");
+      S.timer = setTimeout(function () {
+        e.time = clock(S.min++); S.shown.push(e);
+        if (e.t === "sys") addLog(e);
+        render(); setStatus(BASE_STATUS);
+        S.timer = setTimeout(step, reduce ? 0 : S.fast ? 20 : 140);
+      }, ms);
     }
     function send(inp) {
       if (S.busy || !S.wait) return;
-      var r = Eng.answer(DATAAGENT, S.wait, inp, S.ctx);
+      var r = Eng.answer(agent, S.wait, inp, S.ctx);
       play(r.events, r.wait);
     }
-    var DATAAGENT = agent;
     function reset() {
-      clearTimeout(S.timer); S.shown = []; S.min = 0; S.queue = [];
+      clearTimeout(S.timer); S.shown = []; S.min = 0; S.queue = []; S.log = []; logEl.innerHTML = "";
       var r = Eng.start(agent); S.ctx = r.ctx; play(r.events, r.wait);
     }
     box.addEventListener("click", function (ev) {
-      var el = ev.target.closest("[data-b],[data-l],[data-o],[data-act]");
+      var el = ev.target.closest("[data-b],[data-l],[data-o],[data-act],[data-role=reset],[data-role=fast]");
       if (!el || !box.contains(el)) return;
       var w = S.wait;
+      if (el.getAttribute("data-role") === "reset") { reset(); return; }
+      if (el.getAttribute("data-role") === "fast") { S.fast = !S.fast; fastBtn.setAttribute("aria-pressed", S.fast ? "true" : "false"); return; }
       if (el.hasAttribute("data-b") && w) { send({ type: "choice", value: w.buttons[+el.getAttribute("data-b")] }); return; }
-      if (el.hasAttribute("data-l") && w) { var v = w.list[+el.getAttribute("data-l")]; closeOv(); send({ type: "choice", value: v }); return; }
+      if (el.hasAttribute("data-l") && w) {
+        S.sel = +el.getAttribute("data-l");
+        $$(".lrow", sheet).forEach(function (r, i) { r.classList.toggle("sel", i === S.sel); });
+        var sb = $(".lbtn", sheet); if (sb) sb.disabled = false;
+        return;
+      }
       if (el.hasAttribute("data-o") && w) { send({ type: w.kind === "outcome" ? "outcome" : "choice", value: w.options[+el.getAttribute("data-o")] }); return; }
       var act = el.getAttribute("data-act");
       if (act === "reset") reset();
       else if (act === "sheet") openSheet();
-      else if (act === "closesheet") closeOv();
+      else if (act === "closesheet" || act === "closeform") closeOv();
+      else if (act === "sendlist" && w && S.sel >= 0) { var v = w.list[S.sel]; closeOv(); send({ type: "choice", value: v }); }
       else if (act === "openform") openForm();
-      else if (act === "closeform") closeOv();
       else if (act === "example" && w) send({ type: "text", text: w.example });
       else if (act === "fill") fillSamples(false);
       else if (act === "submitform") { if (missingRequired()) return; var d = collect(); closeOv(); send({ type: "submit", data: d }); }
     });
     // botón de archivo del formulario simulado
     box.addEventListener("click", function (ev) {
-      var b = ev.target.closest("button.fup[data-f]");
-      if (b && b.hasAttribute("data-file")) { var on = !b.getAttribute("data-file"); b.setAttribute("data-file", on ? "documento.pdf" : ""); b.textContent = on ? "📎 documento.pdf ✓" : "📎 Adjuntar archivo"; }
+      var b = ev.target.closest("button.fin.up[data-f]");
+      if (b) { var on = !b.getAttribute("data-file"); b.setAttribute("data-file", on ? "documento.pdf" : ""); b.querySelector("span").textContent = on ? "documento.pdf ✓" : "Adjuntar archivo"; }
     });
+    input.addEventListener("input", function () { fab.innerHTML = input.value ? ic("send") : ic("mic"); });
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       var t = input.value.trim(); if (!t || input.disabled) return;
-      input.value = ""; send({ type: "text", text: t });
+      input.value = ""; fab.innerHTML = ic("mic"); send({ type: "text", text: t });
     });
     box.addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeOv(); });
-    $("[data-role=reset]", box).addEventListener("click", reset);
     reset();
   }
   var first = $(".agent-tab"), startId = first ? first.getAttribute("data-agent") : (DATA.agentes[0] && String(DATA.agentes[0].id));
@@ -681,162 +799,177 @@ function pageScript() {
 // ---------------------------------------------------------------------------
 const CSS = `
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#16213e;--card:rgba(255,255,255,.05);--line:rgba(255,255,255,.12);--txt:#e8edf5;--mut:#9aa7bd;--acc:#00b3c7;--wa:#128C7E;--wag:#25D366;--chat:#E5DDD5}
+:root{--page:#f0f2f5;--card:#fff;--ink:#111b21;--mut:#667781;--line:#e9edef;--acc:#00a884;--acc-ink:#fff;--soft:#e7f8f3;
+--head:#008069;--head-ink:#fff;--wall:#efeae2;--doodle:rgba(11,20,26,.06);--b-in:#fff;--b-out:#d9fdd3;--b-ink:#111b21;--b-time:#667781;--tick:#53bdeb;
+--chip-bg:rgba(255,255,255,.92);--chip-ink:#54656f;--enc-bg:#ffeecd;--enc-ink:#54656f;--abtn:#027eb5;--bar:transparent;--pill:#fff;--sheet:#fff;--sheet-ink:#111b21;--field:#d1d7db;
+--bezel:#0b0b0c;--warn:#a35a00;--warn-soft:#fdeccf;--red:#d9322b;--shadow:0 1px .5px rgba(11,20,26,.13)}
+:root[data-theme=dark]{--page:#0b141a;--card:#111b21;--ink:#e9edef;--mut:#8696a0;--line:#222d34;--acc:#00a884;--soft:#0f2a27;
+--head:#202c33;--head-ink:#e9edef;--wall:#0b141a;--doodle:rgba(255,255,255,.045);--b-in:#202c33;--b-out:#005c4b;--b-ink:#e9edef;--b-time:#8696a0;--tick:#53bdeb;
+--chip-bg:#182229;--chip-ink:#8696a0;--enc-bg:#182229;--enc-ink:#ffd279;--abtn:#53bdeb;--pill:#202c33;--sheet:#111b21;--sheet-ink:#e9edef;--field:#374248;--warn:#f0b45c;--warn-soft:#3a2a10;--red:#ff7b72}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--page:#0b141a;--card:#111b21;--ink:#e9edef;--mut:#8696a0;--line:#222d34;--soft:#0f2a27;
+--head:#202c33;--head-ink:#e9edef;--wall:#0b141a;--doodle:rgba(255,255,255,.045);--b-in:#202c33;--b-out:#005c4b;--b-ink:#e9edef;--b-time:#8696a0;
+--chip-bg:#182229;--chip-ink:#8696a0;--enc-bg:#182229;--enc-ink:#ffd279;--abtn:#53bdeb;--pill:#202c33;--sheet:#111b21;--sheet-ink:#e9edef;--field:#374248;--warn:#f0b45c;--warn-soft:#3a2a10;--red:#ff7b72}}
 html{-webkit-text-size-adjust:100%;overflow-x:hidden}
-body{overflow-x:hidden;max-width:100vw}
-.chip0,.agent-tab,.stat,.tabs [role=tab]{max-width:100%;overflow-wrap:anywhere;text-align:center}
-.ph-wrap,.simwrap>*,.ahead{min-width:0;max-width:100%}
-body{background:var(--bg);color:var(--txt);font-family:Poppins,system-ui,-apple-system,"Segoe UI",sans-serif;padding:28px 20px 40px;line-height:1.45}
+body{overflow-x:hidden;max-width:100vw;background:var(--page);color:var(--ink);font-family:"Segoe UI","Helvetica Neue",Helvetica,Arial,system-ui,sans-serif;padding:24px 16px 40px;line-height:1.45;font-size:15px}
 button{font:inherit;cursor:pointer;color:inherit;background:none;border:0}
-:focus-visible{outline:3px solid #7ee7f3;outline-offset:2px;border-radius:6px}
-.pend{color:#ff4d4d;font-weight:700}
-.top{max-width:1240px;margin:0 auto 22px;text-align:center}
-.top h1{font-size:clamp(20px,4vw,28px);font-weight:700;color:#fff;margin-bottom:6px}
-.chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:8px 0}
-.chip0{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:12px;color:var(--txt)}
-.aviso{font-size:12px;color:var(--mut);margin-top:6px}
-.agents{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 auto 18px;max-width:1240px}
-.agent-tab{padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:600}
-.agent-tab[aria-selected=true]{background:var(--acc);border-color:var(--acc);color:#04212a}
+:focus-visible{outline:3px solid #53bdeb;outline-offset:2px;border-radius:6px}
+.ic{width:24px;height:24px;fill:currentColor;flex-shrink:0}
+.pend{color:var(--red);font-weight:700}
+.top{max-width:1240px;margin:0 auto 18px;text-align:center}
+.top h1{font-size:clamp(20px,4vw,28px);font-weight:700;margin-bottom:6px}
+.chips0{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:8px 0}
+.chip0{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:12px}
+.aviso{font-size:12.5px;color:var(--mut);margin-top:6px}
+.agents{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:0 auto 16px;max-width:1240px}
+.agent-tab{padding:8px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:600;max-width:100%;overflow-wrap:anywhere}
+.agent-tab[aria-selected=true]{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
 .agent{max-width:1240px;margin:0 auto}
-.agent[hidden],.pane[hidden],[hidden]{display:none!important}
-.ahead{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:14px}
-.ahead h2{font-size:17px;color:#fff}
+[hidden]{display:none!important}
+.ahead{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 18px;margin-bottom:14px;min-width:0}
+.ahead h2{font-size:17px}
 .ameta{font-size:12.5px;color:var(--mut);margin-top:2px}
 .stats{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
-.stat{background:rgba(0,179,199,.16);border:1px solid rgba(0,179,199,.5);color:#bff3f9;border-radius:999px;padding:3px 12px;font-size:12px;font-weight:600}
+.stat{background:var(--soft);border:1px solid var(--acc);border-radius:999px;padding:3px 12px;font-size:12px;font-weight:600;max-width:100%;overflow-wrap:anywhere}
 details.otros{font-size:12.5px;color:var(--mut);margin-top:8px}
-details.otros summary{cursor:pointer;color:var(--txt)}
+details.otros summary{cursor:pointer;color:var(--ink)}
 details.otros ul{margin:6px 0 0 18px}
-.tabs{display:flex;gap:6px;justify-content:center;margin:6px 0 20px;flex-wrap:wrap}
+.tabs{display:flex;gap:6px;justify-content:center;margin:6px 0 18px;flex-wrap:wrap}
 .tabs [role=tab]{padding:8px 20px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--card)}
-.tabs [role=tab][aria-selected=true]{background:#fff;color:#16213e;border-color:#fff}
-.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),280px));gap:28px 22px;justify-content:center}
-.ph-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin:0}
-figcaption.lbl,.lbl{color:var(--mut);font-size:11.5px;text-align:center;display:flex;flex-direction:column;gap:4px;align-items:center;max-width:280px}
-.lbl strong{color:#fff;font-size:12.5px;font-weight:600}
+.tabs [role=tab][aria-selected=true]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),300px));gap:30px 22px;justify-content:center}
+.ph-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin:0;min-width:0;max-width:100%}
+figcaption.lbl,.lbl{color:var(--mut);font-size:11.5px;text-align:center;display:flex;flex-direction:column;gap:4px;align-items:center;max-width:300px}
+.lbl strong{color:var(--ink);font-size:12.5px;font-weight:600}
 .tag{display:inline-block;border-radius:999px;padding:1px 9px;font-size:10.5px;font-weight:600;border:1px solid}
-.tag.main{color:#7ee7a8;border-color:#2e7d4f;background:rgba(37,211,102,.1)}
-.tag.alt{color:#bff3f9;border-color:#0e7c8a;background:rgba(0,179,199,.12)}
-.tag.err{color:#ff9a9a;border-color:#a33;background:rgba(255,77,77,.1)}
-.tag.adv{color:#ffd28a;border-color:#a77415;background:rgba(255,170,0,.1)}
-.lnk{font-size:10.5px;color:#ffd28a}
-.ph{width:min(280px,100%);background:#0d0d0d;border-radius:44px;padding:12px 10px;box-shadow:0 0 0 1px #2a2a2a,0 20px 60px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.04);color:#111}
-.nc{width:44px;height:8px;background:#1a1a1a;border-radius:4px;margin:0 auto 6px}
-.sc{border-radius:30px;overflow:hidden;background:#fff;position:relative}
-.sb{background:#1a1a1a;padding:5px 14px;display:flex;justify-content:space-between;align-items:center}
-.st{color:#fff;font-size:10px;font-weight:600}.si{color:#fff;font-size:10px}
-.hb{width:52px;height:4px;background:#2a2a2a;border-radius:2px;margin:8px auto 0}
-.wh{background:#128C7E;padding:9px 12px;display:flex;align-items:center;gap:8px}
-.wv{width:34px;height:34px;background:#25D366;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.2)}
-.wn{color:#fff;font-size:12.5px;font-weight:600;line-height:1.2}.ws{color:rgba(255,255,255,.75);font-size:10px}
-.wi{margin-left:auto;color:#fff;font-size:14px}
-.cb{background:#E5DDD5;padding:10px 8px;min-height:340px;display:flex;flex-direction:column;gap:5px}
-.cb.short{min-height:120px}
-.dp{text-align:center;margin-bottom:3px}.dp span{background:rgba(255,255,255,.78);border-radius:6px;padding:2px 9px;font-size:10px;color:#555}
-.bi{background:#fff;border-radius:8px;border-top-left-radius:2px;padding:8px 10px;max-width:88%;align-self:flex-start;box-shadow:0 1px 1px rgba(0,0,0,.08)}
-.bo{background:#DCF8C6;border-radius:8px;border-top-right-radius:2px;padding:8px 10px;max-width:88%;align-self:flex-end;box-shadow:0 1px 1px rgba(0,0,0,.08)}
-.bi.ghost{background:rgba(255,255,255,.7);color:#555;font-style:italic}
-.bt{font-size:12px;color:#111;line-height:1.45;word-break:break-word}
-.bm{display:flex;justify-content:flex-end;align-items:center;gap:3px;margin-top:2px}
-.btime{font-size:9px;color:#8696a0}.bchk{font-size:10px;color:#53bdeb}
-.cta{border-top:1px solid #E8E8E8;margin-top:5px;text-align:center;padding-top:5px}
-.ctab{font-size:11px;color:#128C7E;font-weight:600;background:none;border:0;display:block;width:100%;padding:4px}
-.qr{display:flex;flex-direction:column;gap:4px;margin-top:2px;max-width:88%;align-self:flex-start;width:88%}
-.qg,.qw{text-align:center;border-radius:20px;padding:6px 10px;font-size:11px;font-weight:600;display:block;width:100%}
-.qg{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
-.qw{background:#fff;color:#555;border:1px solid #ddd;font-weight:500}
-.note{align-self:center;background:rgba(255,255,255,.8);border-radius:8px;padding:4px 10px;font-size:10.5px;color:#555;text-align:center;max-width:92%}
-.note.adv{background:#fff3d6;color:#7a5200;border:1px solid #f0cf85;font-weight:600}
-.note.simn{background:#e0f4f7;color:#0e5b66}
-.ib{background:#f0f0f0;padding:7px 10px;display:flex;align-items:center;gap:7px}
-.ip{flex:1;background:#fff;border-radius:22px;padding:7px 13px;font-size:11px;color:#bbb}
-.mc{width:32px;height:32px;background:#128C7E;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:#fff}
-.mc:disabled{background:#9bb;cursor:not-allowed}
-.fh{background:#fff;padding:11px 13px;display:flex;align-items:center;gap:9px;border-bottom:1.5px solid #F0F0F0}
-.fx{width:26px;height:26px;background:#F0F0F0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;color:#555;flex-shrink:0}
-.ft{font-size:13px;font-weight:700;color:#111;flex:1}.fd{color:#999;font-size:16px}
-.fb{padding:13px 12px;display:flex;flex-direction:column;gap:10px;background:#fff;min-height:300px}
-.fl{font-size:10.5px;color:#666;margin-bottom:4px;font-weight:500;display:block}
-.req{color:#d32f2f;font-weight:700}
-.fi{border:1.5px solid #DCDCDC;border-radius:8px;padding:10px 12px;font-size:12px;width:100%;color:#111;background:#fff;font-family:inherit}
-.ph-txt{color:#aaa}
-.fv{color:#111}.fopt{font-size:10px;color:#128C7E;margin-top:3px}.ferr{font-size:11px;color:#d32f2f}
-.fi.bad{border-color:#d32f2f}
-.wvp{background:#c62828;box-shadow:0 0 0 2px rgba(255,255,255,.35)}
-.pendh{background:#fff;color:#c62828;font-weight:700;border-radius:999px;padding:1px 9px;font-size:11px}
+.tag.main{color:#1d7a46;border-color:#1d7a46;background:rgba(37,211,102,.12)}
+.tag.alt{color:var(--abtn);border-color:var(--abtn);background:rgba(2,126,181,.1)}
+.tag.err{color:var(--red);border-color:var(--red);background:rgba(217,50,43,.08)}
+.tag.adv{color:var(--warn);border-color:var(--warn);background:var(--warn-soft)}
+.lnk{font-size:10.5px;color:var(--warn)}.tool{font-size:10.5px}
+/* teléfono */
+.phone{width:390px;max-width:100%;height:min(800px,calc(100vh - 40px));min-height:560px;background:var(--bezel);border-radius:46px;padding:10px;box-shadow:0 0 0 1px #2a2a2a,0 24px 60px rgba(0,0,0,.35)}
+.phone.mini{width:300px;height:620px;min-height:0;border-radius:40px;padding:8px}
+.screen{position:relative;height:100%;border-radius:36px;overflow:hidden;display:flex;flex-direction:column;background:var(--wall);color:var(--b-ink)}
+.mini .screen{border-radius:32px}.mini .wh>.ic:nth-last-child(3){display:none}.mini .ws{white-space:nowrap}
+.sbar{background:var(--head);color:var(--head-ink);display:flex;justify-content:space-between;align-items:center;padding:8px 22px 2px;font-size:12px;font-weight:600;flex-shrink:0}
+.sbi{display:flex;gap:5px}.sbi svg{width:13px;height:13px;fill:currentColor}
+.wh{background:var(--head);color:var(--head-ink);display:flex;align-items:center;gap:10px;padding:6px 12px 8px 8px;flex-shrink:0}
+.wh .ic{width:22px;height:22px}.wh .hb{width:24px;height:24px}
+.av{width:38px;height:38px;border-radius:50%;background:#dfe5e7;color:#54656f;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0}
+.av.avp{background:#fff;color:#c62828}
+.who{flex:1;min-width:0;line-height:1.2}
+.wn{font-size:16.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wn .pendh{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}.ws{font-size:12.5px;opacity:.8}
+.pendh{background:#fff;color:#c62828;font-weight:700;border-radius:999px;padding:1px 9px;font-size:12px}
+.chat{flex:1;min-height:0;overflow-y:auto;padding:8px 10px 10px;display:flex;flex-direction:column;gap:2px;background-color:var(--wall);
+background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23808b92' stroke-opacity='.16' stroke-width='1.2'%3E%3Ccircle cx='20' cy='22' r='6'/%3E%3Cpath d='M64 14l8 8-8 8-8-8z'/%3E%3Cpath d='M96 60q6-8 12 0t12 0'/%3E%3Cpath d='M18 76h14M25 69v14'/%3E%3Ccircle cx='70' cy='86' r='4'/%3E%3Cpath d='M100 104l7-7M100 97l7 7'/%3E%3C/g%3E%3C/svg%3E")}
+.dchip{align-self:center;margin:6px 0 4px}.dchip span{display:inline-block;background:var(--chip-bg);color:var(--chip-ink);font-size:12px;border-radius:7px;padding:4px 10px;box-shadow:var(--shadow);letter-spacing:.02em}
+.nchip{align-self:center;max-width:92%;text-align:center;font-size:12px;border-radius:8px;padding:6px 10px;margin:4px 0;line-height:1.35;box-shadow:var(--shadow)}
+.nchip.enc{background:var(--enc-bg);color:var(--enc-ink)}.nchip.enc .ic{width:11px;height:11px;margin-right:4px;vertical-align:-1px}
+.nchip.enc span{display:inline}
+.nchip.biz{background:var(--chip-bg);color:var(--chip-ink)}
+.msg{max-width:82%;display:flex;flex-direction:column;margin-top:2px}
+.msg.first{margin-top:8px}
+.msg.in{align-self:flex-start}.msg.out{align-self:flex-end}
+.bub{position:relative;border-radius:8px;padding:6px 8px 7px 9px;color:var(--b-ink);box-shadow:var(--shadow);font-size:14.2px;line-height:1.35;overflow-wrap:anywhere}
+.in .bub{background:var(--b-in)}.out .bub{background:var(--b-out)}
+.in.first .bub{border-top-left-radius:0}.out.first .bub{border-top-right-radius:0}
+.in.first .bub::before,.out.first .bub::before{content:"";position:absolute;top:0;width:9px;height:13px;background:inherit}
+.in.first .bub::before{left:-8px;clip-path:polygon(100% 0,0 0,100% 100%)}
+.out.first .bub::before{right:-8px;clip-path:polygon(0 0,100% 0,0 100%)}
+.tx{white-space:pre-wrap}
+.mt{float:right;margin:7px 0 -3px 12px;font-size:11px;color:var(--b-time);display:inline-flex;align-items:center;gap:3px;line-height:1}
+.out .mt{color:var(--b-time)}
+.tk{width:16px;height:16px;color:var(--tick)}
+.acts{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.abtn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;background:var(--b-in);color:var(--abtn);border-radius:8px;padding:10px 12px;font-size:14.2px;font-weight:500;box-shadow:var(--shadow);text-align:center}
+.abtn .ic{width:18px;height:18px}
+button.abtn:hover{filter:brightness(.97)}
+.abtn.off{cursor:default}
+.schip{align-self:center;margin:8px 0 2px;background:var(--chip-bg);color:var(--chip-ink);font-size:12px;border-radius:8px;padding:5px 12px;box-shadow:var(--shadow);display:flex;gap:6px;align-items:center;text-align:center}
+.schip .ic{width:14px;height:14px}.schip.adv{background:var(--warn-soft);color:var(--warn)}.schip.note{background:transparent;border:1px dashed var(--field);box-shadow:none;color:var(--mut);font-style:italic}
+.fsent{display:block}.fsh{display:flex;align-items:center;gap:6px}.fsh .ic{width:18px;height:18px;color:var(--abtn)}
+.fsl{display:block;font-size:12.5px;color:var(--b-time);margin-top:4px;border-top:1px solid rgba(128,139,146,.3);padding-top:4px}
+.bar{display:flex;align-items:center;gap:6px;padding:6px 8px 10px;background:var(--wall);flex-shrink:0}
+.pill{flex:1;min-width:0;display:flex;align-items:center;gap:10px;background:var(--pill);border-radius:24px;padding:9px 14px;color:var(--mut);box-shadow:var(--shadow)}
+.pill .ic{width:22px;height:22px}
+.ph-in{flex:1;color:var(--mut);font-size:15px}
+.ipt{flex:1;min-width:0;border:0;background:none;color:var(--ink);font:inherit;font-size:15px;outline:none}
+.ipt::placeholder{color:var(--mut)}
+.fab{width:46px;height:46px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:var(--shadow)}
+.fab .ic{width:22px;height:22px}.fab:disabled{opacity:.65;cursor:default}
+/* hojas */
+.ov{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;justify-content:flex-end}
+.scrim{position:absolute;inset:0;background:rgba(11,20,26,.55)}
+.lsheet,.flow{position:relative;background:var(--sheet);color:var(--sheet-ink);border-radius:18px 18px 0 0;overflow:hidden;display:flex;flex-direction:column}
+.lsheet{max-height:78%}.flow{height:92%}
+.mini .lsheet{position:absolute;left:0;right:0;bottom:0}.mini .scrim{position:absolute}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--field);margin:8px auto 0;flex-shrink:0}
+.lhd,.fhd{display:flex;align-items:center;gap:12px;padding:12px 14px;flex-shrink:0}
+.lhd b,.fti b{font-size:16px;font-weight:600}
+.lhd .ic,.fhd .ic,.xb .ic{width:22px;height:22px;color:var(--mut)}
+.xb{display:flex}.fti{flex:1;min-width:0;display:flex;flex-direction:column}
+.fti small{display:flex;align-items:center;gap:4px;font-size:11.5px;color:var(--mut)}.fti small .ic{width:11px;height:11px}
+.fhd.wvh{border-bottom:1px solid var(--line);background:var(--sheet)}
+.lrows{overflow-y:auto}
+.lrow{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:14px 16px;font-size:15px;border-top:1px solid var(--line)}
+.rad{width:20px;height:20px;border-radius:50%;border:2px solid var(--field);flex-shrink:0;position:relative}
+.lrow.sel .rad,.rad.on{border-color:var(--acc)}.lrow.sel .rad::after,.rad.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--acc)}
+.lbtn{margin:12px 16px 16px;background:var(--acc);color:#fff;border-radius:24px;padding:12px;font-weight:600;font-size:15px;text-align:center}
+.lbtn:disabled{opacity:.45;cursor:default}
+.fbd{flex:1;overflow-y:auto;padding:8px 16px 12px;display:flex;flex-direction:column;gap:16px;min-height:0}
+.fld{position:relative;padding-top:6px}
+.fll{position:absolute;left:10px;top:-2px;background:var(--sheet);padding:0 5px;font-size:12px;color:var(--mut);z-index:1}
+.fin{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:1px solid var(--field);border-radius:8px;padding:13px 14px;font:inherit;font-size:15px;color:var(--sheet-ink);background:var(--sheet);text-align:left}
+input.fin:focus,select.fin:focus{border-color:var(--acc);outline:2px solid var(--acc);outline-offset:-1px}
+.fin.bad{border-color:var(--red)}
+.fin.up{justify-content:flex-start;color:var(--abtn);border-style:dashed}.fin.up .ic{width:18px;height:18px}
+.fchev{width:20px;height:20px;color:var(--mut)}
+.ph-txt{color:var(--mut)}
+.fopt{font-size:11.5px;color:var(--acc);margin:3px 0 0 4px}
+.req{color:var(--red);font-weight:700}
+.fck{display:flex;align-items:flex-start;gap:10px;padding:4px 0}
+.fck input{width:20px;height:20px;accent-color:var(--acc);margin-top:1px}
+.fckb{width:20px;height:20px;border-radius:4px;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.fckt{font-size:14px;line-height:1.4}
+.more{font-size:12px;color:var(--mut);text-align:center}
+.ferr{font-size:12.5px;color:var(--red)}
+.ffo{padding:10px 16px 14px;border-top:1px solid var(--line);flex-shrink:0}
+.fbtn{display:block;width:100%;background:var(--acc);color:#fff;border-radius:24px;padding:13px;font-size:15px;font-weight:600;text-align:center}
+.fbtn.wvb{background:#1a73e8;border-radius:8px}
+.fman{display:flex;align-items:center;justify-content:center;gap:4px;font-size:11.5px;color:var(--mut);margin-top:8px}.fman .ic{width:11px;height:11px}
+.flowfull{flex:1;display:flex;flex-direction:column;background:var(--sheet);color:var(--sheet-ink);min-height:0}
+.ext-t{font-weight:700;color:#3949ab}.ext-s{font-size:14px}.ext-e{font-size:12px;color:var(--mut)}
+/* detrás de escena */
+.stage{display:flex;gap:28px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.back{width:340px;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.back h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+.back h4{font-size:12px;color:var(--mut);font-weight:600;margin-top:4px}
+.now{background:var(--soft);border:1px solid var(--acc);border-radius:10px;padding:10px 12px;font-size:13.5px}
+.nowt{margin-bottom:4px}.nowh{font-size:12.5px;color:var(--mut);margin-bottom:6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{background:var(--card);border:1px solid var(--field);border-radius:16px;padding:5px 11px;font-size:12.5px;color:var(--abtn);font-weight:600;text-align:left;max-width:100%;overflow-wrap:anywhere}
+.chip:hover{background:var(--soft)}.chip.warn{border-color:var(--warn);color:var(--warn);background:var(--warn-soft)}
+.tools{display:flex;flex-wrap:wrap;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--acc);color:#fff;font-weight:600;border-radius:10px;padding:8px 14px;font-size:13px}
+.btn .ic{width:16px;height:16px}.btn.ghost{background:var(--card);color:var(--ink);border:1px solid var(--field)}
+.btn[aria-pressed=true]{background:var(--soft);border-color:var(--acc)}
+.log{list-style:none;display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;font-size:12.5px;color:var(--mut)}
+.log li{display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:8px;background:var(--page)}
+.log .ic{width:16px;height:16px;margin-top:1px}.log .lg-derive{color:var(--warn)}.log .lg-wait .ic{color:var(--abtn)}
+.persona-note{font-size:12px;color:var(--mut);margin-top:6px}
 .dfig{margin:0 0 18px}.dfig figcaption{font-size:12.5px;font-weight:600;color:#1a1d24;text-align:left;margin-bottom:6px}
-.fs{border:1.5px solid #DCDCDC;border-radius:8px;padding:10px 12px;font-size:12px;display:flex;justify-content:space-between;align-items:center;background:#fff}
-.fsa{color:#128C7E;font-size:14px}
-.fup{border:1.5px dashed #9bd;border-radius:8px;padding:11px 12px;font-size:12px;color:#1565c0;background:#EAF5FB;width:100%;text-align:center}
-.fck{display:flex;align-items:flex-start;gap:9px;padding:6px 0}
-.fckb{width:18px;height:18px;border:2px solid #25D366;border-radius:4px;flex-shrink:0;margin-top:1px;background:#25D366;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px}
-.fckt{font-size:11.5px;color:#444;line-height:1.5}
-.more{font-size:10.5px;color:#999;text-align:center}
-.ff{padding:10px 12px;background:#fff;border-top:1.5px solid #F0F0F0}
-.ffb{background:#25D366;color:#fff;border:0;border-radius:24px;padding:12px;width:100%;font-size:13px;font-weight:700}
-.ffm{text-align:center;font-size:9.5px;color:#aaa;margin-top:7px}.ffml{color:#128C7E}
-.bsw{background:#fff;border-radius:18px 18px 0 0;overflow:hidden}
-.bsh{width:38px;height:4px;background:#DCDCDC;border-radius:2px;margin:10px auto 0}
-.bshdr{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid #F0F0F0}
-.bsbk{color:#128C7E;font-size:20px;line-height:1}.dots{color:#aaa;font-size:15px}
-.bst{font-size:13px;font-weight:700;color:#111;flex:1}
-.bsi{display:flex;align-items:center;padding:13px 14px;border-bottom:1px solid #F5F5F5;font-size:12.5px;color:#333;width:100%;text-align:left}
-.bsi.sel{color:#128C7E;font-weight:700}.bsck{margin-left:auto;color:#25D366;font-size:16px;font-weight:700}
-.eh{background:#3949AB;padding:11px 13px;display:flex;align-items:center;gap:9px}
-.ex{width:26px;height:26px;background:rgba(255,255,255,.18);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;flex-shrink:0}
-.et{font-size:13px;font-weight:700;color:#fff;flex:1}
-.ecl-body{background:#fff;padding:13px 12px;min-height:300px;display:flex;flex-direction:column;gap:8px}
-.ecl-title{font-size:11.5px;font-weight:700;color:#3949AB}.ecl-sub{font-size:11px;color:#555;line-height:1.5}
-.es{display:flex;align-items:center;gap:9px;font-size:11px;padding:8px 10px;background:#EEF2FF;border-radius:7px;color:#333}
-.ecl-end{text-align:center;font-size:10px;color:#aaa;margin-top:4px}
-/* simulador */
-.simwrap{display:flex;gap:28px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
-.ph.sim{width:min(380px,100%)}
-.simsc{display:flex;flex-direction:column;height:700px;max-height:calc(100vh - 70px);min-height:520px}
-.sim .cb.chat{flex:1;min-height:0;overflow-y:auto;gap:6px;padding:12px 10px}
-.sim .bt{font-size:13.5px}.sim .qg,.sim .qw{font-size:12.5px;padding:8px 12px;cursor:pointer}
-.sim .ctab{font-size:12.5px;cursor:pointer}.sim .note{font-size:11.5px}
-.sim button.qg:hover{background:#d3edd5}.sim button.qw:hover{background:#f3f3f3}
-.sim .ipt{flex:1;min-width:0;border:0;background:#fff;border-radius:22px;padding:9px 14px;font-size:13px;color:#111;font-family:inherit}
-.sim .ipt:disabled{background:#e6e6e6}
-.hints{background:#f0f0f0;padding:6px 8px 0;display:flex;flex-wrap:wrap;gap:6px}
-.hints:empty{display:none}.hints .hint{font-size:11px;color:#666}
-.chip{background:#fff;border:1px solid #cfd8dc;border-radius:16px;padding:5px 11px;font-size:11.5px;color:#0e5b66;font-weight:600}
-.chip:hover{background:#e0f4f7}
-.outcome{background:#fff8e1;border-top:1px solid #f0cf85;padding:8px 10px}
-.olabel{font-size:11px;font-weight:700;color:#7a5200;margin-bottom:5px}
-.obtns{display:flex;flex-wrap:wrap;gap:6px}
-.obtn{background:#fff;border:1.5px solid #e0a82e;color:#7a5200;border-radius:16px;padding:5px 12px;font-size:12px;font-weight:700}
-.obtn:hover{background:#ffeab0}
-.ov{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:#fff;top:0}
-.ov[data-role=sheet]{background:rgba(0,0,0,.35);justify-content:flex-end}
-.ov .bsbg{flex:1}.ov .bsw{max-height:75%;overflow-y:auto}
-.ov[data-role=sheet] .bsbk{width:28px}
-.ov[data-role=wv] .fh{padding-top:14px}.ov[data-role=wv] .fb{flex:1;overflow-y:auto}
-.ov .fx{cursor:pointer}.ov .fl{margin-bottom:3px}
-.wvform .fi:focus{border-color:#25D366;outline:none;box-shadow:0 0 0 3px rgba(37,211,102,.25)}
-.linkb{color:#128C7E;font-size:11.5px;text-decoration:underline;text-align:left}
-.typing{display:flex;gap:4px;padding:11px 14px}
-.typing span{width:6px;height:6px;border-radius:50%;background:#9aa;animation:bl 1s infinite}
-.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
-@keyframes bl{0%,80%,100%{opacity:.3}40%{opacity:1}}
-@media (prefers-reduced-motion:reduce){.typing span{animation:none}}
-.simside{max-width:300px;display:flex;flex-direction:column;gap:12px}
-.simside .hint{font-size:12.5px;color:var(--mut)}.simside strong{color:#fff}
-.btn{background:var(--acc);color:#04212a;font-weight:700;border-radius:10px;padding:10px 16px;font-size:13px;align-self:flex-start}
 .diag{background:#fff;border-radius:14px;padding:16px;overflow:auto;text-align:center}
 .diag svg{max-width:100%;height:auto}
-.foot{text-align:center;color:#6b7690;font-size:12px;margin-top:34px}
-@media (max-width:640px){
- body{padding:18px 12px 32px}
- .tabs [role=tab],.agent-tab{padding:8px 12px;font-size:12.5px}
- .simwrap{flex-direction:column;align-items:center;gap:16px}
- .ph.sim{border-radius:36px}
- .simside{width:100%}
- .simsc{height:calc(100vh - 80px);min-height:480px}
- .simside{max-width:100%}
+.foot{text-align:center;color:var(--mut);font-size:12px;margin-top:34px}
+@media (max-width:520px){
+ body{padding:14px 0 28px}
+ .top,.agents,.agent>.ahead,.tabs{padding-inline:14px}
+ .stage{gap:16px}
+ .phone:not(.mini){width:100%;height:calc(100vh - 150px);min-height:480px;border-radius:0;padding:0;box-shadow:none}
+ .phone:not(.mini) .screen{border-radius:0}
+ .back{width:calc(100% - 28px);margin-inline:14px}
 }
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 `;
 
 function metaChips(meta) {
@@ -859,11 +992,11 @@ function agentSection(agent, i, sow, diagramas) {
   const key = "ag-" + id.replace(/[^A-Za-z0-9_-]/g, "_");
   const tab = (v, label, sel) => `<button type="button" role="tab" id="${key}-t-${v}" data-view="${v}" aria-controls="${key}-${v}" aria-selected="${sel ? "true" : "false"}">${label}</button>`;
   return `<section class="agent" id="${key}" hidden aria-label="${esc(agent.nombre || id)}">
-<div class="ahead"><h2>${esc(id)} · ${fmt(agent.nombre || "Agente")}</h2><div class="ameta">${meta}</div>
+<div class="ahead"><h2>${esc(id)} · ${fmt(agent.nombre || "Agente")}</h2><div class="ameta">${meta}</div>${pendiente ? '<p class="persona-note">Nombre de la persona del bot pendiente de definir.</p>' : ""}
 <div class="stats"><span class="stat">camino principal: ${E.describeCounts(an.principal.c)}</span><span class="stat">${E.index(agent).pasos.length} pasos en total</span><span class="stat">${screens.length} pantallas${forms ? ` (${forms} de formulario)` : ""}</span></div>${otros}</div>
-<div class="tabs" role="tablist" aria-label="Vistas de ${esc(agent.nombre || id)}">${tab("pan", "Pantallas", true)}${tab("sim", "Simular", false)}${svg ? tab("diag", "Diagrama", false) : ""}</div>
-<div class="pane" id="${key}-pan" role="tabpanel" aria-labelledby="${key}-t-pan">${gallery}</div>
-<div class="pane" id="${key}-sim" role="tabpanel" aria-labelledby="${key}-t-sim" hidden><div class="simbox" data-agent="${esc(id)}"></div></div>
+<div class="tabs" role="tablist" aria-label="Vistas de ${esc(agent.nombre || id)}">${tab("sim", "Simular", true)}${tab("pan", "Pantallas", false)}${svg ? tab("diag", "Diagrama", false) : ""}</div>
+<div class="pane" id="${key}-sim" role="tabpanel" aria-labelledby="${key}-t-sim"><div class="simbox" data-agent="${esc(id)}"></div></div>
+<div class="pane" id="${key}-pan" role="tabpanel" aria-labelledby="${key}-t-pan" hidden>${gallery}</div>
 ${svg ? `<div class="pane" id="${key}-diag" role="tabpanel" aria-labelledby="${key}-t-diag" hidden><div class="diag">${svg.map((f) => `<figure class="dfig">${f.titulo ? `<figcaption>${esc(f.caption || f.titulo)}</figcaption>` : ""}${sanitizeSvg(f.svg)}</figure>`).join("")}</div></div>` : ""}
 </section>`;
 }
@@ -879,16 +1012,16 @@ function buildHtml(sow, opts) {
   const intNombres = {};
   (Array.isArray(sow.integraciones) ? sow.integraciones : []).forEach((it) => { if (it && it.id) intNombres[it.id] = it.nombre || it.id; });
   agentes.forEach((a) => { a.intNombres = intNombres; });
-  const data = { agentes: agentes.map((a) => ({ id: a.id, nombre: a.nombre, persona: a.persona, intNombres, pasos: Array.isArray(a.pasos) ? a.pasos : [] })) };
+  const data = { icons: ICONS, agentes: agentes.map((a) => ({ id: a.id, nombre: a.nombre, persona: a.persona, intNombres, pasos: Array.isArray(a.pasos) ? a.pasos : [] })) };
   const sections = agentes.map((a, i) => agentSection(a, i, sow, diag)).join("\n");
   const switcher = agentes.length > 1 ? `<nav class="agents" role="tablist" aria-label="Agentes">${agentes.map((a, i) => `<button type="button" role="tab" class="agent-tab" data-agent="${esc(a.id)}" aria-selected="${i === 0}">${esc(a.id)} · ${fmt(a.nombre || "Agente")}</button>`).join("")}</nav>` : agentes.length ? `<button type="button" class="agent-tab" data-agent="${esc(agentes[0].id)}" hidden></button>` : "";
   return `<!DOCTYPE html>
-<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${esc(title)}</title>
 <style>${CSS}</style></head><body>
 <header class="top"><h1>${fmt(meta.proyecto || "Simulador del bot")}</h1>
-<div class="chips">${metaChips(meta)}</div>
-<p class="aviso">Simulación basada en el SOW ${esc(v)} — los textos son propuestos${v ? "" : ""}. Lo que aparece en <span class="pend">rojo</span> está por definir.</p></header>
+<div class="chips0">${metaChips(meta)}</div>
+<p class="aviso">Simulación basada en el SOW ${esc(v)} — los textos son propuestos. Lo que aparece en <span class="pend">rojo</span> está por definir. Los datos son de ejemplo.</p></header>
 ${switcher}
 ${sections || '<p class="aviso" style="text-align:center">Este SOW no define agentes (sow.agentes).</p>'}
 <p class="foot">${esc(meta.proyecto || "")} · ${esc(meta.cliente || "")} · ${esc(v)} · Jelou AI</p>
