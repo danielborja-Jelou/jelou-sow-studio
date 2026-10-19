@@ -1,0 +1,1001 @@
+{
+  "version": 2,
+  "leeme": "Catálogo de recursos visuales del simulador. Cada recurso = señales (cuándo aplica) + receta (qué se dibuja). Se empareja contra el texto de cada paso del SOW y de su integración. Se amplía sin tocar código: en la carpeta del usuario (~/.claude/jelou-sow-studio/visuales/recursos.json), con `node scripts/aprender_recurso.js`, o por cliente en sow.json > demo.recursos. Ver references/simulador-visual.md.",
+  "variables": "En cualquier texto de una receta: {{marca}} {{cliente}} {{proveedor}} {{monto}} {{concepto}} {{documento}} {{usuario_nombre}} {{usuario_telefono}} {{numero}} {{etapa}} {{mensaje}} {{caption}}. Una imagen se pide con { \"generar\": \"ticket-qr|documento-identidad|selfie|factura|producto|firma|pantalla\" } o con un archivo { \"src\": \"captura.png\" } (se busca en la carpeta del recurso, en la del usuario y junto al sow.json).",
+  "recursos": [
+    {
+      "id": "foto-usuario",
+      "nombre": "Foto o archivo que envía la persona",
+      "aplica_a": [
+        "usuario"
+      ],
+      "senales": {
+        "mensaje": "^\\s*\\[\\s*(foto|imagen|captura|selfie|escaneo|archivo)[^\\]]*\\]",
+        "componente": "an[aá]lisis de imagen"
+      },
+      "generadores": [
+        {
+          "texto": "qr|ticket|c[oó]digo de barras",
+          "generar": "ticket-qr",
+          "alt": "Ticket con código QR",
+          "nota": "Imagen de ejemplo: el QR no es legible."
+        },
+        {
+          "texto": "c[eé]dula|dni|pasaporte|documento de identidad|identidad",
+          "generar": "documento-identidad",
+          "alt": "Documento de identidad"
+        },
+        {
+          "texto": "selfie|rostro|cara",
+          "generar": "selfie",
+          "alt": "Selfie"
+        },
+        {
+          "texto": "factura|comprobante|recibo",
+          "generar": "factura",
+          "alt": "Factura"
+        },
+        {
+          "texto": "producto|art[ií]culo|da[nñ]o|evidencia",
+          "generar": "producto",
+          "alt": "Foto"
+        }
+      ],
+      "generador_por_defecto": {
+        "generar": "pantalla",
+        "alt": "Foto"
+      },
+      "receta": {
+        "abre": "pasos",
+        "pasos": [
+          {
+            "tipo": "usuario",
+            "texto": "{{caption}}",
+            "imagen": {
+              "generar": "{{generar}}",
+              "alt": "{{alt}}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "pago",
+      "nombre": "Pago con pasarela",
+      "aplica_a": [
+        "api",
+        "tercero",
+        "webview",
+        "formulario"
+      ],
+      "senales": {
+        "texto": "pasarela|checkout|cobro con tarjeta|pago con tarjeta|agente de pagos|nodo pagos|datafast|payphone|placetopay|stripe|kushki|cushky|wompi|mercado ?pago|nuvei|culqi|deuna|jelou ?pay|paypal|conekta|niubiz",
+        "excluir": "estado de pago|notifica"
+      },
+      "proveedores": [
+        {
+          "id": "datafast",
+          "nombre": "Datafast",
+          "match": "datafast",
+          "paises": [
+            "Ecuador"
+          ],
+          "experiencia": "webview",
+          "medios": [
+            "Visa",
+            "Mastercard",
+            "Diners",
+            "Discover"
+          ],
+          "marketplace": {
+            "slug": "datafast",
+            "tipo": "TOOL",
+            "envuelve": "Pago WebView"
+          },
+          "docs": "https://docs.jelou.ai/guides/integraciones/pagos/proveedores/datafast",
+          "por_confirmar": "La app del marketplace (TOOL «Pago WebView», el usuario paga en el checkout seguro de Datafast) y la página de documentación (experiencia nativa en chat con Flows, habilitación asistida) no coinciden: confirmar con Jelou cuál se usará."
+        },
+        {
+          "id": "payphone",
+          "nombre": "PayPhone",
+          "match": "payphone",
+          "paises": [
+            "Ecuador"
+          ],
+          "experiencia": "webview",
+          "medios": [
+            "Tarjeta",
+            "Saldo PayPhone"
+          ]
+        },
+        {
+          "id": "placetopay",
+          "nombre": "Placetopay",
+          "match": "placetopay|place to pay",
+          "experiencia": "webview"
+        },
+        {
+          "id": "deuna",
+          "nombre": "Deuna",
+          "match": "deuna",
+          "paises": [
+            "Ecuador"
+          ],
+          "experiencia": "webview"
+        },
+        {
+          "id": "nuvei",
+          "nombre": "Nuvei",
+          "match": "nuvei",
+          "experiencia": "nativa"
+        },
+        {
+          "id": "stripe",
+          "nombre": "Stripe",
+          "match": "stripe",
+          "experiencia": "webview"
+        },
+        {
+          "id": "culqi",
+          "nombre": "Culqi",
+          "match": "culqi",
+          "paises": [
+            "Perú"
+          ],
+          "experiencia": "nativa"
+        },
+        {
+          "id": "niubiz",
+          "nombre": "Niubiz",
+          "match": "niubiz",
+          "paises": [
+            "Perú"
+          ],
+          "experiencia": "webview"
+        },
+        {
+          "id": "kushki",
+          "nombre": "Kushki",
+          "match": "kushki|cushky",
+          "experiencia": "webview"
+        },
+        {
+          "id": "wompi",
+          "nombre": "Wompi",
+          "match": "wompi",
+          "paises": [
+            "Colombia"
+          ],
+          "experiencia": "webview"
+        },
+        {
+          "id": "mercadopago",
+          "nombre": "Mercado Pago",
+          "match": "mercado ?pago",
+          "experiencia": "webview",
+          "mensaje": {
+            "cuerpo": "*Listo, avancemos con tu pago*\nTu pago se procesará de manera segura con Mercado Pago 🔒\n_Completa los datos para finalizar y regresar al chat_",
+            "boton": "Proceder al pago"
+          }
+        },
+        {
+          "id": "conekta",
+          "nombre": "Conekta",
+          "match": "conekta",
+          "paises": [
+            "México"
+          ],
+          "experiencia": "webview"
+        },
+        {
+          "id": "paypal",
+          "nombre": "PayPal",
+          "match": "paypal",
+          "experiencia": "webview"
+        },
+        {
+          "id": "jelou-pay",
+          "nombre": "JelouPay",
+          "match": "jelou ?pay",
+          "experiencia": "webview"
+        }
+      ],
+      "proveedor_por_defecto": {
+        "nombre": "Pasarela de pagos",
+        "experiencia": "webview",
+        "medios": [
+          "Tarjeta de crédito o débito"
+        ]
+      },
+      "variantes": {
+        "webview": {
+          "abre": "webview",
+          "nota": "Pantalla de pago de {{proveedor}} (checkout abierto en un WebView dentro de WhatsApp). Representa el flujo; el aspecto real del checkout lo define la pasarela.",
+          "mensaje": {
+            "cuerpo": "¡Es hora de procesar tu pago de forma segura! 🔒\nTotal a pagar: *{{monto}}*\n{{concepto}}\n_Tus datos serán procesados de manera encriptada_",
+            "boton": "Proceder al pago"
+          },
+          "webview": {
+            "titulo": "{{proveedor}}",
+            "dominio": "pagos.{{proveedor_slug}}.demo",
+            "pantallas": [
+              {
+                "bloques": [
+                  {
+                    "tipo": "marca"
+                  },
+                  {
+                    "tipo": "titulo",
+                    "texto": "Pago seguro",
+                    "subtexto": "{{concepto}}"
+                  },
+                  {
+                    "tipo": "resumen",
+                    "titulo": "Resumen del pago",
+                    "filas": [
+                      [
+                        "Comercio",
+                        "{{marca}}"
+                      ],
+                      [
+                        "Concepto",
+                        "{{concepto}}"
+                      ]
+                    ],
+                    "total": [
+                      "Total",
+                      "{{monto}}"
+                    ]
+                  },
+                  {
+                    "tipo": "pago",
+                    "marca": "{{medio_marca}}",
+                    "texto": "{{medios}}",
+                    "subtexto": "Ingresa los datos de tu tarjeta en el checkout"
+                  }
+                ],
+                "boton": "Pagar {{monto}}",
+                "cargando": "Procesando el pago…"
+              }
+            ],
+            "exito": {
+              "titulo": "¡Pago aprobado!",
+              "texto": "Te enviamos la confirmación por WhatsApp.",
+              "codigo": "Autorización 482913",
+              "boton": "Volver a WhatsApp"
+            }
+          }
+        },
+        "nativa": {
+          "abre": "flow",
+          "nota": "Pago nativo en chat con {{proveedor}}: la tarjeta se captura dentro de la conversación con un WhatsApp Flow (sin WebView).",
+          "mensaje": {
+            "cuerpo": "Para completar tu pago de *{{monto}}* abre el formulario seguro 👇",
+            "boton": "Pagar {{monto}}"
+          },
+          "flow": {
+            "titulo": "Pago con {{proveedor}}",
+            "intro": [
+              "Total a pagar: {{monto}}",
+              "{{concepto}}. Pago seguro con {{proveedor}}."
+            ],
+            "boton": "Pagar {{monto}}",
+            "campos": [
+              {
+                "etiqueta": "Nombre del titular",
+                "tipo": "texto",
+                "ejemplo": "{{usuario_nombre}}"
+              },
+              {
+                "etiqueta": "Número de tarjeta",
+                "tipo": "numero",
+                "ejemplo": "4111111111111111"
+              },
+              {
+                "etiqueta": "Vence (MM/AA)",
+                "tipo": "texto",
+                "ejemplo": "12/28"
+              },
+              {
+                "etiqueta": "CVV",
+                "tipo": "clave",
+                "ejemplo": "123"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "documento-pdf",
+      "nombre": "Documento PDF (factura, comprobante, recibo, certificado)",
+      "aplica_a": [
+        "api",
+        "mensaje"
+      ],
+      "senales": {
+        "etapa": "(gener|emit|crea|descarg|env[ií]).{0,40}(factura|comprobante|recibo|boleta|certificado|constancia)",
+        "diagrama": "(gener|emit|crea|descarg|env[ií]).{0,40}(factura|comprobante|recibo|boleta|certificado|constancia)",
+        "mensaje": "(comprobante|recibo|factura|certificado|constancia).{0,80}pdf",
+        "excluir": "estado de pago"
+      },
+      "visible": false,
+      "adjunta": "siguiente",
+      "nombres": [
+        {
+          "texto": "factura",
+          "nombre": "Factura"
+        },
+        {
+          "texto": "recibo",
+          "nombre": "Recibo"
+        },
+        {
+          "texto": "boleta",
+          "nombre": "Boleta"
+        },
+        {
+          "texto": "certificado",
+          "nombre": "Certificado"
+        },
+        {
+          "texto": "constancia",
+          "nombre": "Constancia"
+        }
+      ],
+      "nombre_por_defecto": "Comprobante",
+      "receta": {
+        "abre": "despues",
+        "despues": [
+          {
+            "tipo": "documento",
+            "nombre": "{{documento}}-0001.pdf",
+            "paginas": 1,
+            "peso": "84 KB",
+            "caption": "Documento generado por el sistema (ejemplo)",
+            "nota": "Documento PDF {{documento}}-0001.pdf: contenido de ejemplo. El medio de entrega real se confirma con el cliente."
+          }
+        ]
+      }
+    },
+    {
+      "id": "firma-electronica",
+      "nombre": "Firma electrónica en webview",
+      "aplica_a": [
+        "api",
+        "tercero",
+        "webview",
+        "formulario"
+      ],
+      "senales": {
+        "texto": "firma electr[oó]nica|firma digital|firmar (el |los |la )?(documento|contrato|pagar[eé]|acuerdo)|datil|d[aá]til|firmaza|docusign|signaturit|autofirma|firmaec|certificado de firma"
+      },
+      "proveedores": [
+        {
+          "id": "datil",
+          "nombre": "Dátil",
+          "match": "d[aá]til|datil"
+        },
+        {
+          "id": "firmaza",
+          "nombre": "Firmaza",
+          "match": "firmaza"
+        },
+        {
+          "id": "docusign",
+          "nombre": "DocuSign",
+          "match": "docusign"
+        },
+        {
+          "id": "signaturit",
+          "nombre": "Signaturit",
+          "match": "signaturit"
+        }
+      ],
+      "proveedor_por_defecto": {
+        "nombre": "Firma electrónica"
+      },
+      "receta": {
+        "abre": "webview",
+        "nota": "Firma electrónica con {{proveedor}} dentro de un WebView: revisión del documento, firma y código de confirmación. Representa el flujo; las pantallas reales las define el proveedor.",
+        "mensaje": {
+          "cuerpo": "Para firmar *{{documento}}* abre el enlace seguro de {{proveedor}} 👇",
+          "boton": "Firmar documento"
+        },
+        "webview": {
+          "titulo": "{{proveedor}}",
+          "dominio": "firma.{{proveedor_slug}}.demo",
+          "pantallas": [
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Revisar",
+                    "Firmar",
+                    "Confirmar"
+                  ],
+                  "actual": 1
+                },
+                {
+                  "tipo": "documento",
+                  "titulo": "{{documento}}",
+                  "lineas": 9,
+                  "sello": "Pendiente de firma"
+                },
+                {
+                  "tipo": "checklist",
+                  "items": [
+                    "Leí el documento",
+                    "Acepto firmarlo electrónicamente"
+                  ]
+                }
+              ],
+              "boton": "Continuar"
+            },
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Revisar",
+                    "Firmar",
+                    "Confirmar"
+                  ],
+                  "actual": 2
+                },
+                {
+                  "tipo": "titulo",
+                  "texto": "Firma tu documento",
+                  "subtexto": "Dibuja tu firma en el recuadro"
+                },
+                {
+                  "tipo": "firma",
+                  "texto": "Firma de {{usuario_nombre}}"
+                }
+              ],
+              "boton": "Firmar"
+            },
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Revisar",
+                    "Firmar",
+                    "Confirmar"
+                  ],
+                  "actual": 3
+                },
+                {
+                  "tipo": "codigo",
+                  "texto": "Ingresa el código que enviamos a tu correo",
+                  "digitos": 6,
+                  "valor": "482913"
+                }
+              ],
+              "boton": "Confirmar",
+              "cargando": "Firmando…"
+            }
+          ],
+          "exito": {
+            "titulo": "¡Documento firmado!",
+            "texto": "Recibirás una copia firmada por correo.",
+            "codigo": "ID de firma 8F3A-21",
+            "boton": "Volver a WhatsApp"
+          }
+        }
+      }
+    },
+    {
+      "id": "biometria",
+      "nombre": "Verificación biométrica / prueba de vida / KYC",
+      "aplica_a": [
+        "api",
+        "tercero",
+        "webview",
+        "formulario"
+      ],
+      "senales": {
+        "texto": "biometr[ií]a|prueba de vida|liveness|reconocimiento facial|validaci[oó]n facial|verificaci[oó]n facial|selfie|verificaci[oó]n de identidad|\\bkyc\\b"
+      },
+      "proveedor_por_defecto": {
+        "nombre": "Verificación de identidad"
+      },
+      "receta": {
+        "abre": "webview",
+        "nota": "Verificación de identidad con {{proveedor}} abierta en un WebView: instrucciones, captura del rostro y resultado. Representa el flujo; la pantalla real la define el proveedor de biometría.",
+        "mensaje": {
+          "cuerpo": "Vamos a verificar tu identidad. Abre el enlace seguro y sigue las instrucciones 👇",
+          "boton": "Verificar identidad"
+        },
+        "webview": {
+          "titulo": "{{proveedor}}",
+          "dominio": "verificacion.{{proveedor_slug}}.demo",
+          "pantallas": [
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Instrucciones",
+                    "Rostro",
+                    "Listo"
+                  ],
+                  "actual": 1
+                },
+                {
+                  "tipo": "titulo",
+                  "texto": "Verifica tu identidad",
+                  "subtexto": "Te tomará menos de un minuto"
+                },
+                {
+                  "tipo": "checklist",
+                  "items": [
+                    "Buena iluminación",
+                    "Sin lentes ni gorra",
+                    "Rostro centrado y descubierto"
+                  ]
+                }
+              ],
+              "boton": "Comenzar"
+            },
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Instrucciones",
+                    "Rostro",
+                    "Listo"
+                  ],
+                  "actual": 2
+                },
+                {
+                  "tipo": "camara",
+                  "modo": "rostro",
+                  "etiqueta": "Prueba de vida",
+                  "texto": "Centra tu rostro en el óvalo y parpadea"
+                }
+              ],
+              "boton": "Capturar",
+              "cargando": "Analizando…"
+            }
+          ],
+          "exito": {
+            "titulo": "¡Identidad verificada!",
+            "texto": "Ya puedes continuar en WhatsApp.",
+            "boton": "Volver a WhatsApp"
+          }
+        }
+      }
+    },
+    {
+      "id": "captura-documento",
+      "nombre": "Captura de documento de identidad (frente y reverso)",
+      "aplica_a": [
+        "api",
+        "tercero",
+        "webview",
+        "formulario"
+      ],
+      "senales": {
+        "texto": "(foto|captura|escaneo|escanear|lectura).{0,30}(c[eé]dula|documento de identidad|dni|pasaporte|licencia)|ocr de documento|validaci[oó]n de documento"
+      },
+      "proveedor_por_defecto": {
+        "nombre": "Captura de documento"
+      },
+      "receta": {
+        "abre": "webview",
+        "nota": "Captura del documento de identidad con {{proveedor}} en un WebView: frente y reverso con guía en pantalla.",
+        "mensaje": {
+          "cuerpo": "Ahora necesitamos una foto de tu documento. Abre el enlace seguro 👇",
+          "boton": "Capturar documento"
+        },
+        "webview": {
+          "titulo": "{{proveedor}}",
+          "dominio": "documentos.{{proveedor_slug}}.demo",
+          "pantallas": [
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Frente",
+                    "Reverso",
+                    "Listo"
+                  ],
+                  "actual": 1
+                },
+                {
+                  "tipo": "camara",
+                  "modo": "documento",
+                  "etiqueta": "Frente",
+                  "texto": "Coloca el frente del documento dentro del marco"
+                }
+              ],
+              "boton": "Capturar frente"
+            },
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "progreso",
+                  "pasos": [
+                    "Frente",
+                    "Reverso",
+                    "Listo"
+                  ],
+                  "actual": 2
+                },
+                {
+                  "tipo": "camara",
+                  "modo": "documento",
+                  "etiqueta": "Reverso",
+                  "texto": "Ahora el reverso del documento"
+                }
+              ],
+              "boton": "Capturar reverso",
+              "cargando": "Leyendo el documento…"
+            }
+          ],
+          "exito": {
+            "titulo": "Documento recibido",
+            "texto": "Lo estamos validando.",
+            "boton": "Volver a WhatsApp"
+          }
+        }
+      }
+    },
+    {
+      "id": "ecommerce",
+      "nombre": "Tienda en WhatsApp con Jelou Shop (catálogo, detalle, carrito)",
+      "aplica_a": [
+        "mensaje",
+        "tercero",
+        "webview"
+      ],
+      "senales": {
+        "etapa": "cat[aá]logo|carrito|tienda|shopify|vtex|woocommerce|jelou shop|e-?commerce|compra de productos",
+        "integracion": "shopify|vtex|woocommerce|jelou shop|magento|tiendanube|prestashop"
+      },
+      "leeme": "Sea cual sea la plataforma de origen (Shopify, VTEX, WooCommerce, API), los productos se sincronizan en Jelou Shop y el cliente final ve el MISMO webview de Jelou Shop. Pantallas de catálogo y detalle según la documentación (guides/integraciones/e-commerce/webview); el carrito y el cierre son estructurales (la documentación no trae captura).",
+      "proveedores": [
+        {
+          "id": "shopify",
+          "nombre": "Shopify",
+          "match": "shopify"
+        },
+        {
+          "id": "vtex",
+          "nombre": "VTEX",
+          "match": "vtex"
+        },
+        {
+          "id": "woocommerce",
+          "nombre": "WooCommerce",
+          "match": "woocommerce"
+        },
+        {
+          "id": "jelou-shop",
+          "nombre": "Jelou Shop",
+          "match": "jelou shop"
+        }
+      ],
+      "proveedor_por_defecto": {
+        "nombre": "Jelou Shop",
+        "experiencia": "webview"
+      },
+      "productos_por_defecto": [
+        {
+          "titulo": "Camiseta Jelou",
+          "descripcion": "Camiseta oficial con logo. 100% algodón.",
+          "precio": "$25.00",
+          "emoji": "👕",
+          "sku": "jelou-tshirt-negro-m"
+        },
+        {
+          "titulo": "Gorra Jelou",
+          "descripcion": "Gorra ajustable bordada.",
+          "precio": "$15.00",
+          "emoji": "🧢",
+          "sku": "jelou-cap-azul"
+        }
+      ],
+      "variantes": {
+        "webview": {
+          "abre": "webview",
+          "nota": "Tienda de {{marca}} con Jelou Shop dentro de un WebView de WhatsApp: el agente envía el catálogo o los resultados de búsqueda como webview; la persona busca, elige color y talla y agrega al carrito. Mismo webview con Shopify, VTEX, WooCommerce o carga por API (se sincronizan en Jelou Shop). Catálogo y detalle siguen la documentación de Jelou; el carrito es estructural.",
+          "mensaje": {
+            "header": {
+              "tipo": "imagen",
+              "generar": "producto"
+            },
+            "cuerpo": "{{mensaje_o}}",
+            "boton": "Ver Detalles"
+          },
+          "webview": {
+            "titulo": "{{marca}}",
+            "dominio": "shop.jelou.ai",
+            "pantallas": [
+              {
+                "bloques": [
+                  {
+                    "tipo": "cabecera",
+                    "izquierda": "Cancelar",
+                    "titulo": "Catálogo",
+                    "carrito": 1
+                  },
+                  {
+                    "tipo": "buscador",
+                    "texto": "{{busqueda}}"
+                  },
+                  "{{productos_filas}}",
+                  {
+                    "tipo": "chips",
+                    "titulo": "COLOR",
+                    "opciones": [
+                      {
+                        "t": "Blanco",
+                        "color": "#ffffff"
+                      },
+                      {
+                        "t": "Azul",
+                        "color": "#2563eb"
+                      },
+                      {
+                        "t": "Negro",
+                        "color": "#111827"
+                      }
+                    ],
+                    "seleccion": 1
+                  },
+                  {
+                    "tipo": "chips",
+                    "titulo": "TALLA",
+                    "opciones": [
+                      "S",
+                      "M",
+                      "L",
+                      "XL"
+                    ],
+                    "seleccion": 1
+                  },
+                  {
+                    "tipo": "boton_oscuro",
+                    "texto": "+ Agregar al carrito"
+                  }
+                ],
+                "boton": "Agregar al carrito"
+              },
+              {
+                "bloques": [
+                  {
+                    "tipo": "cabecera",
+                    "izquierda": "‹",
+                    "titulo": "",
+                    "carrito": 1
+                  },
+                  {
+                    "tipo": "imagen",
+                    "generar": "producto"
+                  },
+                  {
+                    "tipo": "titulo_precio",
+                    "titulo": "{{producto_nombre}}",
+                    "precio": "{{producto_precio}}",
+                    "texto": "{{producto_descripcion}}"
+                  },
+                  {
+                    "tipo": "boton_oscuro",
+                    "texto": "+ Agregar al carrito"
+                  }
+                ],
+                "boton": "Ver carrito"
+              },
+              {
+                "bloques": [
+                  {
+                    "tipo": "cabecera",
+                    "izquierda": "‹",
+                    "titulo": "Mi carrito",
+                    "carrito": 1
+                  },
+                  "{{carrito_filas}}",
+                  {
+                    "tipo": "resumen",
+                    "filas": [
+                      [
+                        "Subtotal",
+                        "{{subtotal}}"
+                      ],
+                      [
+                        "IVA 15%",
+                        "{{iva}}"
+                      ]
+                    ],
+                    "total": [
+                      "Total",
+                      "{{monto}}"
+                    ]
+                  },
+                  {
+                    "tipo": "boton_oscuro",
+                    "texto": "Finalizar compra"
+                  }
+                ],
+                "boton": "Finalizar compra",
+                "cargando": "Creando tu pedido…"
+              }
+            ],
+            "exito": {
+              "titulo": "¡Pedido realizado!",
+              "texto": "Tu pedido ha sido realizado con éxito.",
+              "boton": "Volver a WhatsApp"
+            }
+          },
+          "despues": [
+            {
+              "tipo": "botones",
+              "cuerpo": "✅ ¡Pedido confirmado!\n💰 Total a pagar: {{monto}}",
+              "botones": [
+                {
+                  "titulo": "💳 Ir al pago"
+                },
+                {
+                  "titulo": "🔍 Agregar más",
+                  "accion": "repetir"
+                },
+                {
+                  "titulo": "🛒 Ver mi carrito",
+                  "accion": "repetir"
+                }
+              ],
+              "nota": "Mensaje de pedido confirmado que sugiere la documentación de Jelou Shop tras el checkout (el agente usa «Enviar mensaje con opciones»)."
+            }
+          ]
+        },
+        "externo": {
+          "abre": "webview",
+          "nota": "Checkout externo de la tienda ({{proveedor}}): con `use_external_checkout` la herramienta «Obtener y vaciar carrito» devuelve un `checkout_url` y la persona termina la compra en el checkout oficial de la tienda (solo Shopify o WooCommerce).",
+          "mensaje": {
+            "cuerpo": "Tu carrito está listo. Total: *{{monto}}*\nTermina tu compra en el checkout seguro de la tienda 👇",
+            "boton": "Ir al checkout"
+          },
+          "webview": {
+            "titulo": "{{proveedor}}",
+            "dominio": "checkout.{{proveedor_slug}}.demo",
+            "pantallas": [
+              {
+                "bloques": [
+                  {
+                    "tipo": "marca"
+                  },
+                  {
+                    "tipo": "resumen",
+                    "titulo": "Resumen del pedido",
+                    "filas": [
+                      [
+                        "Camiseta Jelou × 2",
+                        "$50.00"
+                      ]
+                    ],
+                    "total": [
+                      "Total",
+                      "{{monto}}"
+                    ]
+                  },
+                  {
+                    "tipo": "pago",
+                    "marca": "VISA",
+                    "texto": "Tarjeta de crédito o débito",
+                    "subtexto": "Pago en el checkout de la tienda"
+                  }
+                ],
+                "boton": "Pagar {{monto}}",
+                "cargando": "Procesando el pago…"
+              }
+            ],
+            "exito": {
+              "titulo": "¡Pedido confirmado!",
+              "texto": "Gracias por tu compra.",
+              "boton": "Volver a WhatsApp"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ubicacion",
+      "nombre": "Pedir la ubicación",
+      "aplica_a": [
+        "mensaje"
+      ],
+      "senales": {
+        "mensaje": "(comparte|env[ií]a|manda|indica).{0,20}(tu )?ubicaci[oó]n"
+      },
+      "receta": {
+        "abre": "pasos",
+        "pasos": [
+          {
+            "tipo": "solicitar_ubicacion",
+            "cuerpo": "{{mensaje}}",
+            "boton": "Enviar ubicación",
+            "respuesta": {
+              "nombre": "Mi ubicación",
+              "direccion": "Dirección de ejemplo"
+            },
+            "nota": "El botón nativo «Enviar ubicación» abre el mapa y la persona comparte su ubicación."
+          }
+        ]
+      }
+    },
+    {
+      "id": "generico-externo",
+      "nombre": "Pantalla externa genérica (respaldo)",
+      "aplica_a": [
+        "tercero",
+        "webview"
+      ],
+      "respaldo": true,
+      "senales": {},
+      "receta": {
+        "abre": "webview",
+        "nota": "{{etapa}}. Pantalla genérica: el contenido real lo define {{proveedor}}. Para dibujarla fiel, enséñale este recurso a la skill con capturas (scripts/aprender_recurso.js).",
+        "mensaje": {
+          "cuerpo": "{{etapa}}",
+          "boton": "Continuar"
+        },
+        "webview": {
+          "titulo": "{{proveedor}}",
+          "dominio": "{{proveedor_slug}}.demo",
+          "pantallas": [
+            {
+              "bloques": [
+                {
+                  "tipo": "marca"
+                },
+                {
+                  "tipo": "titulo",
+                  "texto": "{{etapa}}",
+                  "subtexto": "Se abre dentro del chat"
+                },
+                {
+                  "tipo": "aviso",
+                  "texto": "Pantalla simulada para la demostración."
+                }
+              ],
+              "boton": "Continuar",
+              "cargando": "Procesando…"
+            }
+          ],
+          "exito": {
+            "titulo": "Paso completado",
+            "texto": "Vuelve al chat para continuar.",
+            "boton": "Volver a WhatsApp"
+          }
+        }
+      }
+    }
+  ]
+}

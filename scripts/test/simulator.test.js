@@ -148,4 +148,12 @@ t("pestaña Diagrama acepta varias figuras", () => {
   const html = S.buildHtml(FX, { diagramas: { F1: [{ id: "F1.1", titulo: "a", caption: "Figura F1.1", svg: "<svg></svg>" }, { id: "F1.2", titulo: "b", caption: "Figura F1.2", svg: "<svg></svg>" }] } });
   assert((html.match(/class="dfig"/g) || []).length === 2);
 });
+t("HTML: aspecto WhatsApp, panel detrás de escena y hoja de formulario", () => {
+  const html = S.buildHtml(FX, {});
+  assert(/cuenta de empresa/.test(html) && /Gestionado por la empresa/.test(html), "cabecera y pie de WhatsApp");
+  assert(/class="abtn"/.test(html) && /class="msg in first"/.test(html), "botones y burbujas");
+  assert(/Detrás de escena/.test(html), "panel detrás de escena");
+  assert(/Tema: auto/.test(html) && /prefers-color-scheme:dark/.test(html), "claro y oscuro");
+  assert(/data-view="sim"[^>]*aria-selected="true"/.test(html), "Simular es la pestaña inicial");
+});
 console.log("\n" + n + " pruebas OK -> scripts/test/out/simulador.html");

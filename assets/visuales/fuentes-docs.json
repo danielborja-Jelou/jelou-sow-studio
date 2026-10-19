@@ -1,0 +1,15 @@
+{
+  "leeme": "Fuentes de la documentación pública de Jelou (docs.jelou.ai) de las que se aprenden pantallas reales: `node scripts/aprender_desde_docs.js --sembrar`. Las capturas se guardan en la carpeta de usuario (~/.claude/jelou-sow-studio/visuales), no en la skill. Vacíos conocidos (la documentación no trae pantallas): firma electrónica, biometría/KYC, captura de documento, carrito y checkout de Jelou Shop.",
+  "fuentes": [
+    { "pagina": "guides/integraciones/pagos/proveedores/wompi/uso-y-configuracion", "base": "pago", "proveedor": "wompi", "proveedor-nombre": "Wompi", "match": "wompi", "experiencia": "webview", "pais": "Colombia", "omitir": 1, "max": 6, "recorte-superior": 9 },
+    { "pagina": "guides/integraciones/pagos/proveedores/paypal/uso-y-configuracion", "base": "pago", "proveedor": "paypal", "proveedor-nombre": "PayPal", "match": "paypal", "experiencia": "webview", "omitir": 1, "max": 6, "recorte-superior": 9 },
+    { "pagina": "guides/integraciones/pagos/proveedores/mercado-pago/cobertura-y-precios", "base": "pago", "proveedor": "mercadopago-colombia", "proveedor-nombre": "Mercado Pago", "match": "mercado ?pago", "experiencia": "webview", "pais": "Colombia", "solo": "colombia", "max": 3 },
+    { "pagina": "guides/integraciones/pagos/proveedores/mercado-pago/cobertura-y-precios", "base": "pago", "proveedor": "mercadopago-peru", "proveedor-nombre": "Mercado Pago", "match": "mercado ?pago", "experiencia": "webview", "pais": "Perú", "solo": "per[uú]", "max": 3 },
+    { "pagina": "guides/integraciones/pagos/proveedores/mercado-pago/cobertura-y-precios", "base": "pago", "proveedor": "mercadopago-mexico", "proveedor-nombre": "Mercado Pago", "match": "mercado ?pago", "experiencia": "webview", "pais": "México", "solo": "m[eé]xico", "max": 3 },
+    { "pagina": "guides/integraciones/pagos/proveedores/mercado-pago/cobertura-y-precios", "base": "pago", "proveedor": "mercadopago-chile", "proveedor-nombre": "Mercado Pago", "match": "mercado ?pago", "experiencia": "webview", "pais": "Chile", "solo": "chile", "max": 3 },
+    { "pagina": "guides/integraciones/pagos/proveedores/mercado-pago/cobertura-y-precios", "base": "pago", "proveedor": "mercadopago-argentina", "proveedor-nombre": "Mercado Pago", "match": "mercado ?pago", "experiencia": "webview", "pais": "Argentina", "solo": "argentina", "max": 3 },
+    { "pagina": "guides/integraciones/pagos/proveedores/mercado-pago/cobertura-y-precios", "base": "pago", "proveedor": "mercadopago-uruguay", "proveedor-nombre": "Mercado Pago", "match": "mercado ?pago", "experiencia": "webview", "pais": "Uruguay", "solo": "uruguay", "max": 3 },
+    { "pagina": "guides/integraciones/pagos/proveedores/stripe/cobertura-y-precios", "base": "pago", "proveedor": "stripe", "proveedor-nombre": "Stripe", "match": "stripe", "experiencia": "webview", "max": 4 },
+    { "pagina": "guides/integraciones/pagos/experiencias/confirmacion-externa", "base": "pago", "proveedor": "deuna", "proveedor-nombre": "Deuna", "match": "deuna", "experiencia": "webview", "pais": "Ecuador", "max": 4 }
+  ]
+}

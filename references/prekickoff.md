@@ -7,6 +7,8 @@ The real flow: Sales/Presales hand over an **incomplete pre-SOW** (Word) and the
 2. a **faltantes document for the CLIENT** (Word, business language: what they must deliver or decide, owner, date);
 3. a **faltantes document INTERNAL** (Word, Jelou only: capability checks, presales doubts, assumptions, additionals for Comercial, changes versus presales, team data, the UAT clause pending Legal).
 
+4. the **WhatsApp simulator** (`*-simulador.html`, built with the `jelou-demo-whatsapp` kit through `scripts/sow_a_demo.js`), so the client tries the conversation in the pre-kickoff session itself. Anything the presales input does not define is mocked with probable data and marked in the step notes; the final SOW rebuilds the simulator from the final graph.
+
 Then the user holds the client meeting and brings the **new Diio** with the answers. With pre-SOW + Diio 1 + Diio 2 (+ any inputs) the skill builds the whole package (mode A/C: SOW Word, figures, simulator, Gantt, proposal). If the client does not deliver the technical inputs for v1, mode B versions it (1.1, 1.2…) when they arrive, keeping unresolved items red.
 
 ```
@@ -14,7 +16,8 @@ pre-SOW + Diio 1 ──► sow.json (meta.fase "prekickoff") ──► umbral_pr
                                                                                    └─ threshold met ──► build_all.js --modo prekickoff
                                                                                         ├─ deck .pptx (present to the client)
                                                                                         ├─ faltantes-cliente.docx
-                                                                                        └─ faltantes-interno.docx
+                                                                                        ├─ faltantes-interno.docx
+                                                                                        └─ simulator .html (WhatsApp look, from the handoff graph)
 client meeting ─► Diio 2 ─► update sow.json (answers; scope lock) ─► remove meta.fase ─► build_all.js ─► full package ─► (no technical inputs yet?) versions 1.1, 1.2…
 ```
 
@@ -69,7 +72,7 @@ The deck is a first draft of a conversation, not a contract: client-facing wordi
 - **Internal** (`*-faltantes-interno.docx`, "USO INTERNO"): why pre-kickoff (threshold figures), capabilities to verify and presales doubts (`audiencia: interna`), unconfirmed presales assumptions, **additionals detected (Comercial)**, **changes versus presales**, `alertas_internas`, integration status, Jelou team data, and the **UAT clause marked "borrador: pendiente de revisión por Legal"** plus the 72 h cap note.
 
 ## Scope lock in this flow
-Normally the client does not ask for extras: **the scope is the presales SOW**. Anything that appears later (Diio 2, emails) and is not in `alcance.base` goes to `ampliaciones_solicitadas[]` with `estado: "por_decidir"`:
+Normally the client does not ask for extras: **the scope is the presales SOW**. Anything said in the handoff Diio, in the pre-kickoff session (Diio 2), in later meetings or in emails that is not in the presales SOW (`alcance.base`) goes to `ampliaciones_solicitadas[]` with `estado: "por_decidir"`:
 - it is NOT in scope: out of scope as "sujeto a evaluación comercial", and the linter errors if its `terminos` appear in flows, stories, rules, solution or effort;
 - it produces exactly ONE open question, owner Comercial: "¿Se debe tomar en cuenta este adicional? (requiere aprobación de Comercial y cobro adicional)", visible in the internal faltantes and in the deck's pending slide;
 - only `aprobada_comercial` (with `cobro_adicional` and a `cambios` CC-xx row stating the approval) may enter the scope.

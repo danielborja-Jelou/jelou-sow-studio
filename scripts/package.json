@@ -8,6 +8,6 @@
     "jszip": "^3.10.2"
   },
   "scripts": {
-    "test": "node test/diagram.test.js && node test/figuras.test.js && node test/lint.test.js && node test/simulator.test.js && node test/prekickoff.test.js"
+    "test": "node test/diagram.test.js && node test/figuras.test.js && node test/lint.test.js && node test/simulator.test.js && node test/prekickoff.test.js && node test/demo.test.js"
   }
 }

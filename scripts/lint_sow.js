@@ -349,7 +349,7 @@ walk(sow, "", (s, path) => {
 // ---------- 9. schedule and version ----------
 const cr = sow.cronograma || {};
 if (cr.inicio && !/^\d{4}-\d{2}-\d{2}$/.test(cr.inicio)) err("SCHED", "cronograma.inicio", "The start date must be YYYY-MM-DD.");
-else if (!cr.inicio && !prek) warn("SCHED", "cronograma.inicio", "No start date: the schedule shows business days only (dates stay POR DEFINIR). Add it when known to get dated deliverables, the Gantt and the proposal route.");
+else if (!cr.inicio && !prek && (sow.meta || {}).estado === "aprobado") warn("SCHED", "cronograma.inicio", "The SOW is approved but has no start date: add cronograma.inicio so the Word shows the dated schedule and the Gantt and the proposal can be generated.");
 arr(cr.hitos).forEach((h, i) => {
   if (!(Number.isInteger(h.dias_habiles) && h.dias_habiles > 0)) err("SCHED", `cronograma.hitos[${i}]`, `${h.id || i}: dias_habiles must be a positive integer.`);
   if (!h.entregable) warn("SCHED", `cronograma.hitos[${i}]`, `${h.id || i}: missing deliverable.`);
@@ -530,7 +530,7 @@ if (!prek || arr(cr.hitos).length) {
     const uatRule = arr(sow.reglas).some((r) => /\buat\b/i.test(`${r.titulo || ""} ${r.descripcion || ""}`) && /fecha|venc|cierre|aceptad/i.test(`${r.descripcion || ""} ${r.si_no_cumple || ""}`));
     if (!uatDep && !uatRule) warn("UAT", "dependencias_cliente", 'The UAT time rule is missing: add a dependency (tipo "uat", with fecha_limite = end of the UAT milestone) or a rule that says the client tests must be run on the stipulated dates, otherwise the project is deemed accepted and closed.');
     if (uatDep) {
-      if (!C.dateOk(uatDep.fecha_limite)) warn("UAT", "dependencias_cliente", "The UAT dependency needs fecha_limite (the closing date of the UAT milestone).");
+      if (!C.dateOk(uatDep.fecha_limite) && (sow.meta || {}).estado === "aprobado") warn("UAT", "dependencias_cliente", "The UAT dependency needs fecha_limite (the closing date of the UAT milestone).");
       const w = C.uatWindow(sow);
       if (w && w.fin && C.dateOk(uatDep.fecha_limite) && uatDep.fecha_limite !== C.fmtIso(w.fin)) warn("UAT", "dependencias_cliente", `The UAT dependency date (${uatDep.fecha_limite}) differs from the end of the UAT milestone (${C.fmtIso(w.fin)}); the closing date of the UAT must be the same in both places.`);
     }

@@ -68,7 +68,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     const files = fs.readdirSync(dir);
     ['prekickoff.pptx', 'faltantes-cliente.docx', 'faltantes-interno.docx', 'lint.txt'].forEach((s) => assert(files.some((x) => x.endsWith(s)), 'missing ' + s + ' in ' + files));
     assert(!files.some((x) => /\.docx$/.test(x) && !/faltantes/.test(x)), 'the full SOW must not be built');
-    assert(!files.some((x) => /simulador/.test(x)));
+    assert(files.some((x) => /simulador\.html$/.test(x)), "the simulator is generated in pre-kickoff mode too");
     assert(fs.existsSync(path.join(dir, 'diagramas', 'FE.png')));
   });
   await t('deck: 18-24 slides, content types and rels consistent, fonts embedded, 16:9, no overflow notices', async () => {
@@ -163,7 +163,15 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     const docx = path.join(dir, fs.readdirSync(dir).find((x) => /\.docx$/.test(x)));
     const doc = await textOf(docx, /^word\/document\.xml$/);
     assert(/Sujeto a evaluación comercial/.test(doc) && /Pruebas internas de Jelou/.test(doc) && /Pruebas del cliente — UAT/.test(doc));
-    assert(/Fecha de cierre de UAT: 06\/11\/2026/.test(doc));
+    // under review (en_revision): one schedule table, no times, days or dates, no effort table
+    assert(!/Fecha de cierre de UAT|Resumen de esfuerzo|día\(s\) hábil|Fechas tentativas/.test(doc), 'en_revision shows no hours, days or dates');
+    assert(/se definen al aprobar el SOW/.test(doc));
+    // approved: dated schedule and effort table come back
+    const dirA = path.join(OUT, 'full-aprobado'); fs.rmSync(dirA, { recursive: true, force: true });
+    const fA = path.join(OUT, 'full-aprobado.json'); fs.writeFileSync(fA, JSON.stringify({ ...full, meta: { ...full.meta, estado: 'aprobado' } }));
+    node('build_all.js', [fA, dirA, '--force']);
+    const docA = await textOf(path.join(dirA, fs.readdirSync(dirA).find((x) => /\.docx$/.test(x))), /^word\/document\.xml$/);
+    assert(/Fecha de cierre de UAT: 06\/11\/2026/.test(docA) && /Resumen de esfuerzo/.test(docA), 'aprobado shows the dated schedule and the effort table');
     assert(doc.indexOf('Diagrama end-to-end') < doc.indexOf('Flujo_1: Solicitud de crédito (inbound)', doc.indexOf('Mapa de conversaciones')), 'E2E comes first in the conversation map');
     assert(!/Q-AMP|¿Se debe tomar en cuenta/.test(doc), 'commercial questions are not in the client SOW pending table');
     const fig = JSON.parse(fs.readFileSync(path.join(dir, 'diagramas', 'figuras.json'), 'utf8'));

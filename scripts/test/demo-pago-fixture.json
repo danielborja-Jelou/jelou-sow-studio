@@ -1,0 +1,36 @@
+{
+  "meta": { "proyecto": "Pago in-chat de parqueo", "cliente": "Parqueadero Ejemplo", "pais": "Ecuador", "version": "1.0", "estado": "en_revision", "fase": "prekickoff" },
+  "demo": { "marca": { "nombre": "Parqueadero Ejemplo", "iniciales": "PE" } },
+  "integraciones": [
+    { "id": "INT-1", "nombre": "API consulta y validación de ticket (WS#1)", "sistema": "Sistema de parqueo", "documentacion": "pendiente" },
+    { "id": "INT-2", "nombre": "API estado de pago y comprobante (WS#2)", "sistema": "Sistema de parqueo", "documentacion": "pendiente" },
+    { "id": "INT-3", "nombre": "API factura (WS#3)", "sistema": "Sistema de facturación", "documentacion": "pendiente" },
+    { "id": "INT-4", "nombre": "Pasarela de pagos Datafast", "sistema": "Datafast", "documentacion": "pendiente" }
+  ],
+  "reglas": [{ "id": "RN-03", "titulo": "Vigencia del monto" }],
+  "agentes": [{
+    "id": "F1", "nombre": "Flujo_1: Pago de parqueo", "entrada": "inbound",
+    "pasos": [
+      { "id": "P1", "tipo": "usuario", "etapa": "Entrada", "mensaje": "Hola, quiero pagar mi parqueo", "siguiente": [{ "a": "P2" }] },
+      { "id": "P2", "tipo": "mensaje", "etapa": "Bienvenida", "mensaje": "¡Hola! Envíame una foto de tu ticket, con el código QR bien visible.", "siguiente": [{ "a": "P3" }] },
+      { "id": "P3", "tipo": "usuario", "etapa": "Foto del ticket", "componente": "IA conversacional (análisis de imagen)", "mensaje": "[Foto del ticket con código QR]", "siguiente": [{ "a": "P4" }] },
+      { "id": "P4", "tipo": "decision", "diagrama": "¿Se pudo leer el código QR?", "siguiente": [{ "a": "P5", "si": "sí" }, { "a": "P4C", "si": "no" }] },
+      { "id": "P4C", "tipo": "mensaje", "etapa": "Lectura fallida", "mensaje": "No pude leer el código QR. Toma otra foto con buena luz.", "botones": ["Reintentar", "Salir"], "siguiente": [{ "a": "P3", "si": "Reintentar" }, { "a": "PS", "si": "Salir" }] },
+      { "id": "P5", "tipo": "api", "etapa": "Consulta del ticket", "diagrama": "Consulta el ticket y el monto", "integracion": "INT-1", "siguiente": [{ "a": "P8" }] },
+      { "id": "P8", "tipo": "mensaje", "etapa": "Detalle y monto", "mensaje": "Encontré tu ticket. Detalle: POR DEFINIR (concepto y tiempo de permanencia).", "botones": ["Pagar ahora", "Salir"], "siguiente": [{ "a": "P9" }] },
+      { "id": "P9", "tipo": "decision", "diagrama": "¿El usuario quiere pagar?", "siguiente": [{ "a": "P10", "si": "Pagar ahora" }, { "a": "PS", "si": "Salir" }] },
+      { "id": "P10", "tipo": "api", "etapa": "Pago con tarjeta", "componente": "Agente de pagos / Datafast", "diagrama": "Cobro con tarjeta de crédito o débito (Datafast)", "integracion": "INT-4", "siguiente": [{ "a": "P11" }] },
+      { "id": "P11", "tipo": "decision", "diagrama": "¿Resultado del pago?", "siguiente": [{ "a": "P12", "si": "pago exitoso" }, { "a": "PA", "si": "pago no completado" }] },
+      { "id": "P12", "tipo": "api", "etapa": "Notificación", "diagrama": "Notifica el pago exitoso", "integracion": "INT-2", "siguiente": [{ "a": "P14" }] },
+      { "id": "P14", "tipo": "mensaje", "etapa": "Confirmación", "mensaje": "¡Pago exitoso! Comprobante: POR DEFINIR (medio de entrega y contenido).", "siguiente": [{ "a": "P15" }] },
+      { "id": "P15", "tipo": "mensaje", "etapa": "Tipo de factura", "mensaje": "¿Cómo quieres tu factura?", "botones": ["Consumidor final", "Datos personales"], "siguiente": [{ "a": "P16" }] },
+      { "id": "P16", "tipo": "decision", "diagrama": "¿Tipo de facturación?", "siguiente": [{ "a": "P18", "si": "Consumidor final" }, { "a": "P17", "si": "Datos personales" }] },
+      { "id": "P17", "tipo": "formulario", "etapa": "Datos de facturación", "herramienta": "flows", "formulario": { "titulo": "Datos de facturación", "boton": "Continuar", "campos": [{ "etiqueta": "Cédula o RUC", "tipo": "numero", "ejemplo": "0912345678" }, { "etiqueta": "Correo", "tipo": "correo", "ejemplo": "ana@ejemplo.com" }] }, "siguiente": [{ "a": "P18" }] },
+      { "id": "P18", "tipo": "api", "etapa": "Generación de la factura", "diagrama": "Genera la factura", "integracion": "INT-3", "siguiente": [{ "a": "P20" }] },
+      { "id": "P20", "tipo": "mensaje", "etapa": "Entrega de la factura", "mensaje": "Listo, tu factura fue generada. Medio de entrega: POR DEFINIR. ¡Gracias!", "siguiente": [{ "a": "PF" }] },
+      { "id": "PA", "tipo": "asesor", "diagrama": "Deriva a un asesor", "siguiente": [] },
+      { "id": "PS", "tipo": "mensaje", "etapa": "Salida", "mensaje": "Sin problema. Cuando quieras pagar, vuelve a escribirme.", "siguiente": [{ "a": "PF" }] },
+      { "id": "PF", "tipo": "fin", "diagrama": "Fin del flujo", "siguiente": [] }
+    ]
+  }]
+}
