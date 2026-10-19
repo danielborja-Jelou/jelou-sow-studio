@@ -1,3 +1,6 @@
+# Review round: the simulator kit comes from the skill library
+- The skill `jelou-demo-whatsapp` was published to the skill library (revision 87e5dbe4…; full contents, reference screenshots downscaled to fit the server's size limit). `lib/demo-kit.js` now finds the kit in the plugin, the plugin's stable folder or the skillbox cache, and `instalar_plugin_demos.js` downloads it with `skillbox fetch` before falling back to the plugin zip. Handles skillbox's EPERM on an already cached revision.
+
 > **Dependency:** the WhatsApp simulator needs the separate plugin `jelou-demos-whatsapp` (skill `jelou-demo-whatsapp`, v0.4.0+), installed with `node scripts/instalar_plugin_demos.js`. It is not bundled in this skill.
 
 # Review round: Jelou docs as a source of real screens, Jelou Shop webview

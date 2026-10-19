@@ -127,6 +127,12 @@ t("outbound flow starts with a notification and a template", () => {
     assert(!inyectarExtension("<html><body></body></html>").ok);
   });
 }
+t("kit lookup: finds the kit from the plugin or the skill library cache and never throws", () => {
+  const f = K.findKit(); assert(f === null || fs.existsSync(path.join(f, "build.py")));
+  const c = K.kitFromSkillCache(); assert(c === null || fs.existsSync(path.join(c, "build.py")));
+  const old = process.env.SKILLBOX_MJS; process.env.SKILLBOX_MJS = path.join(os.tmpdir(), "no-existe.mjs");
+  assert.doesNotThrow(() => K.kitFromLibrary()); if (old === undefined) delete process.env.SKILLBOX_MJS; else process.env.SKILLBOX_MJS = old;
+});
 if (K.findKit()) {
   t("teaching a resource with screenshots: aprender_recurso -> the webview shows those screenshots", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "aprender-")); const caps = path.join(dir, "caps"); fs.mkdirSync(caps);
