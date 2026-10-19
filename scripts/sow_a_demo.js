@@ -19,6 +19,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const assets = require("./lib/demo-assets");
 const R = require("./lib/demo-recursos");
+const CAN = require("./lib/demo-canales");
 
 const arr = (x) => (Array.isArray(x) ? x : []);
 const slug = (s) => String(s || "x").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "x";
@@ -34,6 +35,7 @@ function buildGuion(sow, opts = {}) {
   const prek = meta.fase === "prekickoff";
   const demo = sow.demo || {};
   const catalogo = R.cargarCatalogo(sow);
+  const probables = R.cargarCamposProbables(sow); const sinCampos = [];
   const dirsExtra = [opts.baseDir, opts.baseDir && path.join(opts.baseDir, "imagenes"), demo.imagenes_dir && path.resolve(opts.baseDir || ".", demo.imagenes_dir)].filter(Boolean);
   const integ = Object.fromEntries(arr(sow.integraciones).map((i) => [i.id, i]));
   const reglas = Object.fromEntries(arr(sow.reglas).map((r) => [r.id, r]));
@@ -68,8 +70,35 @@ function buildGuion(sow, opts = {}) {
     for (const [re, f] of TABLA) if (re.test(ctx)) return f();
     return (demo.reemplazos && (demo.reemplazos["POR DEFINIR"] || demo.reemplazos["POR COMPLETAR"])) || "dato de ejemplo";
   };
+  // Variables de plantilla del SOW («{{nombre}}», «{{monto}}»…): el simulador muestra valores simulados, nunca la variable. Se respetan
+  // las variables que el motor del kit resuelve solo ({{form.x}}, {{etq.x}}, {{usuario.x}}, {{eleccion}}, {{marca.x}}).
+  const CAPITAL = { ecuador: "Quito", colombia: "Bogotá", mexico: "Ciudad de México", peru: "Lima", chile: "Santiago", panama: "Ciudad de Panamá" };
+  const VARIABLES = [
+    [/apellido/, () => "Torres"], [/correo|email|mail/, () => "ana.torres@ejemplo.com"], [/tel[eé]fono|celular|phone|whatsapp|movil/, () => usuario.telefono],
+    [/nombre|name|cliente|titular|persona|usuario|beneficiario|paciente|alumno/, (k) => (/primer|first|corto/.test(k) ? usuario.nombre.split(" ")[0] : usuario.nombre)],
+    [/monto|total|valor|importe|saldo|precio|cuota|tarifa|costo|pago/, () => monto], [/porcentaje|tasa|interes/, () => "1,5 %"], [/plazo|meses/, () => "12 meses"],
+    [/fecha|vence|vencimiento|dia/, () => "22/10/2026"], [/hora|horario/, () => "14:05"], [/ciudad/, () => CAPITAL[norm(meta.pais)] || "Quito"],
+    [/direccion|domicilio/, () => "Av. Principal 123"], [/url|link|enlace|liga/, () => "https://ejemplo.com/enlace"], [/documento|cedula|ruc|dni|identificacion|nit/, () => "0912345678"],
+    [/entidad|banco|aseguradora|financiera/, () => "Banco Aliado"], [/empresa|comercio|tienda|marca|negocio/, () => marca.nombre], [/sede|sucursal|oficina|agencia/, () => "Sucursal Centro"],
+    [/producto|articulo|servicio|plan|item|tour/, () => "Plan Plus"], [/estado|resultado/, () => "Aprobado"], [/numero|codigo|ticket|referencia|orden|pedido|folio|\bid\b|caso/, () => "000123"],
+  ];
+  const VAR_RE = /\{\{\s*([^{}]+?)\s*\}\}/g;
+  const KIT_VARS = /^(form|etq|usuario|eleccion|marca|sel)(\.|$)/i;
+  const valorVariable = (key) => {
+    const n = norm(key.replace(/[._-]+/g, " ")); const ov = demo.variables || {};
+    for (const [k, v] of Object.entries(ov)) if (norm(k) === n) return String(v);
+    for (const [re, f] of VARIABLES) if (re.test(n)) return f(n);
+    return "dato de ejemplo";
+  };
+  const simularVariables = (t) => String(t).replace(VAR_RE, (m, k) => (KIT_VARS.test(k.trim()) ? m : valorVariable(k.trim())));
+  const limpiarVariables = (v) => {
+    if (typeof v === "string") return simularVariables(v);
+    if (Array.isArray(v)) return v.map(limpiarVariables);
+    if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, limpiarVariables(x)]));
+    return v;
+  };
   let mockedNow = false;
-  const mock = (t) => String(t == null ? "" : t).replace(PEND_RE, (m, hint, off, whole) => { mockedNow = true; const v = probable(hint || "", whole.slice(Math.max(0, off - 40), off)); datosProbables.push(v); return v; });
+  const mock = (t) => simularVariables(String(t == null ? "" : t)).replace(PEND_RE, (m, hint, off, whole) => { mockedNow = true; const v = probable(hint || "", whole.slice(Math.max(0, off - 40), off)); datosProbables.push(v); return v; });
 
   // ---------- pasos: sobrescrituras de sow.demo.pasos ----------
   const ov = demo.pasos || {};
@@ -118,18 +147,66 @@ function buildGuion(sow, opts = {}) {
     }
     inForm.push({ type: "Footer", label: cut(mock(def.boton || "Enviar"), 35), "on-click-action": { name: "complete", payload } });
     children.push({ type: "Form", name: "form", children: inForm });
+    formDefs[id] = def;
     flows[id] = { titulo: cut(mock(def.titulo || "Formulario"), 40), notas: { FORMULARIO: notaTxt || `Formulario: ${campos.map((c) => mock(c.etiqueta)).join(", ")}. Los valores se escriben solos en la demo.` }, demo: demoV,
       json: { version: "7.3", screens: [{ id: "FORMULARIO", title: cut(mock(def.titulo || "Formulario"), 30), terminal: true, success: true, layout: { type: "SingleColumnLayout", children } }] } };
   }
-  const flowForm = (s, id) => flowDesdeDef(s.formulario || {}, id, `Formulario del SOW (${mock(s.etapa || s.diagrama || "paso")}): ${arr((s.formulario || {}).campos).map((c) => mock(c.etiqueta)).join(", ")}. Los valores se escriben solos en la demo.`);
+  // Formularios que el SOW todavía no detalla (0 o 1 campo): se agregan campos probables según el título, la etapa y el texto del paso
+  function conCamposProbables(s) {
+    const f = s.formulario || {}; const texto = `${f.titulo || ""} ${s.etapa || ""} ${s.diagrama || ""} ${s.mensaje || ""}`;
+    const r = R.completarCampos(probables, mock(texto), f.campos, 5, mock(f.titulo || ""));
+    if (!r) return { def: f, probables: [] };
+    sinCampos.push(`${s.id}: el formulario «${mock(f.titulo || s.etapa || s.diagrama || "")}» no tiene campos en el SOW; se muestran campos probables (${r.agregados.map((c) => mock(c.etiqueta)).join(", ")}). Confírmalos con el cliente o defínelos en el SOW (formulario.campos).`);
+    return { def: { ...f, titulo: f.titulo || s.etapa || s.diagrama, campos: r.campos }, probables: r.agregados };
+  }
+  const flowForm = (s, id) => {
+    const { def, probables: ag } = conCamposProbables(s);
+    flowDesdeDef(def, id, `Formulario del SOW (${mock(s.etapa || s.diagrama || "paso")}): ${arr(def.campos).map((c) => mock(c.etiqueta)).join(", ")}.${ag.length ? ` Campos probables (el SOW aún no los define): ${ag.map((c) => mock(c.etiqueta)).join(", ")}.` : ""} Los valores se escriben solos en la demo.`);
+  };
   function webviewForm(s, id) {
-    const f = s.formulario || {};
+    const f = conCamposProbables(s).def;
     webviews[id] = { titulo: cut(mock(f.titulo || s.etapa || "Formulario"), 40), dominio: slug(marca.nombre) + ".demo", color: marca.color,
       pantallas: [{ nota: `Formulario en webview (${s.etapa || s.diagrama || "paso"}).`, bloques: [{ tipo: "marca" }, { tipo: "titulo", texto: mock(f.titulo || "Formulario") }, ...arr(f.campos).map((c) => ({ tipo: "campo", etiqueta: mock(c.etiqueta), valor: mock(c.ejemplo || "") }))], boton: mock(f.boton || "Enviar"), cargando: "Enviando…" }],
       exito: { titulo: "Listo", texto: "Tu información fue enviada.", boton: "Volver a WhatsApp" } };
   }
 
   // ---------- un agente -> un grafo de nodos visibles ----------
+  // ---------- canal distinto de WhatsApp: el contenido se adapta a lo que ese canal admite ----------
+  const formDefs = {};
+  function adaptarCanal(steps, canal) {
+    const C = CAN.CANALES[canal] || CAN.CANALES.widget; const lim = C.limite; const out = [];
+    const con = (s, extra) => ({ ...s, nota: [s.nota, extra].filter(Boolean).join(" ") });
+    const cuerpoDe = (s) => s.cuerpo || s.texto || s.titulo || s.encabezado || "";
+    for (const s of steps) {
+      switch (s.tipo) {
+        case "notificacion": break;   // no existe fuera de WhatsApp
+        case "plantilla": {
+          const bts = arr(s.botones).filter((b) => !b.tipo || b.tipo === "respuesta").slice(0, 3).map((b) => ({ titulo: cut(b.titulo, 20) }));
+          const extra = `En ${C.nombre} no hay plantillas HSM: ${C.ventana24h ? "el bot solo puede escribir primero dentro de la ventana de 24 h (o con etiquetas de Meta)" : "el mensaje sale como un mensaje normal del bot"}.`;
+          out.push(con(bts.length ? { tipo: "botones", cuerpo: cut(cuerpoDe(s), lim), botones: bts, nota: s.nota } : { tipo: "texto", texto: cut(cuerpoDe(s), lim), nota: s.nota }, extra)); break; }
+        case "flow": {
+          const def = formDefs[s.flow];
+          if (!def) { out.push(s); break; }
+          const wv = s.flow.replace(/_flow$/, "") + "_wv"; webviewForm({ formulario: def, etapa: def.titulo }, wv);
+          out.push(con({ tipo: "cta_url", cuerpo: cut(cuerpoDe(s), lim), boton: cut(s.boton || "Abrir formulario", 20), webview: wv, nota: s.nota }, `En ${C.nombre} no existen WhatsApp Flows: el formulario se abre como página web (webview).`)); break; }
+        case "lista": {
+          const filas = arr(s.secciones).flatMap((x) => arr(x.filas));
+          out.push(con({ tipo: "botones", cuerpo: cut(`${cuerpoDe(s)}\n\n${filas.map((f, i) => `${i + 1}. ${f.titulo}`).join("\n")}`, lim), botones: filas.slice(0, 3).map((f) => ({ titulo: cut(f.titulo, 20) })), nota: s.nota }, `${C.nombre} no tiene listas desplegables: se muestran como lista numerada y botones (los 3 primeros).`)); break; }
+        case "solicitar_ubicacion": case "solicitar_contacto":
+          out.push(con({ tipo: "texto", texto: cut(cuerpoDe(s), lim), nota: s.nota }, `El botón nativo de WhatsApp no existe en ${C.nombre}: la persona escribe el dato.`)); break;
+        case "ubicacion":
+          out.push(con({ tipo: "texto", texto: cut(`📍 ${s.nombre || ""}${s.direccion ? "\n" + s.direccion : ""}`, lim), nota: s.nota }, `${C.nombre} no envía ubicaciones nativas.`)); break;
+        case "contacto": case "sticker": case "reaccion": case "permiso_llamada": case "autenticacion": case "catalogo": case "multiproducto": case "producto": case "carrusel":
+          out.push(con({ tipo: "texto", texto: cut(cuerpoDe(s) || s.nombre || s.emoji || "", lim), nota: s.nota }, `Este formato es exclusivo de WhatsApp: en ${C.nombre} se envía como texto.`)); break;
+        case "botones": out.push({ ...s, cuerpo: cut(s.cuerpo, lim), botones: arr(s.botones).slice(0, 3).map((b) => ({ ...b, titulo: cut(b.titulo, 20) })) }); break;
+        case "texto": out.push({ ...s, texto: cut(s.texto, lim) }); break;
+        case "cta_url": out.push(canal !== "whatsapp" && canal !== "widget" && s.webview ? con({ ...s, cuerpo: cut(s.cuerpo, lim) }, `En ${C.nombre} el enlace se abre en el navegador del teléfono (el WebView embebido es de WhatsApp).`) : { ...s, cuerpo: cut(s.cuerpo, lim) }); break;
+        default: out.push(s);
+      }
+    }
+    return out;
+  }
+
   function nodosDe(a) {
     let pasos = arr(a.pasos).map((s) => stepOf(a, s));
     if (a.continua_en && porId[a.continua_en]) {
@@ -144,7 +221,9 @@ function buildGuion(sow, opts = {}) {
     return pasos;
   }
 
-  function construirAgente(a) {
+  function construirAgente(a, canal = "whatsapp", etiquetar = false) {
+    const skin = (CAN.CANALES[canal] || CAN.CANALES.widget).skin; const sfx = canal === "whatsapp" ? "" : "_" + canal;
+    const etq = etiquetar || canal !== "whatsapp" ? ` · ${(CAN.CANALES[canal] || CAN.CANALES.widget).nombre}` : "";
     const pasos = nodosDe(a); const nodes = Object.fromEntries(pasos.map((s) => [s.id, s])); const start = pasos[0]; if (!start) return [];
     const nid = (s) => slug(`${s.id}`);
     // usuarios que solo repiten el toque de un botón del mensaje anterior: no se dibujan
@@ -199,7 +278,7 @@ function buildGuion(sow, opts = {}) {
 
     function conv(X, o = {}) {
       mockedNow = false;
-      const out = []; const key = `${a.id}_${X.id}`.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+      const out = []; const key = `${canal === "whatsapp" ? "" : canal + "_"}${a.id}_${X.id}`.toLowerCase().replace(/[^a-z0-9_]/g, "_");
       const via = viaNotas((llegada[X.id] || {}).via || [], (llegada[X.id] || {}).label);
       const base = () => {
         const p = [];
@@ -260,7 +339,7 @@ function buildGuion(sow, opts = {}) {
         case "fin": out.push({ tipo: "fin", texto: cut(mock(X.diagrama || "Fin de la conversación"), 80) }); break;
         default: out.push({ tipo: "texto", texto: mock(X.diagrama || X.tipo), nota: nota() });
       }
-      return out;
+      return canal === "whatsapp" ? out : adaptarCanal(out, canal);
     }
 
     // ---- recorrido principal: grafo con ramas del usuario y reintentos ----
@@ -297,10 +376,10 @@ function buildGuion(sow, opts = {}) {
     if (!pasosOut.length) return [];
     if (pasosOut[pasosOut.length - 1].tipo !== "fin") pasosOut.push({ tipo: "fin", texto: "Fin de la conversación" });
 
-    const tech = (ps) => (a.entrada === "outbound" ? "hsm" : ps.some((x) => x.tipo === "flow") ? "flow" : ps.some((x) => x.tipo === "cta_url") ? "webview" : "chat");
+    const tech = (ps) => (a.entrada === "outbound" && canal === "whatsapp" ? "hsm" : ps.some((x) => x.tipo === "flow") ? "flow" : ps.some((x) => x.tipo === "cta_url") ? "webview" : "chat");
     const grupos = [...new Set(pasos.map((s) => s.grupo || s.etapa).filter(Boolean))].slice(0, 6).map(mock);
     const resumenAg = mock(arr(a.resumen_cliente).map((x) => (typeof x === "string" ? x : x.texto)).filter(Boolean).slice(0, 4).join(" → ") || a.nombre);
-    const journeys = [{ id: slug(a.id), nombre: cut(mock(a.nombre), 60), tech: tech(pasosOut), resumen: resumenAg, puntos: grupos, pasos: pasosOut }];
+    const journeys = [{ id: slug(a.id) + sfx, nombre: cut(mock(a.nombre) + etq, 60), canal: skin, tech: tech(pasosOut), resumen: resumenAg, puntos: grupos, pasos: pasosOut }];
 
     // ---- recorridos alternos: ramas que decide el sistema (no la persona) ----
     const camino = (hasta) => { const c = []; let x = hasta; const guard = new Set(); while (x && !guard.has(x.id)) { guard.add(x.id); c.unshift(x); const p = padre[x.id]; x = p && p.de; } return c; };
@@ -322,13 +401,23 @@ function buildGuion(sow, opts = {}) {
       const ultimo = ruta[ruta.length - 1]; const sigo = succ(ultimo)[0];
       ps.push({ tipo: "fin", texto: ultimo.tipo === "fin" ? cut(mock(ultimo.diagrama || "Fin"), 80) : sigo && sigo.to ? `Vuelve al paso «${cut(mock(sigo.to.etapa || sigo.to.diagrama || ""), 40)}»` : "Fin de la conversación" });
       const dd = ps.filter((s, i) => !(s.tipo === "fin" && i < ps.length - 1));
-      journeys.push({ id: slug(a.id) + "_alt" + (++n), nombre: cut(`${mock(a.nombre).split(":")[0]} · ${nombreAlt}`, 60), tech: tech(dd), resumen: `Camino alterno decidido por el sistema: ${mock(o.label || "otro caso")}.`, puntos: [], pasos: dd });
+      journeys.push({ id: slug(a.id) + sfx + "_alt" + (++n), nombre: cut(`${mock(a.nombre).split(":")[0]} · ${nombreAlt}${etq}`, 60), canal: skin, tech: tech(dd), resumen: `Camino alterno decidido por el sistema: ${mock(o.label || "otro caso")}.`, puntos: [], pasos: dd });
     }
     return journeys;
   }
 
   const journeys = [];
-  for (const a of agentes) journeys.push(...construirAgente(a));
+  const canalesUsados = new Set();
+  for (const a of agentes) {
+    const canales = CAN.canalesDeAgente(sow, a);
+    for (const c of canales) {
+      canalesUsados.add(c); journeys.push(...construirAgente(a, c, canales.length > 1));
+      if ((CAN.CANALES[c] || {}).sinSkin) avisos.push(`${a.id}: el canal «${CAN.CANALES[c].nombre}» no tiene simulador visual propio; se muestra como chat genérico. ${CAN.CANALES[c].nota}`);
+    }
+    if (canales.length > 1) avisos.push(`${a.id}: el SOW menciona varios canales (${canales.map((c) => CAN.CANALES[c].nombre).join(", ")}); se genera un recorrido por canal. Indica el canal exacto en agentes[].canal si no es así.`);
+  }
+  const otrosCanales = [...canalesUsados].filter((c) => c !== "whatsapp");
+  for (const c of otrosCanales) if (CAN.CANALES[c] && CAN.CANALES[c].nota && !CAN.CANALES[c].sinSkin) avisos.push(`Canal ${CAN.CANALES[c].nombre}: ${CAN.CANALES[c].nota}`);
 
   // ---------- cobertura visual ----------
   const VIS_RE = /\bQR\b|foto|imagen|factura|comprobante|recibo|\bPDF\b|mapa|ubicaci[oó]n|video|audio|documento|firma|biometr|selfie|cat[aá]logo|carrito/i;
@@ -342,6 +431,7 @@ function buildGuion(sow, opts = {}) {
     const m = String(s.mensaje || "").match(VIS_RE);
     if (m && !stepOf(a, s).adjunto && !hayVisual) avisos.push(`${a.id}.${s.id} menciona un recurso visual («${m[0]}») y no se dibuja nada: agrega \`adjunto\`/\`recurso\` al paso o define \`demo.pasos.${s.id}\`.`);
   }
+  avisos.push(...sinCampos);
   const sistemaSteps = todos.filter((p) => p.tipo === "sistema" && p.estilo !== "asesor").length;
   if (sistemaSteps) avisos.push(`${sistemaSteps} paso(s) de sistema visibles en el chat: revisa que no sean llamadas a API.`);
   const porRecurso = {}; for (const [, u] of usados) porRecurso[u.id] = (porRecurso[u.id] || 0) + 1;
@@ -352,28 +442,38 @@ function buildGuion(sow, opts = {}) {
   };
 
   for (const j of journeys) for (const s of j.pasos) if (s.tipo === "botones") for (const b of s.botones) delete b.accion;
+  const soloOtroCanal = journeys.length > 0 && journeys.every((j) => j.canal && j.canal !== "whatsapp");
+  const nombresCanal = [...canalesUsados].map((c) => CAN.CANALES[c].nombre).join(" · ");
   const guion = {
     panel: {
       titulo: `${marca.nombre} · ${meta.proyecto || "Simulación"}`,
-      subtitulo: prek ? "Simulación preliminar (pre-kickoff)" : `Simulación del SOW v${meta.version || "1.0"}${meta.estado === "aprobado" ? " · aprobado" : " · en revisión"}`,
+      subtitulo: (prek ? "Simulación preliminar (pre-kickoff)" : `Simulación del SOW v${meta.version || "1.0"}${meta.estado === "aprobado" ? " · aprobado" : " · en revisión"}`) + (soloOtroCanal ? ` · ${nombresCanal}` : ""),
       version: `SOW v${meta.version || "1.0"}${prek ? " · pre-kickoff" : ""}`,
-      pie: "Prototipo con datos simulados." + (prek || datosProbables.length ? " Lo que aún no está definido usa valores de ejemplo, por confirmar con el cliente." : ""),
+      pie: (soloOtroCanal ? `Apariencia aproximada de ${nombresCanal}; no es una copia oficial del canal. ` : "") + "Prototipo con datos simulados." + (prek || datosProbables.length ? " Lo que aún no está definido usa valores de ejemplo, por confirmar con el cliente." : ""),
       titulo_pagina: `Jelou · Simulación ${marca.nombre}`, resumen: false,
     },
     marca, usuario, journeys, flows, webviews,
   };
-  return { guion, avisos, stats, mocked: datosProbables.length > 0 };
+  // Flows y webviews que ningún paso usa (p. ej. el Flow que en otro canal se convirtió en webview): fuera, para no dejar basura en el guion
+  const usadosIds = { flow: new Set(), webview: new Set() };
+  for (const j of journeys) for (const s of j.pasos) { if (s.flow) usadosIds.flow.add(s.flow); if (s.webview) usadosIds.webview.add(s.webview); for (const b of s.botones || []) { if (b.flow) usadosIds.flow.add(b.flow); if (b.webview) usadosIds.webview.add(b.webview); } }
+  for (const k of Object.keys(flows)) if (!usadosIds.flow.has(k)) delete flows[k];
+  for (const k of Object.keys(webviews)) if (!usadosIds.webview.has(k)) delete webviews[k];
+  const limpio = limpiarVariables(guion);   // red de seguridad: ningún texto del simulador conserva «{{variable}}»
+  return { guion: limpio, avisos, stats, mocked: datosProbables.length > 0 };
 }
 
 function run(cmd, args, cwd) { return spawnSync(cmd, args, { cwd, encoding: "utf8" }); }
 
-// Inyecta la extensión visual (bloques de webview) en el HTML del kit
+// Inyecta la extensión visual (bloques de webview) y los skins de canal en el HTML del kit
 function inyectarExtension(html) {
-  const f = path.join(__dirname, "..", "assets", "visuales", "kit-extension.js");
+  const dir = path.join(__dirname, "..", "assets", "visuales");
+  const f = path.join(dir, "kit-extension.js"); const fSkins = path.join(dir, "kit-skins.js");
   if (!fs.existsSync(f)) return { html, ok: false, motivo: "falta assets/visuales/kit-extension.js" };
   if (!/function wvBlock\(/.test(html)) return { html, ok: false, motivo: "el motor del kit cambió (no existe wvBlock)" };
-  const ext = fs.readFileSync(f, "utf8");
-  return { html: html.replace(/<\/body>\s*<\/html>\s*$/i, () => `<script>\n${ext}\n</script>\n</body></html>`), ok: true };
+  let scripts = fs.readFileSync(f, "utf8");
+  if (fs.existsSync(fSkins) && /function startJourney\(/.test(html)) scripts += "\n" + fs.readFileSync(fSkins, "utf8");
+  return { html: html.replace(/<\/body>\s*<\/html>\s*$/i, () => `<script>\n${scripts}\n</script>\n</body></html>`), ok: true };
 }
 
 function main() {

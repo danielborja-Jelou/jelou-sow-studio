@@ -997,5 +997,324 @@
         }
       }
     }
-  ]
+  ],
+  "campos_probables": {
+    "leeme": "Campos que se muestran en un formulario (WhatsApp Flow o webview) cuando el SOW no los define (0 o 1 campo). Se elige la entrada cuyas señales coinciden con el título, la etapa o el texto del paso; `completo: true` deja el formulario como está (p. ej. una autorización). Los campos del SOW van primero; los probables se agregan hasta 5 y la nota del paso lo dice. Ampliable en la carpeta del usuario o en sow.demo.campos_probables.",
+    "entradas": [
+      {
+        "id": "autorizacion",
+        "senales": "autoriza|consentimiento|t[eé]rminos|habeas|tratamiento de datos|pol[ií]tica de privacidad",
+        "completo": true
+      },
+      {
+        "id": "identidad",
+        "senales": "documento|c[eé]dula|identidad|apellido|\\bdni\\b|pasaporte",
+        "campos": [
+          {
+            "etiqueta": "Tipo de documento",
+            "tipo": "selector",
+            "opciones": [
+              "Cédula de ciudadanía",
+              "Cédula de extranjería",
+              "Pasaporte"
+            ],
+            "ejemplo": "Cédula de ciudadanía"
+          },
+          {
+            "etiqueta": "Número de documento",
+            "tipo": "numero",
+            "ejemplo": "1234567890"
+          },
+          {
+            "etiqueta": "Primer apellido",
+            "tipo": "texto",
+            "ejemplo": "Torres"
+          }
+        ]
+      },
+      {
+        "id": "facturacion",
+        "senales": "factur",
+        "campos": [
+          {
+            "etiqueta": "Nombre o empresa",
+            "tipo": "texto",
+            "ejemplo": "Ana Torres"
+          },
+          {
+            "etiqueta": "Cédula o RUC",
+            "tipo": "numero",
+            "ejemplo": "0912345678"
+          },
+          {
+            "etiqueta": "Correo electrónico",
+            "tipo": "correo",
+            "ejemplo": "ana.torres@ejemplo.com"
+          },
+          {
+            "etiqueta": "Dirección",
+            "tipo": "texto",
+            "ejemplo": "Av. Principal 123"
+          }
+        ]
+      },
+      {
+        "id": "agendamiento",
+        "senales": "agend|cita\\b|citas|reserva|turno|visita",
+        "campos": [
+          {
+            "etiqueta": "Fecha",
+            "tipo": "fecha"
+          },
+          {
+            "etiqueta": "Horario",
+            "tipo": "selector",
+            "opciones": [
+              "09:00",
+              "11:00",
+              "14:00",
+              "16:00"
+            ],
+            "ejemplo": "11:00"
+          },
+          {
+            "etiqueta": "Sede",
+            "tipo": "selector",
+            "opciones": [
+              "Sede Centro",
+              "Sede Norte"
+            ],
+            "ejemplo": "Sede Centro"
+          },
+          {
+            "etiqueta": "Motivo",
+            "tipo": "texto",
+            "ejemplo": "Consulta general"
+          }
+        ]
+      },
+      {
+        "id": "reclamo",
+        "senales": "reclamo|queja|pqr|soporte|incidente|solicitud de servicio|garant[ií]a",
+        "campos": [
+          {
+            "etiqueta": "Tipo de solicitud",
+            "tipo": "selector",
+            "opciones": [
+              "Reclamo",
+              "Consulta",
+              "Sugerencia"
+            ],
+            "ejemplo": "Reclamo"
+          },
+          {
+            "etiqueta": "Describe lo ocurrido",
+            "tipo": "texto",
+            "ejemplo": "No pude completar mi trámite"
+          },
+          {
+            "etiqueta": "Adjunto (opcional)",
+            "tipo": "archivo",
+            "obligatorio": false
+          }
+        ]
+      },
+      {
+        "id": "encuesta",
+        "senales": "encuesta|calificaci|satisfacci|\\bnps\\b|valoraci",
+        "campos": [
+          {
+            "etiqueta": "Calificación",
+            "tipo": "selector",
+            "opciones": [
+              "5 - Excelente",
+              "4 - Muy bueno",
+              "3 - Bueno",
+              "2 - Regular",
+              "1 - Malo"
+            ],
+            "ejemplo": "5 - Excelente"
+          },
+          {
+            "etiqueta": "Comentario",
+            "tipo": "texto",
+            "ejemplo": "Excelente atención",
+            "obligatorio": false
+          }
+        ]
+      },
+      {
+        "id": "credito",
+        "senales": "cr[eé]dito|pr[eé]stamo|financiaci|simulaci[oó]n",
+        "campos": [
+          {
+            "etiqueta": "Monto solicitado",
+            "tipo": "numero",
+            "ejemplo": "5000"
+          },
+          {
+            "etiqueta": "Plazo",
+            "tipo": "selector",
+            "opciones": [
+              "12 meses",
+              "24 meses",
+              "36 meses",
+              "48 meses"
+            ],
+            "ejemplo": "24 meses"
+          },
+          {
+            "etiqueta": "Ingresos mensuales",
+            "tipo": "numero",
+            "ejemplo": "1500"
+          },
+          {
+            "etiqueta": "Actividad económica",
+            "tipo": "selector",
+            "opciones": [
+              "Empleado",
+              "Independiente",
+              "Empresario"
+            ],
+            "ejemplo": "Empleado"
+          }
+        ]
+      },
+      {
+        "id": "entrega",
+        "senales": "direcci[oó]n|entrega|env[ií]o|domicilio|despacho",
+        "campos": [
+          {
+            "etiqueta": "Dirección",
+            "tipo": "texto",
+            "ejemplo": "Av. Principal 123"
+          },
+          {
+            "etiqueta": "Ciudad",
+            "tipo": "selector",
+            "opciones": [
+              "Quito",
+              "Guayaquil",
+              "Cuenca"
+            ],
+            "ejemplo": "Quito"
+          },
+          {
+            "etiqueta": "Referencia",
+            "tipo": "texto",
+            "ejemplo": "Frente al parque",
+            "obligatorio": false
+          },
+          {
+            "etiqueta": "Teléfono de contacto",
+            "tipo": "telefono",
+            "ejemplo": "0991234567"
+          }
+        ]
+      },
+      {
+        "id": "empresa",
+        "senales": "empresa|raz[oó]n social|negocio|comercio|\\bruc\\b|\\bnit\\b",
+        "campos": [
+          {
+            "etiqueta": "Razón social",
+            "tipo": "texto",
+            "ejemplo": "Comercial Ejemplo S.A."
+          },
+          {
+            "etiqueta": "RUC o NIT",
+            "tipo": "numero",
+            "ejemplo": "1790012345001"
+          },
+          {
+            "etiqueta": "Representante legal",
+            "tipo": "texto",
+            "ejemplo": "Ana Torres"
+          },
+          {
+            "etiqueta": "Correo electrónico",
+            "tipo": "correo",
+            "ejemplo": "contacto@ejemplo.com"
+          }
+        ]
+      },
+      {
+        "id": "vehiculo",
+        "senales": "placa|veh[ií]culo|parqueo|parqueadero|estacionamiento",
+        "campos": [
+          {
+            "etiqueta": "Placa",
+            "tipo": "texto",
+            "ejemplo": "ABC-1234"
+          },
+          {
+            "etiqueta": "Tipo de vehículo",
+            "tipo": "selector",
+            "opciones": [
+              "Automóvil",
+              "Camioneta",
+              "Motocicleta"
+            ],
+            "ejemplo": "Automóvil"
+          }
+        ]
+      },
+      {
+        "id": "contacto",
+        "senales": "datos personales|registro|inscripci|contacto|datos del cliente|tus datos|perfil",
+        "campos": [
+          {
+            "etiqueta": "Nombre completo",
+            "tipo": "texto",
+            "ejemplo": "Ana Torres"
+          },
+          {
+            "etiqueta": "Correo electrónico",
+            "tipo": "correo",
+            "ejemplo": "ana.torres@ejemplo.com"
+          },
+          {
+            "etiqueta": "Teléfono",
+            "tipo": "telefono",
+            "ejemplo": "0991234567"
+          },
+          {
+            "etiqueta": "Ciudad",
+            "tipo": "selector",
+            "opciones": [
+              "Quito",
+              "Guayaquil",
+              "Cuenca"
+            ],
+            "ejemplo": "Quito"
+          }
+        ]
+      }
+    ],
+    "generico": {
+      "id": "generico",
+      "campos": [
+        {
+          "etiqueta": "Nombre completo",
+          "tipo": "texto",
+          "ejemplo": "Ana Torres"
+        },
+        {
+          "etiqueta": "Documento de identidad",
+          "tipo": "numero",
+          "ejemplo": "1234567890"
+        },
+        {
+          "etiqueta": "Correo electrónico",
+          "tipo": "correo",
+          "ejemplo": "ana.torres@ejemplo.com"
+        },
+        {
+          "etiqueta": "Teléfono",
+          "tipo": "telefono",
+          "ejemplo": "0991234567"
+        }
+      ]
+    }
+  }
 }
