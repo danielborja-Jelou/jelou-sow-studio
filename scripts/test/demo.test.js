@@ -192,6 +192,29 @@ t("outbound flow starts with a notification and a template", () => {
     assert.deepStrictEqual(canales, ["whatsapp", "instagram", "widget"]);
     assert(new Set(g.journeys.map((j) => j.id)).size === g.journeys.length, "unique journey ids");
   });
+  t("loops: a «no válido → volver» exit listed first does not trap the main journey; the retry is an alternative journey", () => {
+    const sow = { meta: { proyecto: "Prueba", cliente: "Cliente X", pais: "Colombia", fase: "prekickoff" }, agentes: [{ id: "F1", nombre: "Flujo_1: Registro", entrada: "inbound", pasos: [
+      { id: "P1", tipo: "usuario", mensaje: "Hola", siguiente: [{ a: "P2" }] },
+      { id: "P2", tipo: "mensaje", etapa: "Documento", mensaje: "Escribe tu número de documento.", siguiente: [{ a: "P3" }] },
+      { id: "P3", tipo: "usuario", etapa: "Documento", mensaje: "POR DEFINIR", siguiente: [{ a: "P4" }] },
+      { id: "P4", tipo: "decision", diagrama: "¿Documento válido?", siguiente: [{ a: "P2", si: "no válido" }, { a: "P5", si: "válido" }] },
+      { id: "P5", tipo: "mensaje", etapa: "Listo", mensaje: "Gracias. Registro completo.", siguiente: [{ a: "PF" }] },
+      { id: "PF", tipo: "fin", diagrama: "Fin", siguiente: [] }] }] };
+    const g = buildGuion(sow).guion; const main = g.journeys[0];
+    assert(main.pasos.some((p) => /Registro completo/.test(p.texto || "")), "the main journey reaches the end");
+    assert(!main.pasos.some((p) => p.id === "p3" && p.ir === "p2"), "the answer does not send the person back to the question");
+    const reintento = g.journeys.find((j) => /no válido/.test(j.nombre)); assert(reintento && /Vuelve al paso/.test(reintento.pasos[reintento.pasos.length - 1].texto));
+    assert(main.pasos.find((p) => p.tipo === "usuario" && p.id === "p3").texto === "0912345678", "a document step types a document number, not «dato de ejemplo»");
+  });
+  t("datos: form fields get values inferred from their label, never «dato de ejemplo»", () => {
+    const sow = { meta: { proyecto: "P", cliente: "Cliente X", pais: "Ecuador", fase: "prekickoff" }, agentes: [{ id: "F1", nombre: "Flujo_1", entrada: "inbound", pasos: [
+      { id: "P1", tipo: "usuario", mensaje: "Hola", siguiente: [{ a: "P2" }] },
+      { id: "P2", tipo: "formulario", etapa: "Material", mensaje: "Completa el material.", formulario: { titulo: "Material", campos: [{ etiqueta: "Material", tipo: "texto" }, { etiqueta: "Cantidad", tipo: "numero", ejemplo: "POR DEFINIR" }, { etiqueta: "Zorbalux", tipo: "texto" }] }, siguiente: [{ a: "PF" }] },
+      { id: "PF", tipo: "fin", diagrama: "Fin", siguiente: [] }] }] };
+    const r = buildGuion(sow); const s = JSON.stringify(r.guion);
+    assert(!/dato de ejemplo/i.test(s), "no «dato de ejemplo»");
+    const demo = Object.values(r.guion.flows)[0].demo; assert(demo.material === "Resina PP-20" && demo.cantidad === "25" && /^Zorbalux 01$/.test(demo.zorbalux), JSON.stringify(demo));
+  });
   t("extension: skins are injected together with the webview blocks", () => {
     const { inyectarExtension } = require("../sow_a_demo");
     const r = inyectarExtension("<html><body><script>function wvBlock(b){} function startJourney(i){}</script></body></html>");

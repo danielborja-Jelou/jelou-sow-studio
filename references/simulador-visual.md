@@ -39,6 +39,8 @@ A form step (`formulario`) with 0 or 1 field gets **probable fields** from `camp
 `{{nombre_cliente}}`, `{{monto}}`, `{{fecha}}`… never show in the simulator: they are replaced by simulated values by keyword (name → the demo user, amount, date, city of the country, entity, document, code…). Variables the kit resolves itself (`{{form.x}}`, `{{etq.x}}`, `{{usuario.x}}`, `{{eleccion}}`, `{{marca.x}}`) are kept. Override with `demo.variables` (`{ "plan": "Plan Plus" }`).
 
 ## 2. Data that is missing: probable, not «pendiente»
+**Values the person types.** While writing the SOW, fill `formulario.campos[].ejemplo` and the `mensaje` of every `usuario` step with the real shape of the data from the presale document and Diio (a work-order number, a material and quantity, a plate…). If it is missing, the converter infers it from the label and context, and as a last resort uses a generic code («Atributo 01») and lists it in the warnings: complete those from the sources, never leave «dato de ejemplo».
+
 In pre-kickoff the simulator never shows «dato por confirmar» inside the chat. Every `POR DEFINIR (hint)` becomes a probable value chosen from the hint and its sentence (amount `$3,50`, concept `Parqueo · 2 h 15 min`, delivery `PDF por este chat`…), the step note says «Valor de ejemplo: se confirma con el cliente», and the footer says the demo uses example values. Override with `demo.datos` (`{ "regex de la pista": "valor" }`), `demo.monto`, `demo.concepto`, `demo.pago`, `demo.productos`, `demo.marca`, `demo.usuario`. Never real personal data. The final SOW rebuilds the simulator from the final graph, so real values replace the probable ones.
 
 ## 3. Enrich by hand (persists across rebuilds; never edit `*-simulador.guion.json`)
