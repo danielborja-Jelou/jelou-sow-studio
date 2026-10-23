@@ -8,12 +8,15 @@ const path = require("path");
 const C = require("./lib/common");
 const K = require("./lib/wordxml");
 const { arr } = C;
-const { B, run, P, text, H1, H2, bullet, labeled, caption, table, kvTable, val, addFigure } = K;
+const { B, run, P, text, H1, H2, bullet, labeled, caption, table, kvTable, val, addFigure, addPng } = K;
 
 const [, , inFile, outFile] = process.argv;
 if (!inFile || !outFile) { console.error("Usage: node build_sow_docx.js sow.json output.docx"); process.exit(2); }
 const sow = JSON.parse(fs.readFileSync(inFile, "utf8"));
 const meta = sow.meta || {};
+// Gantt chart (PNG made by cronograma.py): build_all.js passes it with --gantt when the SOW is approved and has cronograma.inicio
+const ganttArg = process.argv.indexOf("--gantt");
+const ganttPng = ganttArg > 0 && process.argv[ganttArg + 1] && fs.existsSync(process.argv[ganttArg + 1]) ? fs.readFileSync(process.argv[ganttArg + 1]) : null;
 let figLib = null;
 try { figLib = require("./lib/figuras"); } catch (e) { /* diagrams skipped */ }
 
@@ -262,7 +265,12 @@ if (approved && eff.rows.length) {
     ["Total estimado", "", "", `${eff.totalMin.toFixed(1)} – ${eff.totalMax.toFixed(1)}`],
   ], [44, 24, 10, 22]));
   const quien = eff.personas === 1 ? "1 persona" : `${eff.personas} personas`;
-  add(text(`Con ${quien} y ${eff.horasDia} horas productivas por día, la construcción equivale a ${eff.diasMin}–${eff.diasMax} días hábiles; el calendario lo determinan además las dependencias del cliente.`));
+  const pl = eff.paralelismo;
+  if (pl && pl.nCarriles > 1) {
+    add(text(`La construcción se organiza en ${pl.nCarriles} carriles que avanzan en paralelo (${pl.carriles.map((c) => `${c.id}: ${c.nombre}`).join("; ")}). El trabajo en paralelo reduce ${pl.reduccionPct} % las horas de construcción (de ${pl.horasAntesMax.toFixed(1)} a ${pl.horasDespuesMax.toFixed(1)} h en el máximo; estimación pendiente de calibrar con horas reales) y la ruta crítica de la construcción es el carril más largo: ${eff.diasMin}–${eff.diasMax} días hábiles, con ${eff.horasDia} horas productivas por día.`));
+  } else {
+    add(text(`Con ${quien} y ${eff.horasDia} horas productivas por día, la construcción equivale a ${eff.diasMin}–${eff.diasMax} días hábiles; el calendario lo determinan además las dependencias del cliente.`));
+  }
   const dp = C.dependencyPlan(sow);
   if (dp.sinFecha) {
     const hs = dp.hitosDependientes.map((h) => h.nombre).filter(Boolean);
@@ -274,13 +282,22 @@ if (approved && eff.rows.length) {
 add(H1("Entregables y cronograma"));
 const sched = C.scheduleDates(sow.cronograma);
 const totalDays = C.totalBusinessDays(sow.cronograma);
+const lanes = C.laneDates(sow.cronograma);
+const lanesTxt = (h) => { const ts = C.laneTasks(h); const ids = [...new Set(ts.map((t) => t.carril))]; return ids.length > 1 ? ` Se ejecuta en ${ids.length} carriles en paralelo: ${ids.map((id) => `${id} ${ts.find((t) => t.carril === id).tarea}`).join("; ")}.` : ""; };
+const descOf = (h) => val(h.entregable ? `${h.descripcion || ""}${h.descripcion ? ". " : ""}Entregable: ${h.entregable}` : h.descripcion) + lanesTxt(h);
 if (approved) {
-  add(text(`Fechas tentativas en días hábiles${arr((sow.cronograma || {}).festivos).length ? " (feriados declarados considerados)" : ""}, sujetas a la firma del SOW y a la entrega de los insumos del cliente. El proyecto completo se ejecuta en ${totalDays} días hábiles${meta.excepcion_plazo ? "; excepción al plazo estándar de 20 días hábiles: " + meta.excepcion_plazo : ""}.`));
-  add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve", "Días hábiles", "Fechas tentativas"], sched.map(({ hito: h, inicio, fin }) => [val(h.fase), val(h.nombre), val(h.entregable ? `${h.descripcion || ""}${h.descripcion ? ". " : ""}Entregable: ${h.entregable}` : h.descripcion), String(h.dias_habiles), inicio ? (h.dias_habiles > 1 ? `${C.fmtShort(inicio)} a ${C.fmtShort(fin)}` : C.fmtShort(inicio)) : "POR DEFINIR"]), [8, 24, 38, 10, 20]));
+  add(text(`Fechas tentativas en días hábiles${arr((sow.cronograma || {}).festivos).length ? " (feriados declarados considerados)" : ""}, sujetas a la firma del SOW y a la entrega de los insumos del cliente. El proyecto completo se ejecuta en ${totalDays} días hábiles (ruta crítica; los carriles en paralelo cuentan una sola vez, como el más largo)${meta.excepcion_plazo ? "; excepción al plazo estándar de " + C.TOPE_DIAS_DEFECTO + " días hábiles: " + meta.excepcion_plazo : ""}.`));
+  const rows = [];
+  sched.forEach(({ hito: h, inicio, fin }) => {
+    rows.push([val(h.fase), val(h.nombre), descOf(h), String(h.dias_habiles), inicio ? (h.dias_habiles > 1 ? `${C.fmtShort(inicio)} a ${C.fmtShort(fin)}` : C.fmtShort(inicio)) : "POR DEFINIR"]);
+    (lanes.get(h) || []).forEach(({ tarea, inicio: li, fin: lf }) => rows.push(["", `   ↳ Carril ${tarea.carril}`, tarea.tarea, String(tarea.dias), li ? (tarea.dias > 1 ? `${C.fmtShort(li)} a ${C.fmtShort(lf)}` : C.fmtShort(li)) : "POR DEFINIR"]));
+  });
+  add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve", "Días hábiles", "Fechas tentativas"], rows, [8, 24, 38, 10, 20]));
   add(text("La distribución de las horas hombre se realiza dentro de los días hábiles. Un retraso en los insumos del cliente mueve las fechas en la misma medida."));
+  if (ganttPng) { add(H2("Cronograma (Gantt)")); add(K.addPng(ganttPng, "gantt-cronograma", "Diagrama de Gantt del cronograma, con los carriles en paralelo")); add(caption("Cronograma con fechas tentativas en días hábiles; los carriles que avanzan en paralelo aparecen superpuestos.")); }
 } else {
   add(text("Los tiempos y las fechas de cada entregable se definen al aprobar el SOW y quedan sujetos a la firma y a la entrega de los insumos del cliente."));
-  add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve"], sched.map(({ hito: h }) => [val(h.fase), val(h.nombre), val(h.entregable ? `${h.descripcion || ""}${h.descripcion ? ". " : ""}Entregable: ${h.entregable}` : h.descripcion)]), [10, 30, 60]));
+  add(table(["Fase", "Entregable (hito) Jelou", "Descripción breve"], sched.map(({ hito: h }) => [val(h.fase), val(h.nombre), descOf(h)]), [10, 30, 60]));
 }
 {
   const tm = C.testMilestones(sow);
@@ -313,7 +330,7 @@ if (resp && (arr(resp.jelou).length || arr(resp.cliente).length || C.testMilesto
 
 // Assumptions and pending
 add(H1("Supuestos y pendientes por confirmar"));
-if (arr(al.supuestos).length) { add(H2("Supuestos")); arr(al.supuestos).forEach((s) => add(bullet(s))); }
+if (arr(al.supuestos).length) { add(H2("Supuestos")); arr(al.supuestos).forEach((s) => add(bullet(typeof s === "string" ? s : [s.texto, s.confirmado_cliente === false ? " (pendiente de confirmación del cliente)" : ""].join("")))); }
 const qCliente = arr(sow.preguntas_abiertas).filter((q) => !q.audiencia || q.audiencia === "cliente");
 if (qCliente.length) {
   add(H2("Pendientes que el cliente y Jelou deben cerrar antes de firmar"));

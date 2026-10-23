@@ -15,10 +15,12 @@ const C = require("./lib/common");
 const argv = process.argv.slice(2);
 const modoIdx = argv.indexOf("--modo");
 const modoArg = modoIdx >= 0 ? argv[modoIdx + 1] : (argv.find((a) => a.startsWith("--modo=")) || "").split("=")[1];
-const args = argv.filter((a, i) => !a.startsWith("--") && !(modoIdx >= 0 && i === modoIdx + 1));
+const antIdx = argv.indexOf("--anterior");
+const anteriorFile = antIdx >= 0 ? argv[antIdx + 1] : null;   // sow.json del pre-kickoff: fase 2 explícita (qué cambió)
+const args = argv.filter((a, i) => !a.startsWith("--") && !(modoIdx >= 0 && i === modoIdx + 1) && !(antIdx >= 0 && i === antIdx + 1));
 const force = argv.includes("--force");
 const [inFile, outDir] = args;
-if (!inFile || !outDir) { console.error("Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--force]"); process.exit(2); }
+if (!inFile || !outDir) { console.error("Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--anterior sow-prekickoff.json] [--force]"); process.exit(2); }
 const sow = JSON.parse(fs.readFileSync(inFile, "utf8"));
 const meta = sow.meta || {};
 if (modoArg && !["prekickoff", "completo"].includes(modoArg)) { console.error('--modo must be "prekickoff" or "completo".'); process.exit(2); }
@@ -26,6 +28,7 @@ const prek = modoArg ? modoArg === "prekickoff" : C.isPrekickoff(sow);
 fs.mkdirSync(outDir, { recursive: true });
 const slug = (s) => String(s || "cliente").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const base = `SOW-${slug(meta.cliente)}-v${meta.version || "1.0"}`;
+const arr0 = (x) => (Array.isArray(x) ? x : []);
 const node = (script, a) => spawnSync("node", [path.join(__dirname, script), ...a], { encoding: "utf8" });
 
 // 1. lint (tolerant in pre-kickoff mode: sections only the full SOW needs are not required)
@@ -38,10 +41,37 @@ if (lint.status !== 0 && !force) {
 }
 if (prek) console.log("\nModo pre-kickoff: se generan el deck, los dos documentos de faltantes, el simulador y los diagramas (no el SOW completo).");
 
+// 1b. Gantt (only when the SOW is approved and has cronograma.inicio): the construction is split into parallel lanes (lib/planificar.js),
+//     sow_a_paquete.py turns the hitos into tasks and cronograma.py draws the Gantt. The same planned SOW feeds the Word, so table and chart agree.
+let wordInput = inFile;
+let ganttPng = null, ganttFalla = null;
+const aprobado = String(meta.estado || "").toLowerCase() === "aprobado";
+if (!prek && aprobado && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test((sow.cronograma || {}).inicio || "")) {
+  try {
+    const PL = require("./lib/planificar");
+    const hayCarriles = arr0((sow.cronograma || {}).hitos).some((h) => C.laneTasks(h).length);
+    const nombres = Object.fromEntries(arr0(sow.agentes).map((a) => [a.id, a.nombre || a.id]));
+    const planned = hayCarriles ? sow : PL.aplicar(sow, C.loadRates().rangos, nombres, { conservarDias: true }).sow;
+    const cdir = path.join(outDir, "cronograma"); fs.mkdirSync(cdir, { recursive: true });
+    wordInput = path.join(cdir, "_sow-planificado.json");
+    fs.writeFileSync(wordInput, JSON.stringify(planned, null, 2));
+    const py = ["python", "python3", "py"].find((c) => spawnSync(c, ["--version"], { encoding: "utf8" }).status === 0);
+    if (!py) throw new Error("no se encontró Python (python, python3 o py)");
+    const baseTareas = path.join(cdir, base);
+    const a = spawnSync(py, [path.join(__dirname, "sow_a_paquete.py"), wordInput, baseTareas, "--forzar", "--solo-cronograma"], { encoding: "utf8" });
+    if (a.status !== 0) throw new Error((a.stderr || a.stdout || "sow_a_paquete.py falló").trim().split("\n").pop());
+    const g = spawnSync(py, [path.join(__dirname, "cronograma.py"), `${baseTareas}_cronograma.json`, path.join(cdir, `${base}-cronograma`)], { encoding: "utf8" });
+    if (g.status !== 0) throw new Error((g.stderr || g.stdout || "cronograma.py falló").trim().split("\n").pop());
+    process.stdout.write(g.stdout);
+    const png = path.join(cdir, `${base}-cronograma_gantt.png`);
+    if (fs.existsSync(png)) ganttPng = png; else throw new Error("cronograma.py no produjo el PNG del Gantt");
+  } catch (e) { ganttFalla = e.message; wordInput = inFile; console.warn(`Gantt no generado: ${e.message}`); }
+}
+
 // 2. Word SOW (full mode only; diagrams are rendered inside the builder)
 if (!prek) {
   const docx = path.join(outDir, `${base}.docx`);
-  const b = node("build_sow_docx.js", [inFile, docx]);
+  const b = node("build_sow_docx.js", [wordInput, docx, ...(ganttPng ? ["--gantt", ganttPng] : [])]);
   process.stdout.write(b.stdout); process.stderr.write(b.stderr);
   if (b.status !== 0) process.exit(b.status || 1);
 }
@@ -101,4 +131,19 @@ if (prek) {
   const f = node("build_faltantes_docx.js", [inFile, outDir, base]);
   process.stdout.write(f.stdout); process.stderr.write(f.stderr);
   if (f.status !== 0) process.exit(f.status || 1);
+}
+
+// 5b. Phase 2: what changed since the pre-kickoff (internal)
+if (anteriorFile) {
+  if (!fs.existsSync(anteriorFile)) console.warn(`--anterior: no existe ${anteriorFile}; no se genera el resumen de cambios.`);
+  else { const c = node("comparar_versiones.js", [anteriorFile, inFile, outDir]); process.stdout.write("\n" + c.stdout); process.stderr.write(c.stderr); }
+}
+
+// 6. Schedule status: the agent never leaves the schedule silent; it says whether it was generated and, if not, why and what unblocks it
+{
+  const ec = C.estadoCronograma(sow, ganttFalla ? { gantt: false, motivoGantt: ganttFalla } : {});
+  const txt = C.textoEstadoCronograma(ec);
+  console.log("\n" + txt);
+  if (wordInput !== inFile) { try { fs.unlinkSync(wordInput); } catch (e) { /* temp copy */ } }
+  fs.writeFileSync(path.join(outDir, `${base}-cronograma-estado.txt`), txt + "\n");
 }

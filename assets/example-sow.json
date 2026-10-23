@@ -569,7 +569,7 @@
     {
       "item": "Ejecución de la UAT y reporte escrito de observaciones dentro de las fechas del cronograma",
       "responsable": "Comercial del cliente",
-      "fecha_limite": "2026-10-30",
+      "fecha_limite": "2026-10-23",
       "hito": "UAT del cliente",
       "tipo": "uat"
     }
@@ -594,8 +594,28 @@
         "fase": "1",
         "nombre": "Construcción del agente",
         "descripcion": "Flujos, formulario de pedido e integración con el ERP",
-        "dias_habiles": 8,
-        "entregable": "Agente en ambiente de pruebas"
+        "dias_habiles": 3,
+        "entregable": "Agente en ambiente de pruebas",
+        "tareas": [
+          {
+            "tarea": "Workflows",
+            "responsable": "Jelou",
+            "dias": 3,
+            "carril": "C1"
+          },
+          {
+            "tarea": "Webviews, Flows y plantillas",
+            "responsable": "Jelou",
+            "dias": 2,
+            "carril": "C2"
+          },
+          {
+            "tarea": "Integraciones y servicios",
+            "responsable": "Jelou",
+            "dias": 1,
+            "carril": "C3"
+          }
+        ]
       },
       {
         "id": "H2",
@@ -1273,7 +1293,14 @@
         "cantidad": 1,
         "nota": "Hito del cronograma: UAT del cliente"
       }
-    ]
+    ],
+    "paralelismo": {
+      "carriles": 3,
+      "reduccion_pct": 20,
+      "horas_antes_max": 30,
+      "horas_despues_max": 24,
+      "nota": "Estimación: el trabajo en paralelo reduce 10 % las horas de construcción por carril adicional (máximo 20 %); pendiente de calibrar con horas reales."
+    }
   },
   "responsabilidades": {
     "jelou": [

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deriva las fuentes de los extras del paquete a partir de sow.json v2 (una sola fuente de verdad).
 
-Uso: sow_a_paquete.py <sow.json> [salida_base] [--forzar]
+Uso: sow_a_paquete.py <sow.json> [salida_base] [--forzar] [--solo-cronograma]
 Genera (sin sobrescribir lo que ya exista, salvo --forzar):
   <base>_cronograma.json   tareas para cronograma.py, calculadas desde cronograma.hitos (solo si hay cronograma.inicio)
   <base>_propuesta.json    base de la propuesta para propuesta.py (sin inversión: la define Comercial)
@@ -116,30 +116,51 @@ def responsable_hito(h):
 
 
 def cronograma(sow):
+    """Tareas para cronograma.py. Un hito puede traer `tareas` con `carril` (trabajo en paralelo, máximo 3 carriles): todas las tareas
+    de distinto carril arrancan al terminar el hito anterior, las del mismo carril van en cadena, y el entregable del hito espera a que
+    termine el último de todos los carriles (ruta crítica). Una tarea puede traer `id` y `depende_de` (ids del mismo hito) para
+    dependencias explícitas. El hito siguiente depende de TODAS las colas del anterior."""
     m, cr = sow.get("meta") or {}, sow.get("cronograma") or {}
-    tareas, previo = [], None
+    tareas, previo = [], []
     for k, h in enumerate(arr(cr.get("hitos")), 1):
         fase = f"{k}. {h.get('nombre', h.get('id', ''))}"
         detalle = arr(h.get("tareas"))
-        if detalle:  # opcional: hito con tareas propias {tarea, responsable, dias}
-            ult = []
+        if detalle:  # opcional: hito con tareas propias {tarea, responsable, dias, carril?, id?, depende_de?}
+            hid = h.get("id", k)
+            locales = {}
+            por_carril = {}
+            colas = []
             for j, t in enumerate(detalle, 1):
-                tid = f"{h.get('id', k)}_{j}"
+                tid = f"{hid}_{j}"
+                if t.get("id"):
+                    locales[t["id"]] = tid
+            for j, t in enumerate(detalle, 1):
+                tid = f"{hid}_{j}"
+                if t.get("depende_de"):
+                    deps = [locales.get(d, d) for d in arr(t["depende_de"])]
+                elif t.get("carril") and t["carril"] in por_carril:
+                    deps = [por_carril[t["carril"]]]
+                else:
+                    deps = list(previo)
                 tareas.append({"id": tid, "fase": fase, "tarea": t["tarea"], "responsable": t.get("responsable", "Jelou"),
-                               "dias": int(t["dias"]), **({"depende_de": [previo]} if previo else {})})
-                ult.append(tid)
-            fin = ult
+                               "dias": int(t["dias"]), **({"carril": t["carril"]} if t.get("carril") else {}),
+                               **({"depende_de": deps} if deps else {})})
+                if t.get("carril"):
+                    por_carril[t["carril"]] = tid
+                colas.append(tid)
+            usados = {d for t in tareas if t["id"].startswith(f"{hid}_") for d in t.get("depende_de", [])}
+            fin = [c for c in colas if c not in usados] or colas
         else:
             tid = str(h.get("id", k))
             tareas.append({"id": tid, "fase": fase, "tarea": h.get("descripcion") or h.get("nombre"),
                            "responsable": h.get("responsable", responsable_hito(h)), "dias": int(h.get("dias_habiles", 1)),
-                           **({"depende_de": [previo]} if previo else {})})
+                           **({"depende_de": list(previo)} if previo else {})})
             fin = [tid]
         hito_id = f"{h.get('id', k)}_entrega"
         tareas.append({"id": hito_id, "fase": fase, "tarea": h.get("entregable") or h.get("nombre"), "hito": True,
                        "entregable": h.get("entregable") or h.get("nombre"), "descripcion": h.get("descripcion", ""),
                        "depende_de": fin})
-        previo = fin[-1]
+        previo = fin
     return {"cliente": m.get("cliente", ""), "proyecto": m.get("proyecto", ""), "version": m.get("version", "1.0"),
             "inicio": cr.get("inicio"), "feriados": arr(cr.get("festivos")), "tareas": tareas}
 
@@ -233,6 +254,7 @@ def escribir(path, contenido, forzar):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     forzar = "--forzar" in sys.argv
+    solo_cronograma = "--solo-cronograma" in sys.argv
     if not args:
         sys.exit(__doc__)
     sow = json.load(open(args[0], encoding="utf-8"))
@@ -245,7 +267,8 @@ def main():
         escribir(f"{base}_cronograma.json", cronograma(sow), forzar)
     else:
         print("Sin cronograma.inicio en sow.json: no genero el cronograma (la propuesta usará días hábiles sin fechas).")
-    escribir(f"{base}_propuesta.json", propuesta(sow, base), forzar)
+    if not solo_cronograma:
+        escribir(f"{base}_propuesta.json", propuesta(sow, base), forzar)
 
 
 if __name__ == "__main__":

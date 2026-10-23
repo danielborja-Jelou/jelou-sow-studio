@@ -88,6 +88,18 @@ function addFigure(spec, name, alt) {
 }
 
 
+// PNG already rendered (e.g. the Gantt from cronograma.py): size read from the IHDR chunk, scaled to the page width
+function addPng(buf, name, alt) {
+  if (!buf || buf.length < 24) return "";
+  const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+  const maxW = 5832000, maxH = 7500000;
+  let cx = maxW, cy = Math.round((h / w) * maxW);
+  if (cy > maxH) { cy = maxH; cx = Math.round((w / h) * maxH); }
+  const fig = { rId: `rIdFig${figures.length + 1}`, buf, cx, cy, name, alt };
+  figures.push(fig);
+  return figureXml(fig, figures.length);
+}
+
 // ---------- assembly ----------
 // body: array of XML strings. Returns the path written. opts: { footerText, title }
 async function assemble(body, outFile, opts = {}) {
@@ -118,4 +130,4 @@ async function assemble(body, outFile, opts = {}) {
   return { buf, figures: figures.length };
 }
 
-module.exports = { brand, B, esc, rPr, run, P, text, H1, H2, bullet, labeled, caption, cellXml, table, kvTable, val, addFigure, figures, assemble };
+module.exports = { brand, B, esc, rPr, run, P, text, H1, H2, bullet, labeled, caption, cellXml, table, kvTable, val, addFigure, addPng, figures, assemble };

@@ -11,7 +11,7 @@ Machine-readable rates: `scripts/lib/effort-rates.json` (this file explains them
 ## The two caps
 
 1. **Hours cap: 72 h per project, management INCLUDED** (default `meta.tope_horas: 72`, configurable). The linter ERRORS when the **maximum** total (items x quantity, plus management) is above the cap, unless `meta.excepcion_horas` explains why (then it is a warning). *Default pending business confirmation: whether project management counts inside the 72 h.* If business says it does not, set `meta.tope_horas` to the agreed figure or change the check in `lint_sow.js` (section 14) and this file.
-2. **Calendar cap: 20 business days end to end** (rule below, unchanged).
+2. **Calendar cap: 15 business days end to end** (critical path; parallel lanes count once, as the longest lane; rule below).
 
 A typical project lands well below 72 h with these rates. If it does not, the scope is too large for one SOW: split it into phases (preferred), or justify the exception. Never hide an overrun by lowering hours.
 
@@ -66,27 +66,44 @@ Rule of thumb: one complex agent costs about one sixth of the cap.
 
 ## Calendar rules (set by the user, apply as written)
 
-1. **A project cannot last more than 20 business days end to end.** The linter errors above 20 unless `meta.excepcion_plazo` justifies it (then it is a warning).
+1. **A project cannot last more than 15 business days end to end** (the critical path: parallel lanes count once, as the longest lane). The linter errors above 15 unless `meta.excepcion_plazo` justifies it (then it is a warning).
 2. **Dates are dominated by client dependencies** (accesses, final texts, UAT, Meta approvals) more than by build hours. Those waits must appear in `dependencias_cliente` with a date; do not inflate hours to cover them.
 3. **Internal tests and client tests are explicit milestones** of the schedule (`hito.tipo: "pruebas_internas"` / `"uat"`, or the names "Pruebas internas" / "UAT del cliente"), each with business days and computed dates in the Word schedule, the Gantt and the proposal. The linter ERRORS when either is missing.
-4. **Formula:**
+4. **Formula (with parallel lanes):**
 
 ```
-días_construcción = ceil( horas_max_total × (1 + gestión_pct/100) / (personas × horas_dia) )
+horas_carril    = Σ horas_max de sus items × (1 − reducción)
+días_carril     = ceil( horas_carril × (1 + gestión_pct/100) / horas_dia )
+días_construcción = max( días_carril )          # ruta crítica: el carril más largo, no la suma
 ```
 
-`horas_max_total` is the sum of maxima of all `esfuerzo.items`. `horas_dia` = productive hours per person per day (6 by default). With the 72 h cap one person needs at most 12 days.
+`horas_dia` = productive hours per person per day (6 by default). Without lanes (a single unit of work, or `esfuerzo.paralelismo.carriles: 1`) the build days are `ceil(horas_max_total × (1 + gestión) / (personas × horas_dia))`.
 
-5. **Indicative split of the 20 days** (adjust to the case):
+5. **Indicative split of the 15 days** (adjust to the case):
 
 | Block | Days (guide) |
 |---|---|
 | Planning and SOW | 2 |
-| Construction | 7 |
+| Construction (critical path of the lanes) | 3-4 |
 | Internal tests (milestone) | 2 |
-| Client UAT (milestone, dated) | 4 |
-| Production | 2 |
+| Client UAT (milestone, dated) | 3 |
+| Production | 1-2 |
 | Closure | 1 |
+
+## Parallel lanes (decided by the skill, at most 3)
+
+The skill splits the **construction** into parallel lanes by itself (`scripts/lib/planificar.js`; the user does not declare them, `esfuerzo.paralelismo.carriles` or `cronograma.carriles` can only lower the number). Two axes form the units of work:
+
+1. **By flow / agent:** items with `agente: "F1"` (the agent id) form one unit per agent (Flujo_1, Flujo_2…).
+2. **By type of work:** the rest is grouped into *workflows*, *integrations and services* (`function`, `integracion_api`, `datum`, `kyc`, `pagos`), *webviews, Flows and templates* (`webview_*`, `flow_whatsapp`, `formulario`, `plantilla_hsm`) and *knowledge, FAQ and handoff* (`base_conocimiento`, `agente_faq`, `campana`, `handoff_asesor`).
+
+Units are packed into **at most 3 lanes** with LPT (heaviest unit first, into the least loaded lane). Internal tests start when ALL lanes end, then the client UAT, production and closure (always in series). `pruebas_qa`, `uat_acompanamiento`, `capacitacion` and `canal_whatsapp_activacion` are not part of the lanes.
+
+**Reduction rule (an ESTIMATE, to calibrate with real hours):** parallel work reduces **hours and days**:
+- hours of construction items: **−10 % per extra lane, at most −20 %** (2 lanes −10 %, 3 lanes −20 %). Management, internal tests, UAT, training and activation are not reduced;
+- days: the longest lane (critical path), not the sum.
+
+`computeEffort`, the linter, the Word, the proposal and the Gantt all use the already reduced hours; `esfuerzo.paralelismo` records `{carriles, reduccion_pct, horas_antes_max, horas_despues_max}`. Run `node scripts/planificar_cronograma.js sow.json --aplicar` after filling `esfuerzo.items`: it writes the lane tasks into the construction milestone (`hitos[].tareas[].carril`) and sets its `dias_habiles` to the critical path. Put `agente` on the items of each flow so the first axis can split them.
 
 ## UAT time rule (draft clause, pending Legal review)
 
@@ -111,7 +128,7 @@ It is printed automatically (with the real closing date) in the schedule section
 | **Subtotal** | **9** | **21** |
 | **With management 15 %** | **10.4** | **24.2** |
 
-24.2 h <= 72 h. Construction days: 24.2 / 6 = 4.03 -> **5**. Calendar: planning 2 + construction 5 + internal tests 2 + UAT 4 + production 2 + closure 1 = **16 business days**.
+24.2 h sequential; with 2 parallel lanes (knowledge/FAQ/handoff in one, the workflow in the other) the construction hours drop 10 % -> **22.9 h** (maximum, management included) <= 72 h. Construction days = longest lane (8.1 h x 1.15 / 6) = **2**. Calendar: planning 2 + construction 2 + internal tests 2 + UAT 3 + production 1 + closure 1 = **11 business days** (cap 15).
 
 ## Example 2: two agents with WebViews and an API integration
 
@@ -132,7 +149,7 @@ It is printed automatically (with the real closing date) in the schedule section
 | **Subtotal** | **21.25** | **44** |
 | **With management 15 %** | **24.4** | **50.6** |
 
-50.6 h <= 72 h. Construction days: 50.6 / 6 = 8.4 -> **9** (one person) or 5 with two people. Calendar: 2 + 9 + 2 + 4 + 2 + 1 = **20 business days**: fits with zero slack, so every access, text or Meta approval needs a dated dependency and the SOW says a client delay moves the end date.
+50.6 h sequential; with 3 parallel lanes (webviews/templates; integrations + handoff; the two agents' workflows) the construction hours drop 20 % -> **43.8 h** <= 72 h. Construction days = longest lane = **3** (sequential it would have been 9). Calendar: 2 + 3 + 2 + 3 + 1 + 1 = **12 business days**: three days of slack under the 15-day cap, but every access, text or Meta approval needs a dated dependency and the SOW says a client delay moves the end date.
 
 ## Example 3: does NOT fit
 
@@ -140,8 +157,8 @@ Scope: 3 complex agents, 3 `webview_backend`, `kyc`, `pagos`, 3 `integracion_api
 Subtotal 48-100.5 h; with management 55.2-115.6 h. **115.6 h > 72 h** (linter error).
 
 What to do (pick one, never silently):
-1. **Split into phases** (preferred): Phase 1 = priority agent + channel + handoff + tests + UAT inside 72 h and 20 days; Phase 2 = the rest as its own SOW or version. Record it in `alcance.fases` and `meta.prioridad`.
+1. **Split into phases** (preferred): Phase 1 = priority agent + channel + handoff + tests + UAT inside 72 h and 15 days; Phase 2 = the rest as its own SOW or version. Record it in `alcance.fases` and `meta.prioridad`.
 2. **Justify** the overrun in `meta.excepcion_horas` (reason, who approved) and/or `meta.excepcion_plazo`; the linter then downgrades the error to a warning.
 3. Change `meta.tope_horas` only when the commercial owner agrees a different cap.
 
-The Word shows the Spanish `etiqueta` of every type (field `etiqueta` in `scripts/lib/effort-rates.json`), never the raw key. When the schedule has no slack (20 days) and client dependencies have no date, the effort section states how many of the days depend on them.
+The Word shows the Spanish `etiqueta` of every type (field `etiqueta` in `scripts/lib/effort-rates.json`), never the raw key. When the schedule has no slack (15 days) and client dependencies have no date, the effort section states how many of the days depend on them.

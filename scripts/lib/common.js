@@ -2,6 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 
+const PL = require("./planificar");
 const arr = (x) => (Array.isArray(x) ? x : x == null ? [] : [x]);
 
 // ---------- pending markers ----------
@@ -48,6 +49,24 @@ function scheduleDates(cronograma) {
     return { hito: h, inicio: ini, fin };
   });
 }
+// Carriles de un hito (tareas con `carril`) con sus fechas: cada carril arranca al empezar el hito y sus tareas van en cadena.
+function laneTasks(h) { return arr(h && h.tareas).filter((t) => t && t.carril); }
+function laneDates(cronograma) {
+  const cr = cronograma || {}; const rows = scheduleDates(cr); const cal = makeCalendar(cr.festivos); const out = new Map();
+  rows.forEach(({ hito, inicio }) => {
+    const ts = laneTasks(hito); if (!ts.length) return;
+    const cursor = {}; const list = [];
+    ts.forEach((t) => {
+      const ini = inicio ? (cursor[t.carril] ? cal.nextBusiness(cursor[t.carril]) : inicio) : null;
+      const fin = ini ? cal.endOfBlock(ini, Math.max(1, t.dias || 1)) : null;
+      if (fin) { const n = new Date(fin); n.setUTCDate(n.getUTCDate() + 1); cursor[t.carril] = n; }
+      list.push({ tarea: t, inicio: ini, fin });
+    });
+    out.set(hito, list);
+  });
+  return out;
+}
+const TOPE_DIAS_DEFECTO = 15; // tope calendario por defecto (días hábiles de punta a punta; la ruta crítica de los carriles en paralelo)
 const totalBusinessDays = (cronograma) => arr((cronograma || {}).hitos).reduce((a, h) => a + (h.dias_habiles || 0), 0);
 
 // ---------- step types ----------
@@ -145,7 +164,7 @@ function dependencyPlan(sow) {
   const dep = new Map();
   out.filter((x) => x.sinFecha && x.hito).forEach((x) => dep.set(x.hito.id || x.hito.nombre, x.hito));
   const diasDependientes = [...dep.values()].reduce((a, h) => a + h.dias, 0);
-  return { deps: out, total, sinHolgura: total >= 20, diasDependientes, hitosDependientes: [...dep.values()], sinFecha: out.filter((x) => x.sinFecha).length };
+  return { deps: out, total, sinHolgura: total >= TOPE_DIAS_DEFECTO, diasDependientes, hitosDependientes: [...dep.values()], sinFecha: out.filter((x) => x.sinFecha).length };
 }
 
 // ---------- effort model ----------
@@ -168,19 +187,27 @@ function loadRates() {
 function computeEffort(esfuerzo) {
   const { rangos, etiquetas, gestion } = loadRates();
   const e = esfuerzo || {};
-  let min = 0, max = 0; const rows = []; const unknown = [];
-  for (const it of arr(e.items)) {
+  const plan = PL.planificar(e, rangos);
+  const f = plan.factor;
+  let min = 0, max = 0, minBase = 0, maxBase = 0; const rows = []; const unknown = [];
+  arr(e.items).forEach((it, i) => {
     const r = rangos[it.tipo];
-    if (!r) { unknown.push(it.tipo); continue; }
+    if (!r) { unknown.push(it.tipo); return; }
     const q = it.cantidad || 1;
-    rows.push({ entregable: it.entregable, tipo: it.tipo, etiqueta: (etiquetas && etiquetas[it.tipo]) || String(it.tipo).replace(/_/g, " "), cantidad: q, min: r[0] * q, max: r[1] * q, nota: it.nota });
-    min += r[0] * q; max += r[1] * q;
-  }
+    const k = plan.construccion.has(i) ? f : 1; // el paralelismo solo reduce las horas de construcción
+    rows.push({ entregable: it.entregable, tipo: it.tipo, etiqueta: (etiquetas && etiquetas[it.tipo]) || String(it.tipo).replace(/_/g, " "), cantidad: q, min: round1(r[0] * q * k), max: round1(r[1] * q * k), minBase: r[0] * q, maxBase: r[1] * q, nota: it.nota });
+    min += r[0] * q * k; max += r[1] * q * k; minBase += r[0] * q; maxBase += r[1] * q;
+  });
   const g = (e.gestion_pct == null ? (gestion.defecto == null ? 15 : gestion.defecto) : e.gestion_pct) / 100;
   const personas = e.personas || 1, horasDia = e.horas_dia || 6;
   const totalMin = min * (1 + g), totalMax = max * (1 + g);
-  return { rows, unknown, subMin: min, subMax: max, gestionPct: g * 100, totalMin, totalMax, personas, horasDia, diasMin: Math.ceil(totalMin / (personas * horasDia)), diasMax: Math.ceil(totalMax / (personas * horasDia)) };
+  // días de construcción = ruta crítica (el carril más largo); sin carriles, horas de construcción / (personas x horas por día)
+  const sinCarriles = !plan.carriles.length;
+  const diasMin = sinCarriles ? Math.ceil(totalMin / (personas * horasDia)) : plan.diasConstruccionMin;
+  const diasMax = sinCarriles ? Math.ceil(totalMax / (personas * horasDia)) : plan.diasConstruccionMax;
+  return { rows, unknown, subMin: min, subMax: max, subMinBase: minBase, subMaxBase: maxBase, gestionPct: g * 100, totalMin, totalMax, totalMinBase: minBase * (1 + g), totalMaxBase: maxBase * (1 + g), personas, horasDia, diasMin, diasMax, paralelismo: plan };
 }
+const round1 = (x) => Math.round(x * 10) / 10;
 // Tope de horas del proyecto (incluye gestión): meta.tope_horas o 72. Pendiente de confirmación de negocio: si la gestión cuenta dentro del tope.
 const topeHoras = (sow) => { const t = Number(((sow && sow.meta) || {}).tope_horas); return Number.isFinite(t) && t > 0 ? t : loadRates().tope; };
 
@@ -241,4 +268,32 @@ function prekickoffThreshold(sow) {
   return { modo: razones.length ? "prekickoff" : "sow_completo", razones, cifras: { bloqueantes: bloqueantes.length, integraciones_sin_doc_o_qa: intSin.length, supuestos_sin_confirmar: supuestos.length }, umbral_bloqueantes: BLOQUEANTES_UMBRAL };
 }
 
-module.exports = { isPrekickoff, milestoneKind, testMilestones, uatWindow, UAT_CLAUSE, UAT_CLAUSE_LEGAL, uatClauseWithDate, AMP_ESTADOS, ampliaciones, AMP_QUESTION, prekickoffThreshold, TOPE_HORAS_DEFECTO, topeHoras, normTxt, canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };
+// ---------- ¿el cronograma / Gantt se generó o está pendiente, y por qué? ----------
+// Nunca debe quedar en silencio: build_all.js lo imprime, entra en los faltantes internos y en la nota final.
+// Devuelve { generado, motivos:[{motivo, desbloquea}], avisos:[...], resumen }.
+function estadoCronograma(sow, opts = {}) {
+  const s = sow || {}; const m = s.meta || {}; const cr = s.cronograma || {};
+  const motivos = []; const avisos = [];
+  const add = (motivo, desbloquea) => motivos.push({ motivo, desbloquea });
+  const hitos = arr(cr.hitos); const items = arr((s.esfuerzo || {}).items);
+  const aprobado = String(m.estado || "").toLowerCase() === "aprobado";
+  const bloqueantes = arr(s.preguntas_abiertas).filter((q) => q.bloquea);
+  const integ = arr(s.integraciones).filter((it) => normTxt(it.documentacion) !== "si" || normTxt(it.ambiente_pruebas) !== "si");
+  const sinFecha = arr(s.dependencias_cliente).filter((d) => !/^\d{4}-\d{2}-\d{2}$/.test(d.fecha_limite || ""));
+  if (!aprobado) {
+    add(isPrekickoff(s) ? "El SOW está en pre-kickoff: todavía no hay SOW cerrado." : "El SOW está en revisión (meta.estado = en_revision): las horas, las fechas y el Gantt solo se generan al aprobarlo.", "Aprobación del cliente (meta.estado = aprobado).");
+    if (bloqueantes.length) add(`${bloqueantes.length} pregunta(s) abierta(s) que bloquean la aprobación.`, "Respuestas del cliente a las preguntas bloqueantes (lista de faltantes).");
+    if (integ.length) add(`${integ.length} servicio(s) sin documentación o sin ambiente de pruebas: ${integ.map((i) => i.id || i.nombre).slice(0, 6).join(", ")}.`, "Documentación técnica y ambiente de pruebas del cliente (o avanzar con datos simulados según la cláusula del SOW).");
+  }
+  if (!hitos.length) add("No hay hitos en cronograma.hitos.", "Definir los hitos (planificación, construcción, pruebas internas, UAT, producción, cierre).");
+  if (!items.length) add("No hay estimación de esfuerzo (esfuerzo.items).", "Completar esfuerzo.items para calcular horas y carriles.");
+  if (aprobado && !/^\d{4}-\d{2}-\d{2}$/.test(cr.inicio || "")) add("Falta cronograma.inicio (fecha de firma o de arranque).", "Confirmar la fecha de firma o de inicio; con ella se calculan todas las fechas.");
+  if (aprobado && sinFecha.length) avisos.push(`${sinFecha.length} dependencia(s) del cliente sin fecha límite: un retraso en esos insumos mueve el cronograma.`);
+  if (opts.gantt === false) add(`El Gantt no se pudo generar${opts.motivoGantt ? ": " + opts.motivoGantt : ""}.`, "Instalar Python con openpyxl y reintentar (python scripts/cronograma.py).");
+  const generado = motivos.length === 0;
+  const resumen = generado ? "Cronograma: generado (tabla con fechas, carriles en paralelo y Gantt)." : "Cronograma: PENDIENTE";
+  return { generado, motivos, avisos, resumen };
+}
+const textoEstadoCronograma = (e) => [e.resumen, ...e.motivos.map((x) => `  • ${x.motivo} → Desbloquea: ${x.desbloquea}`), ...e.avisos.map((a) => `  · Aviso: ${a}`)].join("\n");
+
+module.exports = { laneTasks, laneDates, loadRates, TOPE_DIAS_DEFECTO, estadoCronograma, textoEstadoCronograma, isPrekickoff, milestoneKind, testMilestones, uatWindow, UAT_CLAUSE, UAT_CLAUSE_LEGAL, uatClauseWithDate, AMP_ESTADOS, ampliaciones, AMP_QUESTION, prekickoffThreshold, TOPE_HORAS_DEFECTO, topeHoras, normTxt, canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };

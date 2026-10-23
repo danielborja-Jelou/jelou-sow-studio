@@ -106,4 +106,4 @@ When two sources disagree, do not pick one silently: keep the more recent decisi
 - [ ] Every exclusion in Observaciones is an `OOS-…` item with `terminos`.
 - [ ] Identity, signature and money steps are `determinista` in `solucion`.
 - [ ] Each capability stated in `solucion` was checked against the Jelou documentation (see `how-jelou-bots-work.md` §8).
-- [ ] The project fits in 20 business days (waits on the client are dated dependencies).
+- [ ] The project fits in 15 business days of critical path, with at most 3 parallel lanes (waits on the client are dated dependencies).

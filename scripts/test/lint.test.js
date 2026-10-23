@@ -40,7 +40,7 @@ const cases = [
   ['integration without connection mode', (s) => { delete s.integraciones[0].conexion; }, 'INT', 'conexion'],
   ['more than 3 buttons', (s) => { const p = s.agentes[0].pasos.find((x) => (x.botones || []).length); p.botones = ['a', 'b', 'c', 'd']; }, 'WA'],
   ['unknown effort type', (s) => { s.esfuerzo.items.push({ entregable: 'x', tipo: 'inventado', cantidad: 1 }); }, 'EFFORT'],
-  ['schedule above 20 business days', (s) => { s.cronograma.hitos[0].dias_habiles = 40; }, 'SCHED', '20'],
+  ['schedule above 15 business days', (s) => { s.cronograma.hitos[0].dias_habiles = 40; }, 'SCHED', '15'],
   ['escalation without mode', (s) => { delete s.escalamiento[0].modo; }, 'ESC'],
   ['effort above the 72 h cap', (s) => { s.esfuerzo.items.push({ entregable: 'Extra', tipo: 'workflow_complejo', cantidad: 6 }); }, 'EFFORT', 'cap'],
   ['no internal-tests milestone', (s) => { s.cronograma.hitos = s.cronograma.hitos.filter((h) => h.id !== 'H2'); }, 'SCHED', 'internal-tests'],

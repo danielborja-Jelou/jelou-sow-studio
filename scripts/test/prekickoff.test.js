@@ -171,7 +171,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     const fA = path.join(OUT, 'full-aprobado.json'); fs.writeFileSync(fA, JSON.stringify({ ...full, meta: { ...full.meta, estado: 'aprobado' } }));
     node('build_all.js', [fA, dirA, '--force']);
     const docA = await textOf(path.join(dirA, fs.readdirSync(dirA).find((x) => /\.docx$/.test(x))), /^word\/document\.xml$/);
-    assert(/Fecha de cierre de UAT: 06\/11\/2026/.test(docA) && /Resumen de esfuerzo/.test(docA), 'aprobado shows the dated schedule and the effort table');
+    assert(/Fecha de cierre de UAT: 03\/11\/2026/.test(docA) && /Resumen de esfuerzo/.test(docA), 'aprobado shows the dated schedule and the effort table');
     assert(doc.indexOf('Diagrama end-to-end') < doc.indexOf('Flujo_1: Solicitud de crédito (inbound)', doc.indexOf('Mapa de conversaciones')), 'E2E comes first in the conversation map');
     assert(!/Q-AMP|¿Se debe tomar en cuenta/.test(doc), 'commercial questions are not in the client SOW pending table');
     const fig = JSON.parse(fs.readFileSync(path.join(dir, 'diagramas', 'figuras.json'), 'utf8'));

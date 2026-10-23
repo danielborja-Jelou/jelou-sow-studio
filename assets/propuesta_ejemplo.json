@@ -78,7 +78,7 @@
     "nota": "los ambientes de prueba se confirman en la revisión de APIs."
   },
   "ruta": {
-    "sub": "Estimación referencial en días hábiles, sujeta a la entrega de insumos del cliente (máximo 20 días hábiles)."
+    "sub": "Estimación referencial en días hábiles, sujeta a la entrega de insumos del cliente (máximo 15 días hábiles)."
   },
   "cta": {
     "titulo": "Convertimos el diseño en un chat que resuelve",

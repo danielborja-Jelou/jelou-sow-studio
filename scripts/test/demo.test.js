@@ -215,6 +215,58 @@ t("outbound flow starts with a notification and a template", () => {
     assert(!/dato de ejemplo/i.test(s), "no «dato de ejemplo»");
     const demo = Object.values(r.guion.flows)[0].demo; assert(demo.material === "Resina PP-20" && demo.cantidad === "25" && /^Zorbalux 01$/.test(demo.zorbalux), JSON.stringify(demo));
   });
+  const sowModos = (extra = {}, ag = {}, sinForm = false) => ({ meta: { proyecto: "P", cliente: "Cliente X", pais: "Ecuador", fase: "prekickoff" }, ...extra, agentes: [{ id: "F1", nombre: "Flujo_1: Registro", entrada: "inbound", ...ag, pasos: [
+    { id: "P1", tipo: "usuario", mensaje: "Hola", siguiente: [{ a: "P2" }] },
+    sinForm ? { id: "P2", tipo: "mensaje", etapa: "Datos", mensaje: "Gracias por escribir.", siguiente: [{ a: "PF" }] }
+      : { id: "P2", tipo: "formulario", etapa: "Datos", mensaje: "Completa tus datos.", formulario: { titulo: "Datos", campos: [{ etiqueta: "Material", tipo: "texto" }, { etiqueta: "Cantidad", tipo: "numero" }, { etiqueta: "Tipo", tipo: "selector", opciones: ["A", "B"] }, { etiqueta: "Correo", tipo: "correo" }] }, siguiente: [{ a: "PF" }] },
+    { id: "PF", tipo: "fin", diagrama: "Fin", siguiente: [] }] }] });
+  t("modos: sin definir se generan los tres con selector; el conversacional no usa Flow ni webview", () => {
+    const r = buildGuion(sowModos()); const g = r.guion;
+    assert(g.modos && g.modos.lista.map((m) => m.id).join() === "conversacional,mixto,webview" && g.modos.inicial === "mixto", JSON.stringify(g.modos));
+    assert(g.journeys.length === 3 && g.journeys.every((j) => j.modo && j.par), "un recorrido por modo, con modo y par");
+    const conv = g.journeys.find((j) => j.modo === "conversacional"); const web = g.journeys.find((j) => j.modo === "webview");
+    assert(/Conversacional$/.test(conv.nombre) && /Flows y webview$/.test(web.nombre), "nombres claros");
+    assert(!conv.pasos.some((p) => p.tipo === "flow" || p.tipo === "cta_url"), "conversacional: sin Flow ni webview");
+    assert(conv.pasos.some((p) => p.tipo === "usuario" && p.texto === "Resina PP-20") && conv.pasos.some((p) => /Confirmo tus datos/.test(p.cuerpo || "")), "preguntas con respuestas inferidas y confirmación final");
+    assert(web.pasos.some((p) => p.tipo === "flow"), "webview/Flows: formulario como Flow");
+    assert(r.avisos.some((x) => /se generaron los modos/.test(x) && /por defecto/.test(x)), "el aviso dice el origen");
+  });
+  t("modos: si el SOW o la reunión lo definen, sale un solo modo y sin selector", () => {
+    const casos = [
+      [sowModos({ demo: { observaciones_cliente: ["Quiere que sea 100 % conversacional"] } }), "conversacional", "reunión"],
+      [sowModos({ demo: { observaciones_cliente: "No quiero Webview, quiero WhatsApp Flow" } }), "webview", "reunión"],
+      [sowModos({}, { modo_experiencia: "mixto" }), "mixto", "sow"],
+      [sowModos({ demo: { modo: "conversacional", observaciones_cliente: "quiero flows" } }), "webview", "reunión"],   // en fase 2 manda la reunión
+    ];
+    for (const [sow, modo, origen] of casos) {
+      const r = buildGuion(sow); const g = r.guion;
+      assert(!g.modos && g.journeys.length === 1 && !g.journeys[0].modo, "un solo recorrido, sin selector: " + modo);
+      assert(r.avisos.some((x) => x.includes("«") && new RegExp("origen: " + origen).test(x)), "origen " + origen + ": " + r.avisos.join(" / "));
+      const tieneForm = g.journeys[0].pasos.some((p) => p.tipo === "flow");
+      assert(tieneForm === (modo !== "conversacional"), "el formulario de 4 campos va en Flow salvo en el modo conversacional: " + modo);
+    }
+    assert(!buildGuion(sowModos({}, { modo_experiencia: "conversacional" })).guion.journeys[0].pasos.some((p) => p.tipo === "flow"));
+    const forms = sowModos(); forms.agentes[0].pasos[1].herramienta = "flows";
+    assert(!buildGuion(forms).guion.modos, "todos los formularios con herramienta definida: modo webview, sin selector");
+  });
+  t("modos: mixto deja en el chat los formularios cortos y en Flow los largos; sin formularios no hay selector", () => {
+    const corto = sowModos({}, { modo_experiencia: "mixto" }); corto.agentes[0].pasos[1].formulario.campos = corto.agentes[0].pasos[1].formulario.campos.slice(0, 2);
+    assert(!buildGuion(corto).guion.journeys[0].pasos.some((p) => p.tipo === "flow"), "2 campos: en el chat");
+    assert(buildGuion(sowModos({}, { modo_experiencia: "mixto" })).guion.journeys[0].pasos.some((p) => p.tipo === "flow"), "4 campos: en Flow");
+    const sin = buildGuion(sowModos({}, {}, true));
+    assert(!sin.guion.modos && sin.guion.journeys.length === 1 && !sin.guion.journeys[0].modo, "sin formularios los tres modos serían iguales");
+  });
+  t("modos: en un canal que no es WhatsApp el modo webview es webview (sin Flows) y el selector sigue", () => {
+    const g = buildGuion(sowModos({}, { canal: "Widget web" })).guion;
+    assert(g.modos && g.modos.lista.find((m) => m.id === "webview").nombre === "Webview", JSON.stringify(g.modos));
+    assert(!JSON.stringify(g).includes('"tipo":"flow"') && Object.keys(g.flows).length === 0, "sin Flows en widget");
+    assert(g.journeys.find((j) => j.modo === "webview").pasos.some((p) => p.tipo === "cta_url"), "el formulario es un enlace a webview");
+    assert(!g.journeys.find((j) => j.modo === "conversacional").pasos.some((p) => p.tipo === "cta_url"), "el conversacional sigue en el chat");
+  });
+  t("modos: la extensión trae el selector del panel y el HTML del kit lo incluye", () => {
+    const ext = fs.readFileSync(path.join(__dirname, "..", "..", "assets", "visuales", "kit-extension.js"), "utf8");
+    assert(/id = 'modos'/.test(ext) && /G.modos/.test(ext) && /window.startJourney/.test(ext), "kit-extension.js define el selector de modo");
+  });
   t("extension: skins are injected together with the webview blocks", () => {
     const { inyectarExtension } = require("../sow_a_demo");
     const r = inyectarExtension("<html><body><script>function wvBlock(b){} function startJourney(i){}</script></body></html>");
