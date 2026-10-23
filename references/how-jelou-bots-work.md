@@ -68,7 +68,7 @@ If the client did not ask for them, the SOW must say whether they are included o
 
 ## 6. Indicative effort
 
-Hours and calendar come from `effort-model.md` (AI-assisted rates; **a project lasts at most 20 business days end to end**). Older Jelou templates used longer milestones (planning ≈ 11 days, construction ≈ 12, testing ≈ 8, go-live ≈ 8); do not copy them: they predate the AI-assisted model. Add time when there are undocumented integrations, HSM templates to approve or accesses the client has not delivered yet, and model those waits as dated client dependencies, not as build hours.
+Hours and calendar come from `effort-model.md` (AI-assisted rates; **a project lasts at most 15 business days end to end, with the construction split into at most 3 parallel lanes**). Older Jelou templates used longer milestones (planning ≈ 11 days, construction ≈ 12, testing ≈ 8, go-live ≈ 8); do not copy them: they predate the AI-assisted model. Add time when there are undocumented integrations, HSM templates to approve or accesses the client has not delivered yet, and model those waits as dated client dependencies, not as build hours.
 
 ## 7. How to check technical context without touching anything
 

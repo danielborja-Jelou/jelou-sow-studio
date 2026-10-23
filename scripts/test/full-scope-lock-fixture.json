@@ -995,7 +995,7 @@
         "fase": "1",
         "nombre": "Construcción",
         "descripcion": "Flujos, formularios, endpoint de resultado y campañas",
-        "dias_habiles": 7,
+        "dias_habiles": 4,
         "entregable": "Solución en ambiente de pruebas"
       },
       {

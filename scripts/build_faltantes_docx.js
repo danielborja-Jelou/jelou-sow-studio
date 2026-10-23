@@ -112,6 +112,15 @@ function internalDoc() {
   add(table(["Rol", "Nombre", "Responsabilidad"], arr(sow.equipo).filter((e) => /jelou/i.test(e.organizacion || "")).map((e) => [val(e.cargo || e.rol), val(e.nombre || "POR COMPLETAR"), val(e.responsabilidad)]), [28, 30, 42]));
   add(text("Los nombres que aparecen en reuniones o tareas son propuestas hasta que el responsable confirme el equipo."));
 
+  add(H1("Cronograma y Gantt: estado"));
+  {
+    const ec = C.estadoCronograma(sow);
+    add(text(ec.generado ? "El cronograma con fechas y el Gantt están generados." : "El cronograma con fechas y el Gantt todavía NO se generan. Esto es lo que falta, y qué lo desbloquea:"));
+    ec.motivos.forEach((x) => add(bullet(`${x.motivo} Desbloquea: ${x.desbloquea}`)));
+    ec.avisos.forEach((a) => add(bullet(a)));
+    add(text(`Tope de calendario: ${C.TOPE_DIAS_DEFECTO} días hábiles de punta a punta (ruta crítica; el trabajo en paralelo, máximo 3 carriles, cuenta como el carril más largo).`));
+  }
+
   add(H1("Cláusula de UAT: borrador pendiente de revisión por Legal"));
   add(text(C.UAT_CLAUSE));
   add(text(C.UAT_CLAUSE_LEGAL));

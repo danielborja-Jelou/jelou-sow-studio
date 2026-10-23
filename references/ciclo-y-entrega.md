@@ -21,6 +21,9 @@ Unknown client-team emails are written "POR COMPLETAR" (red in the Word) — nev
 - **Rule:** the client email always carries the direct links to the documents **in the body**, besides the Drive share with notification — the email must be self-sufficient if the notification gets lost.
 - Real attachments through the Gmail connector are not viable above ~100 KB. Pattern: upload to **My Drive** with gcloud (external sharing by API works there) + permissions API with `sendNotificationEmail=true` + links in the email. Updating a PDF's **content** by its fileId (`PATCH uploadType=media`) keeps the same shared link.
 
+### Drive of the person who runs the skill (`scripts/entrega_drive.js`)
+A private copy for the team, not a share: `<Company>/inicio` (pre-kickoff), `proceso` (versions under review, simulator, changes since the pre-kickoff) and `cierre` (approved SOW, Gantt, schedule, proposal). It reuses the folders and replaces a file of the same name, so Drive links survive a new build. Upload needs the person's own credential (`GOOGLE_DRIVE_TOKEN` or `gcloud auth login --enable-gdrive-access`); without it the script leaves `<out>/drive/<Company>/<stage>/` ready to drag in. Sharing with the client is still the native invitation above, and only on request.
+
 ## 3. Never test credential links
 
 Activation or password-reset links (Salesforce, and any `c=<token>` link) can be **single-use**: a simple GET (curl, prefetch, link scanner) consumes them and the user later sees "invalid link". Verifying a credential link = burning it. To diagnose, inspect only the domain (HEAD on the root) or wait for the user to use it. If it was burned: "Forgot Password" with the right username (watch sandbox suffixes like `.scopy`) issues a fresh one.

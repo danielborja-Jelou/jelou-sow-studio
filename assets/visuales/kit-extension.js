@@ -68,3 +68,58 @@
     }
   };
 })();
+
+/* Selector de modo de la experiencia (jelou-sow-studio): cuando el SOW ni la reunión definen cómo se capturan los datos, el guion trae un recorrido
+   por modo (G.modos + journeys[].modo/par) y este bloque muestra un selector en el panel del presentador y oculta los recorridos de los otros modos.
+   Con un solo modo definido el guion no trae G.modos y este bloque no hace nada. */
+(function () {
+  if (typeof G === 'undefined' || !G.modos || !G.modos.lista || G.modos.lista.length < 2 || typeof startJourney !== 'function') return;
+  var nav = document.getElementById('jnav'); if (!nav) return;
+  var modos = G.modos.lista, cur = G.modos.inicial || modos[0].id;
+  var AYUDA = { conversacional: 'Todo en el chat: los formularios se resuelven pregunta a pregunta, sin Flow ni webview.', mixto: 'Chat, con Flow o webview solo donde es imprescindible (formularios largos, archivos, pagos, firma, biometría).', webview: 'Formularios en WhatsApp Flow o webview.' };
+  var pad = function (n) { return String(n).padStart(2, '0'); };
+  var st = document.createElement('style');
+  st.textContent = '#modos{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px}#modos .ml{font:600 11px var(--f-mono,monospace);color:var(--muted,#626c82);text-transform:uppercase;letter-spacing:.04em;margin-right:2px}' +
+    '#modos button{border:1px solid var(--line,#e3e7ee);background:var(--surface,#fff);color:var(--muted,#626c82);border-radius:999px;padding:5px 12px;font:600 12.5px var(--f-body,inherit);cursor:pointer}' +
+    '#modos button[aria-pressed="true"]{border-color:var(--brand,#00b3c7);color:var(--ink,#091e32);background:var(--brand-soft,#e3f7f9)}';
+  document.head.appendChild(st);
+  var bar = document.createElement('div'); bar.id = 'modos'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Modo de la experiencia');
+  bar.innerHTML = '<span class="ml">Modo</span>' + modos.map(function (m) { return '<button type="button" data-m="' + m.id + '" title="' + (AYUDA[m.id] || '') + '">' + m.nombre + '</button>'; }).join('');
+  nav.parentNode.insertBefore(bar, nav);
+  var visible = function (j) { return !j || !j.modo || j.modo === cur; };
+  var near = function (i, d) { for (var k = i; k >= 0 && k < G.journeys.length; k += d) if (visible(G.journeys[k])) return k; return -1; };
+  function paint() {
+    [].forEach.call(bar.querySelectorAll('button'), function (b) { b.setAttribute('aria-pressed', String(b.dataset.m === cur)); });
+    var n = 0;
+    [].forEach.call(nav.children, function (b, i) {
+      var j = G.journeys[i]; if (!j) return;
+      var on = visible(j); b.style.display = on ? '' : 'none';
+      var sp = b.querySelector('.n'); if (on && sp) sp.textContent = pad(++n);
+    });
+  }
+  function conteo() {
+    var el = document.getElementById('count'); var b = el && el.querySelector('b'); if (!b) return;
+    var idx = 0, tot = 0; G.journeys.forEach(function (j, i) { if (visible(j)) { tot++; if (i <= S.jx) idx++; } });
+    b.textContent = pad(idx); if (b.nextSibling && b.nextSibling.nodeType === 3) b.nextSibling.nodeValue = ' / ' + pad(tot) + ' ';
+  }
+  var iniciar = startJourney;
+  window.startJourney = function (i) {
+    var j = G.journeys[i];
+    if (j && !visible(j)) { var k = near(i, i >= S.jx ? 1 : -1); if (k < 0) k = near(i, i >= S.jx ? -1 : 1); if (k < 0) return; i = k; }
+    return iniciar.call(this, i);
+  };
+  if (typeof nextJourney === 'function') window.nextJourney = function () {
+    var k = near(S.jx + 1, 1);
+    if (k >= 0) window.startJourney(k); else if (typeof setSummary === 'function') { S.run++; S.pending = null; setSummary(true); }
+  };
+  if (typeof renderJourney === 'function') { var pintar = renderJourney; window.renderJourney = function () { var r = pintar.apply(this, arguments); conteo(); return r; }; }
+  bar.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-m]'); if (!b || b.dataset.m === cur) return;
+    var actual = G.journeys[S.jx]; cur = b.dataset.m; paint();
+    var k = -1; if (actual && actual.par) G.journeys.forEach(function (j, i) { if (k < 0 && j.modo === cur && j.par === actual.par) k = i; });
+    if (k < 0) k = near(0, 1);
+    if (k >= 0) window.startJourney(k);
+  });
+  paint();
+  if (!visible(G.journeys[S.jx])) { var k0 = near(0, 1); if (k0 >= 0) window.startJourney(k0); } else conteo();
+})();

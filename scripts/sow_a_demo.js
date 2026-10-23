@@ -155,6 +155,7 @@ function buildGuion(sow, opts = {}) {
   const POR_TIPO = { correo: "ana.torres@ejemplo.com", telefono: null, numero: "1", clave: "1234" };
   function valorCampo(c, def) {
     const et = mock(c.etiqueta || "");
+    if (c.tipo === "selector") return "";   // lo resuelve quien lo llama (primera opción)
     if (c.tipo === "telefono") return usuario.telefono; if (c.tipo === "correo") return POR_TIPO.correo;
     for (const [k, v] of Object.entries(demo.datos || {})) if (new RegExp(k, "i").test(`${et} ${def.titulo || ""}`)) return String(v);
     for (const [re, f] of TABLA) if (re.test(et)) return f();
@@ -201,6 +202,80 @@ function buildGuion(sow, opts = {}) {
     webviews[id] = { titulo: cut(mock(f.titulo || s.etapa || "Formulario"), 40), dominio: slug(marca.nombre) + ".demo", color: marca.color,
       pantallas: [{ nota: `Formulario en webview (${s.etapa || s.diagrama || "paso"}).`, bloques: [{ tipo: "marca" }, { tipo: "titulo", texto: mock(f.titulo || "Formulario") }, ...arr(f.campos).map((c) => ({ tipo: "campo", etiqueta: mock(c.etiqueta), valor: mock(c.ejemplo || "") }))], boton: mock(f.boton || "Enviar"), cargando: "Enviando…" }],
       exito: { titulo: "Listo", texto: "Tu información fue enviada.", boton: "Volver a WhatsApp" } };
+  }
+
+  // ---------- modos del simulador: conversacional | mixto | webview/Flows ----------
+  // Qué modo(s) se generan lo decide, en este orden: agentes[].modo_experiencia, las observaciones del cliente de la reunión
+  // (sow.demo.observaciones_cliente / meta.observaciones_cliente), sow.demo.modo, frases del propio SOW (brief, objetivos, modo_experiencia),
+  // la herramienta de los formularios (herramienta: flows | webview, todos decididos). Si nada lo define, se generan los TRES con un selector.
+  const MODOS = ["conversacional", "mixto", "webview"];
+  const modoNombre = (m, canal) => ({ conversacional: "Conversacional", mixto: "Mixto", webview: !canal || canal === "whatsapp" ? "Flows y webview" : "Webview" })[m];
+  const aTextos = (v) => (Array.isArray(v) ? v.flatMap(aTextos) : v && typeof v === "object" ? aTextos(v.texto || v.observacion || "") : v ? [String(v)] : []);
+  const modoValido = (v) => {
+    const n = norm(Array.isArray(v) ? v[0] : v).replace(/ /g, "_");
+    if (/^(webview|flows?|webview_flows?|flows_webview|webview_y_flows|flows_y_webview)$/.test(n)) return "webview";
+    return ["conversacional", "mixto"].includes(n) ? n : null;
+  };
+  const modoDeTexto = (t) => {
+    const n = norm(t);
+    if (/\b(mixto|hibrido|combinado)\b/.test(n)) return { modo: "mixto", frase: "mixto" };
+    let m = /\b(quiero|queremos|prefiere|prefieren|usar|con|en) (whatsapp )?flows?\b/.exec(n); if (m) return { modo: "webview", frase: m[0] };
+    m = /\b(100 ?(por ciento)?( ?)? ?conversacional|totalmente conversacional|solo conversacional|completamente conversacional|todo (por|en|dentro del) chat|sin (usar )?(webview|web view|flows?|formularios?)|no (quiere|queremos|quiero) (webview|web view|flows?)|mas conversacional)\b/.exec(n); if (m) return { modo: "conversacional", frase: m[0] };
+    m = /\b(con|en|usar) (webview|web view)\b/.exec(n); if (m) return { modo: "webview", frase: m[0] };
+    return null;
+  };
+  function decidirModos(a) {
+    const un = (modo, origen, motivo) => ({ modos: [modo], origen, motivo });
+    const ex = modoValido(a.modo_experiencia); if (ex) return un(ex, "sow", `agentes[].modo_experiencia = ${ex}`);
+    const obs = aTextos([demo.observaciones_cliente, meta.observaciones_cliente]);
+    for (const t of obs) { const r = modoDeTexto(t); if (r) return un(r.modo, "reunión", `observación del cliente «${cut(r.frase, 40)}»`); }
+    const dm = modoValido(demo.modo || meta.modo_experiencia); if (dm) return un(dm, "sow", `demo.modo = ${dm}`);
+    const libre = aTextos([a.modo_experiencia, meta.modo_experiencia, sow.brief, (sow.objetivos || {}).general, (sow.objetivos || {}).especificos, a.resumen_cliente, a.objetivo]);
+    for (const t of libre) { const r = modoDeTexto(t); if (r) return un(r.modo, "sow", `el SOW dice «${cut(r.frase, 40)}»`); }
+    const forms = arr(a.pasos).filter((s) => s.tipo === "formulario");
+    if (forms.length && forms.every((s) => ["flows", "webview"].includes(s.herramienta))) return un("webview", "sow", "todos los formularios tienen herramienta definida (Flows / webview)");
+    return { modos: MODOS, origen: "por defecto", motivo: "ni el SOW ni la reunión definen el modo" };
+  }
+  // ¿Este formulario se resuelve en el chat en este modo? Conversacional: siempre. Mixto: solo los cortos (hasta 3 campos y sin archivos); el resto es imprescindible en Flow/webview.
+  const formEnChat = (X, modo) => {
+    if (modo === "webview") return false;
+    const cs = arr(conCamposProbables(X).def.campos); if (!cs.length) return false;
+    return modo === "conversacional" || (cs.length <= 3 && !cs.some((c) => c.tipo === "archivo"));
+  };
+  // Valor que la persona escribe (o toca) para un campo: el ejemplo del SOW, el inferido del contexto o la primera opción
+  const valorChat = (c, def) => {
+    if (c.tipo === "casilla") return "Sí"; if (c.tipo === "fecha") return "22/10/2026";
+    const dado = c.ejemplo != null && !/^\s*POR (DEFINIR|COMPLETAR)\s*$/i.test(c.ejemplo) ? mock(c.ejemplo, `${c.etiqueta} ${def.titulo || ""}`) : "";
+    if (c.tipo === "selector") return dado || mock(arr(c.opciones)[0] || "Opción 1");
+    return dado || valorCampo(c, def);
+  };
+  const VALIDACION = { correo: "Validación: formato de correo; si no es válido el bot repite la pregunta.", telefono: "Validación: solo dígitos y prefijo del país; si no cumple el bot repite la pregunta.", numero: "Validación: solo números; si no cumple el bot repite la pregunta.", fecha: "Validación: fecha con formato dd/mm/aaaa.", archivo: "Validación: imagen legible; si no se lee el bot pide otra." };
+  // Formulario conversacional: una pregunta por mensaje con su respuesta, resumen y confirmación final (con «Corregir» que vuelve a la primera pregunta).
+  function formularioEnChat(X, key, nota) {
+    const def = conCamposProbables(X).def; const cs = arr(def.campos); const out = []; const resumen = []; const q = (i) => `${key}_q${i}`;
+    const intro = mock(X.mensaje || "").trim();
+    out.push({ id: `${key}_c0`, _chat: true, tipo: "texto", texto: cut(intro || "Necesito unos datos para continuar. Te los voy pidiendo uno a uno.", 4096), nota: nota("Modo conversacional: el formulario se resuelve pregunta a pregunta en el chat, sin WhatsApp Flow ni webview.") });
+    cs.forEach((c, i) => {
+      const label = mock(c.etiqueta || `Dato ${i + 1}`); const val = valorChat(c, def); const lc = label.charAt(0).toLowerCase() + label.slice(1);
+      const regla = VALIDACION[c.tipo] || (c.obligatorio !== false ? "Campo obligatorio: si la persona no responde, el bot vuelve a preguntar." : "Campo opcional.");
+      resumen.push(`• ${label}: ${c.tipo === "archivo" ? "foto enviada" : val}`);
+      if (c.tipo === "selector") {
+        const ops = (arr(c.opciones).length ? arr(c.opciones) : ["Opción 1", "Opción 2"]).map(mock); const pi = Math.max(0, ops.findIndex((o) => norm(o) === norm(val)));
+        if (ops.length <= 3) out.push({ id: q(i), _chat: true, tipo: "botones", cuerpo: cut(`Elige ${lc}:`, 1024), botones: ops.map((t) => ({ titulo: cut(t, 20) })), principal: pi, nota: regla });
+        else out.push({ id: q(i), _chat: true, tipo: "lista", cuerpo: cut(`Elige ${lc}:`, 1024), boton: "Ver opciones", secciones: [{ titulo: cut(label, 24), filas: ops.slice(0, 10).map((t, k) => ({ titulo: cut(t, 24), id: "o" + k })) }], nota: regla });
+      } else if (c.tipo === "casilla") out.push({ id: q(i), _chat: true, tipo: "botones", cuerpo: cut(`¿Aceptas? ${label}`, 1024), botones: [{ titulo: "Sí, acepto" }, { titulo: "No" }], principal: 0, nota: regla });
+      else if (c.tipo === "archivo") {
+        out.push({ id: q(i), _chat: true, tipo: "texto", texto: cut(`Envíame una foto de: ${lc}.`, 4096), nota: regla });
+        const gen = /c[eé]dula|dni|documento|identidad|pasaporte/i.test(label) ? "documento-identidad" : /selfie|rostro/i.test(label) ? "selfie" : /factura|comprobante|recibo/i.test(label) ? "factura" : "pantalla";
+        out.push({ _chat: true, tipo: "usuario", texto: "", imagen: { generar: gen, alt: label } });
+      } else {
+        out.push({ id: q(i), _chat: true, tipo: "texto", texto: cut(`Indícame ${lc}.`, 4096), nota: regla });
+        out.push({ _chat: true, tipo: "usuario", texto: cut(val, 1024) });
+      }
+    });
+    out.push({ id: `${key}_cf`, _chat: true, tipo: "botones", cuerpo: cut(`Confirmo tus datos:\n${resumen.join("\n")}`, 1024), botones: [{ titulo: "Confirmar", ir: `${key}_ok` }, { titulo: "Corregir", ir: q(0) }], principal: 0, nota: "Resumen y confirmación final antes de continuar; «Corregir» vuelve a la primera pregunta." });
+    out.push({ id: `${key}_ok`, _chat: true, tipo: "texto", texto: "Gracias, registré tus datos ✅", nota: "Fin del formulario conversacional." });
+    return out;
   }
 
   // ---------- un agente -> un grafo de nodos visibles ----------
@@ -254,8 +329,9 @@ function buildGuion(sow, opts = {}) {
     return pasos;
   }
 
-  function construirAgente(a, canal = "whatsapp", etiquetar = false) {
-    const skin = (CAN.CANALES[canal] || CAN.CANALES.widget).skin; const sfx = canal === "whatsapp" ? "" : "_" + canal;
+  function construirAgente(a, canal = "whatsapp", etiquetar = false, modo = "webview", multiModo = false) {
+    const skin = (CAN.CANALES[canal] || CAN.CANALES.widget).skin; const sfx = (canal === "whatsapp" ? "" : "_" + canal) + (multiModo ? "_" + modo : "");
+    const etqModo = multiModo ? ` · ${modoNombre(modo, canal)}` : ""; const parBase = slug(a.id) + (canal === "whatsapp" ? "" : "_" + canal);
     const etq = etiquetar || canal !== "whatsapp" ? ` · ${(CAN.CANALES[canal] || CAN.CANALES.widget).nombre}` : "";
     const pasos = nodosDe(a); const nodes = Object.fromEntries(pasos.map((s) => [s.id, s])); const start = pasos[0]; if (!start) return [];
     const nid = (s) => slug(`${s.id}`);
@@ -345,7 +421,7 @@ function buildGuion(sow, opts = {}) {
             out.push({ tipo: "plantilla", cuerpo: cut(body, 1024), botones: bts.slice(0, 10).map((t) => ({ tipo: "respuesta", titulo: cut(t, 20) })), nota: nota("Plantilla enviada por la entidad; debe estar aprobada por Meta.") });
           } else if (bts.length === 1 && sig && (sig.tipo === "tercero" || (sig.tipo === "api" && resolverNodo(sig)) || (sig.tipo === "formulario" && resolverNodo(sig)))) {
             const ab = abrir(sig, key, { cuerpo: body, boton: bts[0] }, (n) => nota(n)); out.push(...ab.pasos); despues = ab.despues; o.consumido = sig;
-          } else if (bts.length === 1 && sig && sig.tipo === "formulario") {
+          } else if (bts.length === 1 && sig && sig.tipo === "formulario" && !formEnChat(sig, modo)) {
             if ((sig.herramienta || "") === "webview") { webviewForm(sig, key + "_wv"); out.push({ tipo: "cta_url", cuerpo: cut(body, 1024), boton: cut(bts[0], 20), webview: key + "_wv", nota: nota() }); }
             else { flowForm(sig, key + "_flow"); out.push({ tipo: "flow", cuerpo: cut(body, 1024), boton: cut(bts[0], 30), flow: key + "_flow", nota: nota() }); }
             o.consumido = sig;
@@ -365,8 +441,9 @@ function buildGuion(sow, opts = {}) {
         case "formulario": {
           const ab = rz && !arr((X.formulario || {}).campos).length ? abrir(X, key, null, nota) : null;
           if (ab && ab.pasos.length) out.push(...ab.pasos);
-          else if ((X.herramienta || "") === "webview") { webviewForm(X, key + "_wv"); out.push({ tipo: "cta_url", cuerpo: "Completa el formulario para continuar 👇", boton: "Abrir formulario", webview: key + "_wv", nota: nota() }); }
-          else { flowForm(X, key + "_flow"); out.push({ tipo: "flow", cuerpo: "Completa el formulario para continuar 👇", boton: "Abrir formulario", flow: key + "_flow", nota: nota() }); }
+          else if (formEnChat(X, modo)) out.push(...formularioEnChat(X, key, nota));
+          else if ((X.herramienta || "") === "webview") { webviewForm(X, key + "_wv"); out.push({ tipo: "cta_url", cuerpo: cut(mock(X.mensaje) || "Completa el formulario para continuar 👇", 1024), boton: cut(X.boton_abrir || "Abrir formulario", 20), webview: key + "_wv", nota: nota() }); }
+          else { flowForm(X, key + "_flow"); out.push({ tipo: "flow", cuerpo: cut(mock(X.mensaje) || "Completa el formulario para continuar 👇", 1024), boton: cut(X.boton_abrir || "Abrir formulario", 20), flow: key + "_flow", nota: nota() }); }
           break; }
         case "asesor": out.push({ tipo: "sistema", estilo: "asesor", texto: mock(X.diagrama || "Conversación derivada a un asesor"), nota: nota() }); break;
         case "fin": out.push({ tipo: "fin", texto: cut(mock(X.diagrama || "Fin de la conversación"), 80) }); break;
@@ -398,7 +475,7 @@ function buildGuion(sow, opts = {}) {
       if (steps.length) steps[0].id = nid(X);
       const irDe = (t) => (t ? nid(t) : null);
       if (X.tipo === "fin") { pasosOut.push(...steps); return; }
-      const btnStep = steps.find((s) => ["botones", "lista", "plantilla"].includes(s.tipo));
+      const btnStep = steps.find((s) => !s._chat && ["botones", "lista", "plantilla"].includes(s.tipo));
       if (btnStep) {
         const tit = titulosBotones(X);
         if (btnStep.tipo === "botones" || btnStep.tipo === "plantilla") {
@@ -421,7 +498,7 @@ function buildGuion(sow, opts = {}) {
     const tech = (ps) => (a.entrada === "outbound" && canal === "whatsapp" ? "hsm" : ps.some((x) => x.tipo === "flow") ? "flow" : ps.some((x) => x.tipo === "cta_url") ? "webview" : "chat");
     const grupos = [...new Set(pasos.map((s) => s.grupo || s.etapa).filter(Boolean))].slice(0, 6).map(mock);
     const resumenAg = mock(arr(a.resumen_cliente).map((x) => (typeof x === "string" ? x : x.texto)).filter(Boolean).slice(0, 4).join(" → ") || a.nombre);
-    const journeys = [{ id: slug(a.id) + sfx, nombre: cut(mock(a.nombre) + etq, 60), canal: skin, tech: tech(pasosOut), resumen: resumenAg, puntos: grupos, pasos: pasosOut }];
+    const journeys = [{ id: slug(a.id) + sfx, nombre: cut(mock(a.nombre) + etq, 60 - etqModo.length) + etqModo, ...(multiModo ? { modo, par: parBase } : {}), canal: skin, tech: tech(pasosOut), resumen: resumenAg, puntos: grupos, pasos: pasosOut }];
 
     // ---- recorridos alternos: ramas que decide el sistema (no la persona) ----
     const camino = (hasta) => { const c = []; let x = hasta; const guard = new Set(); while (x && !guard.has(x.id)) { guard.add(x.id); c.unshift(x); const p = padre[x.id]; x = p && p.de; } return c; };
@@ -435,7 +512,7 @@ function buildGuion(sow, opts = {}) {
       while (k < ruta.length) {
         const Y = ruta[k]; const outsY = succ(Y); const ctx = { outs: outsY }; const st = conv(Y, ctx);
         const salto = ctx.consumido && ruta[k + 1] === ctx.consumido ? 2 : 1; const nextN = ruta[k + salto];
-        const b = st.find((s) => ["botones", "plantilla"].includes(s.tipo)); if (b && b.botones.length > 1 && nextN) { const tit = titulosBotones(Y); const lab = (outsY.find((x) => x.to === nextN) || {}).label; const ix = tit.findIndex((tt) => norm(tt) === norm(lab)); if (ix >= 0) b.principal = ix; }
+        const b = st.find((s) => !s._chat && ["botones", "plantilla"].includes(s.tipo)); if (b && b.botones.length > 1 && nextN) { const tit = titulosBotones(Y); const lab = (outsY.find((x) => x.to === nextN) || {}).label; const ix = tit.findIndex((tt) => norm(tt) === norm(lab)); if (ix >= 0) b.principal = ix; }
         ps.push(...st); k += salto;
       }
       const dec = (o.via || []).filter((v) => v.tipo === "decision").pop() || {};
@@ -443,17 +520,25 @@ function buildGuion(sow, opts = {}) {
       const ultimo = ruta[ruta.length - 1]; const sigo = succ(ultimo)[0];
       ps.push({ tipo: "fin", texto: ultimo.tipo === "fin" ? cut(mock(ultimo.diagrama || "Fin"), 80) : sigo && sigo.to ? `Vuelve al paso «${cut(mock(sigo.to.etapa || sigo.to.diagrama || ""), 40)}»` : "Fin de la conversación" });
       const dd = ps.filter((s, i) => !(s.tipo === "fin" && i < ps.length - 1));
-      journeys.push({ id: slug(a.id) + sfx + "_alt" + (++n), nombre: cut(`${mock(a.nombre).split(":")[0]} · ${nombreAlt}${etq}`, 60), canal: skin, tech: tech(dd), resumen: `Camino alterno decidido por el sistema: ${mock(o.label || "otro caso")}.`, puntos: [], pasos: dd });
+      journeys.push({ id: slug(a.id) + sfx + "_alt" + (++n), nombre: cut(`${mock(a.nombre).split(":")[0]} · ${nombreAlt}${etq}`, 60 - etqModo.length) + etqModo, ...(multiModo ? { modo, par: `${parBase}_alt${n}` } : {}), canal: skin, tech: tech(dd), resumen: `Camino alterno decidido por el sistema: ${mock(o.label || "otro caso")}.`, puntos: [], pasos: dd });
     }
     return journeys;
   }
 
   const journeys = [];
-  const canalesUsados = new Set();
+  const canalesUsados = new Set(); const modosGenerados = new Set();
   for (const a of agentes) {
     const canales = CAN.canalesDeAgente(sow, a);
+    const dm = decidirModos(a); const multi = dm.modos.length > 1;
     for (const c of canales) {
-      canalesUsados.add(c); journeys.push(...construirAgente(a, c, canales.length > 1));
+      canalesUsados.add(c);
+      if (multi) {
+        // un recorrido por modo; si el agente no tiene nada que cambie entre modos (sin formularios), los tres serían iguales: se deja uno solo, sin selector
+        const porModo = dm.modos.map((m) => ({ m, js: construirAgente(a, c, canales.length > 1, m, true) }));
+        const firma = (js) => JSON.stringify(js.map((j) => j.pasos));
+        if (porModo.every((x) => firma(x.js) === firma(porModo[0].js))) { journeys.push(...construirAgente(a, c, canales.length > 1, "webview", false)); if (c === canales[0]) avisos.push(`${a.id}: no tiene formularios que cambien entre modos; se genera un solo recorrido (sin selector de modo).`); }
+        else { for (const x of porModo) journeys.push(...x.js); modosGenerados.add(dm); if (c === canales[0]) avisos.push(`${a.id}: se generaron los modos ${dm.modos.map((m) => modoNombre(m, c)).join(", ")} con un selector en el panel del presentador (origen: ${dm.origen}; ${dm.motivo}). Cuando el cliente decida, define agentes[].modo_experiencia o sow.demo.modo (o anótalo en sow.demo.observaciones_cliente) para dejar uno solo.`); }
+      } else { journeys.push(...construirAgente(a, c, canales.length > 1, dm.modos[0], false)); if (c === canales[0] && arr(a.pasos).some((s) => s.tipo === "formulario")) avisos.push(`${a.id}: modo del simulador «${modoNombre(dm.modos[0], c)}» (origen: ${dm.origen}; ${dm.motivo}); sin selector.`); }
       if ((CAN.CANALES[c] || {}).sinSkin) avisos.push(`${a.id}: el canal «${CAN.CANALES[c].nombre}» no tiene simulador visual propio; se muestra como chat genérico. ${CAN.CANALES[c].nota}`);
     }
     if (canales.length > 1) avisos.push(`${a.id}: el SOW menciona varios canales (${canales.map((c) => CAN.CANALES[c].nombre).join(", ")}); se genera un recorrido por canal. Indica el canal exacto en agentes[].canal si no es así.`);
@@ -463,8 +548,10 @@ function buildGuion(sow, opts = {}) {
 
   // ---------- cobertura visual ----------
   const VIS_RE = /\bQR\b|foto|imagen|factura|comprobante|recibo|\bPDF\b|mapa|ubicaci[oó]n|video|audio|documento|firma|biometr|selfie|cat[aá]logo|carrito/i;
-  const todos = journeys.flatMap((j) => j.pasos);
-  const principales = journeys.filter((j) => !/_alt\d+$/.test(j.id)).flatMap((j) => j.pasos);
+  const modoRef = journeys.some((j) => j.modo === "webview") ? "webview" : (journeys.find((j) => j.modo) || {}).modo;
+  const vista = journeys.filter((j) => !j.modo || j.modo === modoRef);   // las estadísticas cuentan un solo modo, no los tres
+  const todos = vista.flatMap((j) => j.pasos);
+  const principales = vista.filter((j) => !/_alt\d+$/.test(j.id)).flatMap((j) => j.pasos);
   const hayVisual = todos.some((p) => ["imagen", "documento", "ubicacion", "video", "audio", "cta_url", "flow", "multiproducto", "catalogo", "carrusel", "producto", "solicitar_ubicacion"].includes(p.tipo) || p.imagen || p.audio);
   const yaAvisado = new Set();
   for (const [nodo0, u] of usados) { const nodo = nodo0.replace(/^.*__/, ""); if (!u.respaldo || yaAvisado.has(nodo)) continue; yaAvisado.add(nodo); avisos.push(`${nodo}: usa la pantalla genérica de respaldo (${u.proveedor}). Si sabes cómo se ve, enséñasela a la skill: node scripts/aprender_recurso.js (references/simulador-visual.md §5).`); }
@@ -479,23 +566,26 @@ function buildGuion(sow, opts = {}) {
   if (sistemaSteps) avisos.push(`${sistemaSteps} paso(s) de sistema visibles en el chat: revisa que no sean llamadas a API.`);
   const porRecurso = {}; for (const [, u] of usados) porRecurso[u.id] = (porRecurso[u.id] || 0) + 1;
   const stats = {
-    alternos: journeys.length - journeys.filter((j) => !/_alt\d+$/.test(j.id)).length,
+    alternos: vista.length - vista.filter((j) => !/_alt\d+$/.test(j.id)).length,
     imagenes: principales.filter((p) => p.imagen || p.tipo === "imagen").length, documentos: principales.filter((p) => p.tipo === "documento").length,
     flows: Object.keys(flows).length, webviews: Object.keys(webviews).length, recursos: porRecurso, pagos: porRecurso.pago || 0,
   };
 
-  for (const j of journeys) for (const s of j.pasos) if (s.tipo === "botones") for (const b of s.botones) delete b.accion;
+  for (const j of journeys) for (const s of j.pasos) { delete s._chat; if (s.tipo === "botones") for (const b of s.botones) delete b.accion; }
   const soloOtroCanal = journeys.length > 0 && journeys.every((j) => j.canal && j.canal !== "whatsapp");
   const nombresCanal = [...canalesUsados].map((c) => CAN.CANALES[c].nombre).join(" · ");
+  const modosPresentes = MODOS.filter((m) => journeys.some((j) => j.modo === m));
+  const unCanalWA = [...canalesUsados].every((c) => c === "whatsapp");
+  const modos = modosPresentes.length > 1 ? { lista: modosPresentes.map((m) => ({ id: m, nombre: modoNombre(m, unCanalWA ? "whatsapp" : "widget") })), inicial: modosPresentes.includes("mixto") ? "mixto" : modosPresentes[0] } : null;
   const guion = {
     panel: {
       titulo: `${marca.nombre} · ${meta.proyecto || "Simulación"}`,
       subtitulo: (prek ? "Simulación preliminar (pre-kickoff)" : `Simulación del SOW v${meta.version || "1.0"}${meta.estado === "aprobado" ? " · aprobado" : " · en revisión"}`) + (soloOtroCanal ? ` · ${nombresCanal}` : ""),
       version: `SOW v${meta.version || "1.0"}${prek ? " · pre-kickoff" : ""}`,
-      pie: (soloOtroCanal ? `Apariencia aproximada de ${nombresCanal}; no es una copia oficial del canal. ` : "") + "Prototipo con datos simulados." + (prek || datosProbables.length ? " Lo que aún no está definido usa valores de ejemplo, por confirmar con el cliente." : ""),
+      pie: (soloOtroCanal ? `Apariencia aproximada de ${nombresCanal}; no es una copia oficial del canal. ` : "") + "Prototipo con datos simulados." + (modos ? ` Modos: ${modos.lista.map((m) => m.nombre).join(", ")} (se cambia en el panel del presentador).` : "") + (prek || datosProbables.length ? " Lo que aún no está definido usa valores de ejemplo, por confirmar con el cliente." : ""),
       titulo_pagina: `Jelou · Simulación ${marca.nombre}`, resumen: false,
     },
-    marca, usuario, journeys, flows, webviews,
+    marca, usuario, journeys, flows, webviews, ...(modos ? { modos } : {}),
   };
   // Flows y webviews que ningún paso usa (p. ej. el Flow que en otro canal se convirtió en webview): fuera, para no dejar basura en el guion
   const usadosIds = { flow: new Set(), webview: new Set() };
@@ -503,7 +593,7 @@ function buildGuion(sow, opts = {}) {
   for (const k of Object.keys(flows)) if (!usadosIds.flow.has(k)) delete flows[k];
   for (const k of Object.keys(webviews)) if (!usadosIds.webview.has(k)) delete webviews[k];
   const limpio = limpiarVariables(guion);   // red de seguridad: ningún texto del simulador conserva «{{variable}}»
-  return { guion: limpio, avisos, stats, mocked: datosProbables.length > 0 };
+  return { guion: limpio, avisos: [...new Set(avisos)], stats, mocked: datosProbables.length > 0 };
 }
 
 function run(cmd, args, cwd) { return spawnSync(cmd, args, { cwd, encoding: "utf8" }); }

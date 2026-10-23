@@ -476,7 +476,7 @@ if (v2) {
   arr(sow.equipo).forEach((e, i) => { if (!e.responsabilidad) warn("TEAM", `equipo[${i}]`, "Missing the responsibility of this role."); });
 }
 
-// ---------- 14. effort and 20-business-day limit ----------
+// ---------- 14. effort and 15-business-day limit (critical path of the parallel lanes) ----------
 {
   const eff = C.computeEffort(sow.esfuerzo);
   if (!arr((sow.esfuerzo || {}).items).length) warn("EFFORT", "esfuerzo", "There is no effort estimate (esfuerzo.items).");
@@ -491,9 +491,34 @@ if (v2) {
     if (!tipos.has("uat_acompanamiento")) warn("EFFORT", "esfuerzo.items", 'There is no "uat_acompanamiento" item: the support during the client UAT must appear as effort.');
   }
   const total = C.totalBusinessDays(sow.cronograma);
-  if (total > 20) (m.excepcion_plazo ? warn : err)("SCHED", "cronograma", `The schedule adds up to ${total} business days; the limit is 20.${m.excepcion_plazo ? " An exception is declared in meta.excepcion_plazo." : " Split the project into phases or justify it in meta.excepcion_plazo."}`);
+  const TOPE_DIAS = C.TOPE_DIAS_DEFECTO;
+  if (total > TOPE_DIAS) (m.excepcion_plazo ? warn : err)("SCHED", "cronograma", `The critical path of the schedule adds up to ${total} business days (parallel lanes count once, as the longest lane); the limit is ${TOPE_DIAS}.${m.excepcion_plazo ? " An exception is declared in meta.excepcion_plazo." : " Split the project into phases or justify it in meta.excepcion_plazo."}`);
+  // parallel lanes (max 3, decided by the skill from esfuerzo.items; see lib/planificar.js)
+  {
+    const PL = require("./lib/planificar");
+    const nCar = PL.carrilesDeclarados(sow);
+    if (nCar > PL.MAX_CARRILES) err("SCHED", "cronograma", `The SOW declares ${nCar} parallel lanes; the maximum is ${PL.MAX_CARRILES}. Group the work into at most ${PL.MAX_CARRILES} lanes.`);
+    arr((sow.cronograma || {}).hitos).forEach((h, hi) => {
+      PL.problemasDependencias(h).forEach((p) => err("SCHED", `cronograma.hitos[${hi}]`, `Lane tasks: ${p}.`));
+      const nombres = arr(h.tareas).filter((t) => t.carril).map((t) => t.carril);
+      if (nombres.length) {
+        const porCarril = {}; arr(h.tareas).filter((t) => t.carril).forEach((t) => { porCarril[t.carril] = (porCarril[t.carril] || 0) + (Number(t.dias) || 0); });
+        const critica = Math.max(...Object.values(porCarril));
+        if (critica > (h.dias_habiles || 0)) err("SCHED", `cronograma.hitos[${hi}]`, `The longest lane of "${h.nombre}" takes ${critica} business days but the milestone has ${h.dias_habiles}: the milestone lasts as long as its longest lane (critical path).`);
+        else if (critica < (h.dias_habiles || 0)) warn("SCHED", `cronograma.hitos[${hi}]`, `The longest lane of "${h.nombre}" takes ${critica} business days but the milestone has ${h.dias_habiles}: the Word table and the Gantt will not agree. Run node scripts/planificar_cronograma.js sow.json --aplicar.`);
+      }
+      if (nombres.length && arr(h.tareas).some((t) => !t.carril) ) warn("SCHED", `cronograma.hitos[${hi}]`, "Some tasks of this milestone have a lane (carril) and others do not; give every task a lane or none.");
+    });
+    // the client tests (UAT) come last: after the internal tests and after every milestone that has parallel lanes
+    const hs = arr((sow.cronograma || {}).hitos);
+    const iUat = hs.findIndex((h) => C.milestoneKind(h) === "uat");
+    if (iUat >= 0) {
+      const tarde = hs.map((h, i) => ({ h, i })).filter(({ h, i }) => i > iUat && h && (C.milestoneKind(h) === "pruebas_internas" || arr(h.tareas).some((t) => t.carril) || PL.esConstruccion(h)));
+      tarde.forEach(({ h, i }) => err("SCHED", `cronograma.hitos[${i}]`, `The milestone "${h.nombre}" comes after the client tests (UAT). The UAT must close the critical path: build lanes and internal tests come first.`));
+    }
+  }
   const build = arr((sow.cronograma || {}).hitos).filter((h) => /construcci/i.test(h.nombre || "")).reduce((a, h) => a + (h.dias_habiles || 0), 0);
-  if (eff.rows.length && build && build < eff.diasMin) warn("EFFORT", "cronograma", `The build milestones have ${build} business days but the effort estimate needs at least ${eff.diasMin} (${eff.totalMin.toFixed(0)}–${eff.totalMax.toFixed(0)} h with ${eff.personas} person(s) at ${eff.horasDia} h/day). The schedule is optimistic.`);
+  if (eff.rows.length && build && build < eff.diasMin) warn("EFFORT", "cronograma", `The build milestones have ${build} business days but the build needs at least ${eff.diasMin} (critical path of ${eff.paralelismo.nCarriles || 1} lane(s); ${eff.totalMin.toFixed(0)}–${eff.totalMax.toFixed(0)} h in total after the parallel reduction, ${eff.horasDia} h/day). The schedule is optimistic.`);
 }
 
 // ---------- 15. figures (the diagram set: overview + one per stage + common handoff) ----------

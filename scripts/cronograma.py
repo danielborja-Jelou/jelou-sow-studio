@@ -9,6 +9,9 @@ Genera:
   <base>_gantt.pdf         adjunto para el correo (necesita Chrome o Edge; si no hay, se omite)
   <base>_entregables.json  hitos con fecha
 
+Trabajo en paralelo: una tarea con `carril` ("C1", "C2", "C3": máximo 3) se dibuja superpuesta con las de otros carriles;
+`depende_de` admite varias dependencias (arranca al terminar la última) y el Gantt marca cada barra con su carril.
+
 Formato del JSON: assets/cronograma_ejemplo.json (lo deriva sow_a_paquete.py desde sow.json).
 Las fechas se calculan en DÍAS HÁBILES (sin fines de semana ni `feriados`): cada tarea arranca el día
 hábil siguiente al fin de sus dependencias (`depende_de`) o en `inicio` si no tiene.
@@ -110,7 +113,7 @@ def excel(cfg, tareas, fer, path):
     hdr = PatternFill("solid", fgColor=PAL["oscuro"])
     f0 = min(t["inicio"] for t in tareas)
     dias = lista_dias(tareas, fer)
-    fijas = ["Fase", "Tarea", "Responsable", "Inicio", "Fin", "Días hábiles", "Depende de"]
+    fijas = ["Fase", "Tarea", "Carril", "Responsable", "Inicio", "Fin", "Días hábiles", "Depende de"]
     ws.append([f"Cronograma — {cfg['cliente']} · {cfg.get('proyecto', '')} · v{cfg.get('version', '1.0')}"])
     ws["A1"].font = Font(bold=True, size=14, color=PAL["oscuro"], name=FUENTE_BOLD)
     sem = [""] * len(fijas) + [f"Sem {((x - f0).days // 7) + 1}" if (i == 0 or x.weekday() == 0) else "" for i, x in enumerate(dias)]
@@ -123,14 +126,14 @@ def excel(cfg, tareas, fer, path):
     for c in ws[2]:
         c.font = Font(bold=True, color=PAL["teal_oscuro"], name=FUENTE_BOLD, size=9)
     for t in tareas:
-        ws.append([t["fase"], ("◆ " if t.get("hito") else "") + t["tarea"], t["responsable"], t["inicio"], t["fin"],
+        ws.append([t["fase"], ("◆ " if t.get("hito") else "") + t["tarea"], t.get("carril", ""), t["responsable"], t["inicio"], t["fin"],
                    t["dias"], ", ".join(t.get("depende_de", []))])
         i = ws.max_row
         for c in ws[i][:len(fijas)]:
             c.font = Font(name=FUENTE, size=10, bold=bool(t.get("hito")), color=PAL["ink"])
             c.border = Border(bottom=thin)
             c.alignment = Alignment(vertical="center", wrap_text=c.column == 2)
-        ws.cell(i, 4).number_format = ws.cell(i, 5).number_format = "dd/mm/yyyy"
+        ws.cell(i, 5).number_format = ws.cell(i, 6).number_format = "dd/mm/yyyy"
         color = COLOR_HITO if t.get("hito") else COLOR.get(t["responsable"], PAL["gris"])
         for j, x in enumerate(dias):
             c = ws.cell(i, len(fijas) + 1 + j)
@@ -141,7 +144,7 @@ def excel(cfg, tareas, fer, path):
                     c.value = "◆"
                     c.font = Font(color="FFFFFF", bold=True)
                     c.alignment = Alignment(horizontal="center")
-    for i, w in enumerate([24, 42, 12, 11, 11, 8, 16], 1):
+    for i, w in enumerate([24, 42, 9, 12, 11, 11, 8, 16], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     for j in range(len(dias)):
         ws.column_dimensions[get_column_letter(len(fijas) + 1 + j)].width = 3.2
@@ -225,6 +228,8 @@ def gantt_svg(cfg, tareas, fer):
             c = COLOR.get(t["responsable"], PAL["gris"])
             w = (idx[t["fin"]] - idx[t["inicio"]] + 1) * ancho_dia
             o.append(f'<rect x="{cx + 1}" y="{y + 5}" width="{w - 2}" height="{alto_fila - 10}" rx="4" fill="#{c}"/>')
+            if t.get("carril"):  # trabajo en paralelo: la barra lleva el nombre del carril
+                o.append(f'<text x="{cx + w + 4}" y="{y + 17}" font-size="9" font-family="{FUENTE_BOLD}" fill="#{PAL["teal_oscuro"]}">{esc("Carril " + str(t["carril"]) + " · en paralelo")}</text>')
     # rejilla vertical (semanas)
     for i, d in enumerate(dias):
         if d.weekday() == 0:

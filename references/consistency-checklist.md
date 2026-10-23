@@ -53,7 +53,7 @@ When finished, summarize for the user in a short table: point, what you found, w
 33. **One persona.** The same agent name, tone and form of address in every message of every agent (real example: two names and "tú"/"usted" mixed in one bot).
 34. **Mock vs production.** If an integration is still a mock, the SOW says how and when it is replaced; the bot must not keep test data (fixed phone numbers or ID numbers) in production.
 35. **Standard behaviors accepted or excluded.** Phone guard, terms and data policy, out-of-hours message, event log, confirmation emails: each one is in the scope or in the out-of-scope list.
-36. **Project length.** The schedule is at most 20 business days; waits on the client are dependencies with dates, not build hours.
+36. **Project length.** The critical path of the schedule is at most 15 business days (parallel lanes count once, at most 3); waits on the client are dependencies with dates, not build hours.
 37. **Team.** Every required role is present; unknown values are POR COMPLETAR and appear in red.
 38. **Diagram readability.** Large flows are split (overview, stage details, common handoff); every figure has at most 12 nodes, error exits are local terminals, link nodes say where the flow continues, and you looked at every PNG.
 39. **Forms.** Form steps use `formulario` with `herramienta` and fields with `opciones`/`ejemplo`; "Flows vs WebView" pending is an open question, not a silent choice.
