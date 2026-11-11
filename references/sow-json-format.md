@@ -193,6 +193,8 @@ The template convention: **1.0 is the initial version**; corrections during revi
 ### Pre-kickoff section (`prekickoff`) and related fields
 See `references/prekickoff.md`. `alcance.supuestos` entries may be strings (an unconfirmed presales assumption) or `{ "texto", "pregunta", "confirmado_cliente": true|false }`; `integraciones[]` may carry `expone` and `consume` (who exposes and who consumes it) for the integrations slide.
 
+`prekickoff.como_trabajamos` (optional) overrides the **roadmap slide that always opens the deck as slide 2**: `{ "titulo": "Roadmap", "fases": [ { "titulo": "Onboarding", "items": ["…"] }, … exactly 4 phases … ] }`. Without it the default four phases are used (Onboarding, Desarrollo, Pruebas, Producción & Soporte, with their lists, in `assets/kickoff-brand.json`). Any other number of phases is a linter ERROR (`ROAD`); item text shrinks to fit its card and is truncated with a layout notice if it still does not.
+
 ### From a Pre-Sales design document
 Each `Flujo_N` of the design is one `agentes[]` entry (`id: "F<N>"`, `nombre: "Flujo_N: <Nombre>"`); each step may carry `componente` (the design's `→` tag, e.g. `"API (WS#2) / Flows"`, printed in the stage table for steps that have an `etapa`; a step tagged API or WS#n must have `integracion`); each `WS#n` is `INT-n` with the label kept in `nombre`. See `references/design-document.md`.
 

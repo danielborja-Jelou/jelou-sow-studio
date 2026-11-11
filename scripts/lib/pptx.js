@@ -63,7 +63,8 @@ function runs(text, o = {}) {
 const runXml = (r) => `<a:r><a:rPr lang="es-ES" sz="${Math.round(r.size * 100)}" b="0"${r.spc ? ` spc="${r.spc}"` : ''} dirty="0"><a:solidFill><a:srgbClr val="${r.color}"/></a:solidFill><a:latin typeface="${FONT[r.font] || r.font}"/><a:cs typeface="${FONT[r.font] || r.font}"/></a:rPr><a:t>${esc(r.t)}</a:t></a:r>`;
 // para: { runs, align, after, bullet, lines (line spacing pct) }
 function paraXml(p) {
-  const bullet = p.bullet ? `<a:buClr><a:srgbClr val="${COL.turquesa}"/></a:buClr><a:buFont typeface="Arial"/><a:buChar char="•"/>` : '<a:buNone/>';
+  // bullets: default turquoise "•"; p.buChar / p.buColor / p.buSz (percent of the text size) override it (e.g. the black "●" of the validation rows)
+  const bullet = p.bullet ? `<a:buClr><a:srgbClr val="${p.buColor || COL.turquesa}"/></a:buClr>${p.buSz ? `<a:buSzPct val="${Math.round(p.buSz * 1000)}"/>` : ''}<a:buFont typeface="Arial"/><a:buChar char="${p.buChar || '•'}"/>` : '<a:buNone/>';
   const ind = p.bullet ? ` marL="${emu(p.bullet === true ? 11 : p.bullet)}" indent="-${emu(p.bullet === true ? 11 : p.bullet)}"` : '';
   const size = (p.runs[0] && p.runs[0].size) || 12;
   return `<a:p><a:pPr algn="${p.align || 'l'}"${ind}><a:lnSpc><a:spcPct val="${p.lnSpc || 100000}"/></a:lnSpc>${p.after ? `<a:spcAft><a:spcPts val="${Math.round(p.after * 100)}"/></a:spcAft>` : ''}${bullet}</a:pPr>${p.runs.map(runXml).join('')}<a:endParaRPr lang="es-ES" sz="${Math.round(size * 100)}" dirty="0"/></a:p>`;
@@ -76,7 +77,23 @@ class Slide {
   img(key) { let i = this.images.indexOf(key); if (i < 0) { this.images.push(key); i = this.images.length - 1; } return 'rId' + (i + 2); } // rId1 = layout
   xfrm(x, y, w, h, extra = '') { return `<a:xfrm${extra}><a:off x="${emu(x)}" y="${emu(y)}"/><a:ext cx="${emu(w)}" cy="${emu(h)}"/></a:xfrm>`; }
   fillXml(f) { return f ? `<a:solidFill><a:srgbClr val="${f}"/></a:solidFill>` : '<a:noFill/>'; }
-  lnXml(c, w, dash) { return c ? `<a:ln w="${emu(w || 0.75)}"><a:solidFill><a:srgbClr val="${c}"/></a:solidFill>${dash ? '<a:prstDash val="dash"/>' : ''}</a:ln>` : '<a:ln><a:noFill/></a:ln>'; }
+  lnXml(c, w, dash) { return c ? `<a:ln w="${emu(w || 0.75)}"><a:solidFill><a:srgbClr val="${c}"/></a:solidFill>${dash ? '<a:prstDash val="' + (dash === true ? 'dash' : dash) + '"/>' : ''}</a:ln>` : '<a:ln><a:noFill/></a:ln>'; }
+  // soft drop shadow (true | {blur, dist, alpha}) or an empty effect list
+  effectXml(sh) {
+    if (!sh) return '<a:effectLst/>';
+    const o = sh === true ? {} : sh;
+    return `<a:effectLst><a:outerShdw blurRad="${emu(o.blur == null ? 7 : o.blur)}" dist="${emu(o.dist == null ? 3 : o.dist)}" dir="2700000" algn="tl" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="${Math.round((o.alpha == null ? 0.2 : o.alpha) * 100000)}"/></a:srgbClr></a:outerShdw></a:effectLst>`;
+  }
+  // free-form closed shape. cmds in absolute points: ['M',x,y] ['L',x,y] ['C',x1,y1,x2,y2,x,y] ['Z']. opts: fill, line, lineW, shadow, name
+  freeform(cmds, o = {}) {
+    const id = this.nid();
+    const pts = cmds.flatMap((c) => c.slice(1));
+    const xs = pts.filter((_, i) => i % 2 === 0), ys = pts.filter((_, i) => i % 2 === 1);
+    const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0;
+    const P = (x, y) => `<a:pt x="${emu(x - x0)}" y="${emu(y - y0)}"/>`;
+    const path = cmds.map((c) => (c[0] === 'M' ? `<a:moveTo>${P(c[1], c[2])}</a:moveTo>` : c[0] === 'L' ? `<a:lnTo>${P(c[1], c[2])}</a:lnTo>` : c[0] === 'C' ? `<a:cubicBezTo>${P(c[1], c[2])}${P(c[3], c[4])}${P(c[5], c[6])}</a:cubicBezTo>` : '<a:close/>')).join('');
+    this.shapes.push(`<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(o.name || 'Forma libre ' + id)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${this.xfrm(x0, y0, w, h)}<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${emu(w)}" h="${emu(h)}">${path}</a:path></a:pathLst></a:custGeom>${this.fillXml(o.fill)}${this.lnXml(o.line, o.lineW, o.dash)}${this.effectXml(o.shadow)}</p:spPr><p:txBody><a:bodyPr rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:endParaRPr lang="es-ES"/></a:p></p:txBody></p:sp>`);
+  }
   // shape with optional text: { fill, line, lineW, adj (0-50000), geom, dash, paras, anchor, inset }
   shape(x, y, w, h, o = {}) {
     const id = this.nid();
@@ -84,7 +101,7 @@ class Slide {
     const av = o.adj != null ? `<a:avLst><a:gd name="adj" fmla="val ${Math.round(o.adj)}"/></a:avLst>` : '<a:avLst/>';
     const ins = o.inset == null ? [0, 0, 0, 0] : [].concat(o.inset);
     const body = o.paras && o.paras.length ? `<p:txBody><a:bodyPr wrap="square" lIns="${emu(ins[0])}" tIns="${emu(ins[1] == null ? ins[0] : ins[1])}" rIns="${emu(ins[2] == null ? ins[0] : ins[2])}" bIns="${emu(ins[3] == null ? ins[1] == null ? ins[0] : ins[1] : ins[3])}" rtlCol="0" anchor="${o.anchor || 'ctr'}"><a:noAutofit/></a:bodyPr><a:lstStyle/>${o.paras.map(paraXml).join('')}</p:txBody>` : '<p:txBody><a:bodyPr rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:endParaRPr lang="es-ES"/></a:p></p:txBody>';
-    this.shapes.push(`<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(o.name || 'Forma ' + id)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${this.xfrm(x, y, w, h)}<a:prstGeom prst="${geom}">${av}</a:prstGeom>${this.fillXml(o.fill)}${this.lnXml(o.line, o.lineW, o.dash)}<a:effectLst/></p:spPr>${body}</p:sp>`);
+    this.shapes.push(`<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(o.name || 'Forma ' + id)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${this.xfrm(x, y, w, h)}<a:prstGeom prst="${geom}">${av}</a:prstGeom>${this.fillXml(o.fill)}${this.lnXml(o.line, o.lineW, o.dash)}${this.effectXml(o.shadow)}</p:spPr>${body}</p:sp>`);
   }
   // text box with zero insets. paras: [{runs,...}]. Records an overflow issue when the content does not fit the box height.
   text(x, y, w, h, paras, o = {}) {
