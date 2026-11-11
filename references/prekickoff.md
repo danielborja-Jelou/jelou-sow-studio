@@ -3,7 +3,7 @@
 ## Why it exists
 The real flow: Sales/Presales hand over an **incomplete pre-SOW** (Word) and the **Diio of the handoff meeting** (what was sold). When much is missing beyond the team, building the full SOW only produces a document full of red. Instead the skill first generates **three things** and then waits for the client meeting:
 
-1. a **pre-kickoff deck** (`.pptx`) to present to the client (21-24 slides, the Jelou kickoff format);
+1. a **pre-kickoff deck** (`.pptx`) to present to the client (22-25 slides, the Jelou kickoff format; it always opens with the 4-phase roadmap);
 2. a **faltantes document for the CLIENT** (Word, business language: what they must deliver or decide, owner, date);
 3. a **faltantes document INTERNAL** (Word, Jelou only: capability checks, presales doubts, assumptions, additionals for Comercial, changes versus presales, team data, the UAT clause pending Legal).
 
@@ -45,25 +45,28 @@ Format decompiled from the Jelou kickoff deck (`assets/kickoff-template.pptx`, t
 | # | Slide | Source in sow.json |
 |---|---|---|
 | 1 | Cover (client, channel pills, date to fill) | `meta`, `prekickoff.portada_titulo`, `subtitulo`, `canal`, `fecha_sesion` |
-| 2 | Agenda "hoja de ruta" (6 cards) | `prekickoff.agenda` (default texts) |
-| 3 | Team blocks to fill live (Jelou / client roles) | `equipo` (names only when present; empty cells otherwise), `prekickoff.roles_cliente` |
-| 4 | Context HOY vs CON JELOU | `prekickoff.contexto` {titulo, hoy[], con_jelou[], dato}; fallback `objetivos.especificos` |
-| 5 | Scope by stages (Jelou stages dark, others white) | `prekickoff.etapas.items` {nombre, texto, jelou, titulo_validacion}; fallback `grupo` names of the first agent |
-| 6 | Components Jelou builds (cards, 6 per slide) | `prekickoff.componentes.items`; fallback `solucion.componentes` |
-| 7 | Actors (cards, one highlighted) | `prekickoff.actores.items` {nombre, texto, icono, destacado} |
-| 8 | End-to-end flow (native shapes: boxes, arrows, labels; inbound/outbound entries) | `agentes[].resumen_cliente` (same figure FE as the Word), `prekickoff.e2e` {titulo, nota} |
-| 9 | Technical table "quién llama a quién" | `prekickoff.llamadas.filas` {de_a, que_viaja, mecanismo}; fallback `integraciones` |
-| 10 | Outbound (rows + "A validar" box) | `prekickoff.outbound` {titulo, items[{titulo, texto, quien}], validar} |
-| 11 | Block divider "Validación etapa por etapa" | automatic when there are client questions |
-| 12-15 | Validation per stage: 2 or 3 question cards + "Notas / respuesta del cliente" box | `preguntas_abiertas` with `audiencia: cliente` (default), grouped by `etapa` then `tema` |
-| 16 | Integrations table (expone / consume / contacto · doc · QA) | `integraciones` (`expone`, `consume`, `responsable_cliente`, `documentacion`, `ambiente_pruebas`), `prekickoff.integraciones_nota` |
-| 17 | Assumptions to confirm or close (supuesto / pregunta / decisión) | `alcance.supuestos` not confirmed |
-| 18 | Pending items: from the document / from the client / **por evaluar (Comercial)** | `prekickoff.pendientes`; `dependencias_cliente`; `ampliaciones_solicitadas` por_decidir + `cambios_respecto_preventa` |
-| 19 | Risks (cards 2x3) | `riesgos` |
-| 20 | Deliverables and next steps (+ the **UAT rule**) | `cronograma.hitos` (days, dates, owner: UAT = client), the UAT clause |
-| 21 | Closing | `prekickoff.cierre_titulo`, `cierre_texto`, `cierre_boton` |
+| 2 | **Roadmap "how we work" (ALWAYS present)**: dotted frame with 4 interlocking cards (1 Onboarding, 2 Desarrollo, 3 Pruebas, 4 Producción & Soporte), numbered circles alternating top/bottom, colours turquoise / light green / petrol / light blue | `prekickoff.como_trabajamos` {titulo?, fases[4]: {titulo, items[]}}; defaults in `assets/kickoff-brand.json` > `como_trabajamos` |
+| 3 | Agenda "hoja de ruta" (6 cards) | `prekickoff.agenda` (default texts) |
+| 4 | Team blocks to fill live (Jelou / client roles) | `equipo` (names only when present; empty cells otherwise), `prekickoff.roles_cliente` |
+| 5 | Context HOY vs CON JELOU | `prekickoff.contexto` {titulo, hoy[], con_jelou[], dato}; fallback `objetivos.especificos` |
+| 6 | Scope by stages (Jelou stages dark, others white) | `prekickoff.etapas.items` {nombre, texto, jelou, titulo_validacion}; fallback `grupo` names of the first agent |
+| 7 | Components Jelou builds (cards, 6 per slide) | `prekickoff.componentes.items`; fallback `solucion.componentes` |
+| 8 | Actors (cards, one highlighted) | `prekickoff.actores.items` {nombre, texto, icono, destacado} |
+| 9 | End-to-end flow (native shapes: boxes, arrows, labels; inbound/outbound entries) | `agentes[].resumen_cliente` (same figure FE as the Word), `prekickoff.e2e` {titulo, nota} |
+| 10 | Technical table "quién llama a quién" | `prekickoff.llamadas.filas` {de_a, que_viaja, mecanismo}; fallback `integraciones` |
+| 11 | Outbound (rows + "A validar" box) | `prekickoff.outbound` {titulo, items[{titulo, texto, quien}], validar} |
+| 12 | Block divider "Validación etapa por etapa" | automatic when there are client questions |
+| 13-16 | Validation per stage, **`validacion-plan` pattern** (the "Plan de Acción" design of the reference kickoff): centred stage title, up to **3 rows** per slide (grey-blue number block 01/02/03, steel-blue arrow band with the topic, light grey panel with its questions as bullets) and, under the rows, the **"Notas / respuesta del cliente" box (present on every validation slide, it is used live)** | `preguntas_abiertas` with `audiencia: cliente` (default), grouped by `etapa` then `tema` |
+| 17 | Integrations table (expone / consume / contacto · doc · QA) | `integraciones` (`expone`, `consume`, `responsable_cliente`, `documentacion`, `ambiente_pruebas`), `prekickoff.integraciones_nota` |
+| 18 | Assumptions to confirm or close (supuesto / pregunta / decisión) | `alcance.supuestos` not confirmed |
+| 19 | Pending items: from the document / from the client / **por evaluar (Comercial)** | `prekickoff.pendientes`; `dependencias_cliente`; `ampliaciones_solicitadas` por_decidir + `cambios_respecto_preventa` |
+| 20 | Risks (cards 2x3) | `riesgos` |
+| 21 | Deliverables and next steps (+ the **UAT rule**) | `cronograma.hitos` (days, dates, owner: UAT = client), the UAT clause |
+| 22 | Closing | `prekickoff.cierre_titulo`, `cierre_texto`, `cierre_boton` |
 
-Rules the builder enforces: every list is measured with the real Poppins metrics and **split into continuation slides** instead of overflowing (validation cards, tables, pending, risks); the font shrinks (12 -> 11 -> 10.5) before a card is split; a title never exceeds two lines; an end-to-end diagram with more than 6 layers falls back to the engine's picture and the builder prints a notice. Layout notices (`layout notice:` lines) mean something had to be truncated: fix the text.
+Rules the builder enforces: the roadmap is **never optional and never moves** (always slide 2, right after the cover, so it is never forgotten; the agenda is slide 3); an override of `como_trabajamos` must keep exactly 4 phases (linter ERROR `ROAD` otherwise; the builder falls back to the default phases) and each card shrinks its list 12 -> 11 -> 10 -> 9 pt before truncating with a layout notice; every list is measured with the real Poppins metrics and **split into continuation slides** instead of overflowing (validation rows, tables, pending, risks); the font shrinks (12 -> 11 -> 10.5 in cards and validation rows (uniform per slide)) before a card or row is split; a title never exceeds two lines; an end-to-end diagram with more than 6 layers falls back to the engine's picture and the builder prints a notice. Layout notices (`layout notice:` lines) mean something had to be truncated: fix the text.
+
+Validation rows (`validacion-plan`), balanced layout (`layoutPlan` in `build_kickoff_pptx.js`): one row per `tema` of the stage (number = topic order). (1) A topic is never split while it has up to 4 questions and fits one row at 10.5 pt; a longer or taller topic is split into equal halves, titled "... (cont.)" with the same number, never leaving a lone question in a "(cont.)" row. (2) At most 3 rows per slide, spread evenly over the fewest slides (4 rows -> 2+2, 5 -> 3+2, never 3+1 unless nothing else fits; the extra slides are "(cont.)"). (3) One question size per slide: the largest of 12 -> 11 -> 10.5 pt that fits. (4) Dynamic row heights: content height (minimum 78 pt) plus an equal share of the free height, rows up to 140 pt when the slide has fewer rows; the "Notas / respuesta del cliente" box takes whatever remains, so nothing is left blank. The topic title sits in the arrow band at 16 pt (14 pt, 2 lines max, then truncated at 36 characters with a layout notice). The eyebrow "ETAPA n · VALIDACIÓN" is centred above the stage title. Colours and geometry come from `assets/kickoff-brand.json` (`colores.plan_*`, `plan_accion`); the first row has a slightly lighter blue band, as in the reference. `--patrones` writes one such slide with 3 rows. The old rounded question cards were removed (nothing else used them). The block divider keeps the dark divider design.
 
 The deck is a first draft of a conversation, not a contract: client-facing wording only; never credentials, never internal doubts (those go to the internal faltantes).
 
@@ -82,6 +85,6 @@ Also compare what later meetings say against the presales **assumptions** (for e
 Worked example (anonymized fixture `scripts/test/full-scope-lock-fixture.json`, derived from a credit-origination case): document upload and validation, a dematerialized promissory note, e-signature, installment calculation and a full "credit factory" from the second meeting are five `por_decidir` additions with five Commercial questions; the facial-biometrics-versus-OTP configuration, the retry policy and the test phone line are three changes versus presales with their questions.
 
 ## How the template was decompiled (and how to refresh it)
-`scripts/dev/extract_kickoff_template.js <example.pptx> <base.pptx>` keeps the theme (colour scheme "Jelou", Poppins), master and layouts (rescaled from 4:3 to 16:9), the five embedded Poppins faces (EOT `.fntdata`) and the media renamed by content (two Jelou logos, 23 line icons: see `assets/kickoff-brand.json` > `iconos`), and drops every slide, the thumbnail, printer settings and document properties. `node scripts/build_kickoff_pptx.js --patrones assets/kickoff-template.pptx` writes the placeholder pattern slides (cover, agenda, divider, team, compare, stages, cards, flow, table, rows, questions, risks, pending, next steps, closing, icon gallery) into the template so it can be opened and inspected. The skill needs nothing outside its folder at runtime.
+`scripts/dev/extract_kickoff_template.js <example.pptx> <base.pptx>` keeps the theme (colour scheme "Jelou", Poppins), master and layouts (rescaled from 4:3 to 16:9), the five embedded Poppins faces (EOT `.fntdata`) and the media renamed by content (two Jelou logos, 23 line icons: see `assets/kickoff-brand.json` > `iconos`), and drops every slide, the thumbnail, printer settings and document properties. `node scripts/build_kickoff_pptx.js --patrones assets/kickoff-template.pptx` writes the placeholder pattern slides (cover, roadmap, agenda, divider, team, compare, stages, cards, flow, table, rows, questions, risks, pending, next steps, closing, icon gallery) into the template so it can be opened and inspected. The skill needs nothing outside its folder at runtime.
 
 Fonts: Poppins is embedded in the pptx. If the viewer's PowerPoint ignores embedded fonts, it falls back to Arial/Calibri and text looks narrower; install `assets/fonts/Poppins-*.ttf` for exact fidelity.

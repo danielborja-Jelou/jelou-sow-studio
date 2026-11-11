@@ -4,7 +4,7 @@
 // Jelou kickoff deck). Slide patterns and tokens: assets/kickoff-brand.json, references/prekickoff.md.
 //
 // Usage: node build_kickoff_pptx.js sow.json out.pptx [--diagramas dir]
-//        node build_kickoff_pptx.js --patrones assets/kickoff-template.pptx     (re-creates the placeholder pattern slides)
+//        node build_kickoff_pptx.js --patrones assets/kickoff-template.pptx     (re-creates the placeholder pattern slides, incl. validacion-plan)
 //
 // Long lists never overflow: every card/table is measured with the Poppins metrics and split into continuation slides.
 const fs = require('fs');
@@ -100,6 +100,86 @@ function cover(sow, pk) {
   }
   s.text(54, 486, 400, 22, [{ runs: runs(`Fecha: ${pk.fecha_sesion || '______'}`, { size: 12, font: 'texto', color: COL.turquesa }) }], { name: 'Fecha' });
   s.text(618, 486, 288, 19, [{ runs: runs(pk.lema || 'jelou.ai', { size: 12, color: COL.menta }), align: 'r' }], { name: 'Marca' });
+  return [s];
+}
+
+// ---------- roadmap: "how we work" (ALWAYS slide 2) ----------
+// Geometry decompiled from the reference Roadmap slide (cards picture 2048 x 689 px, stretched 3553 x 3401 EMU/px on a 720 x 405 pt slide),
+// converted to our 960 x 540 pt slide: px -> pt with RX horizontally and RY vertically; corner radii use the mean scale.
+const RM = {
+  RX: 0.37297, RY: 0.35705, RR: 0.365, pitch: 1011, // card pair offset (px) between card 1 -> 3 and 2 -> 4
+  band: 31, ro: 41, ri: 30, w: 505,                  // band thickness, outer / inner corner radius, outer width (px)
+  A: { top: 101, bottom: 575, inBottom: 543, ldy: [343, 374], rdy: [334, 364] },   // cards 1 and 3: band at the bottom, circle at the top
+  B: { top: 101, inTop: 133, bottom: 575, ldy: [333, 302], rdy: [341, 311] },      // cards 2 and 4: band at the top, circle at the bottom
+  circle: { R: 96, ring: 20, cy: [102, 573] },
+  x0: [6, 512, 1017, 1523],
+};
+const KAPPA = 0.5523;
+function roadmapPhases(pk) {
+  const def = BRAND.como_trabajamos;
+  const cfg = pk.como_trabajamos || {};
+  const fases = arr(cfg.fases).length === 4 ? cfg.fases : def.fases; // the linter rejects any other count; the builder never breaks
+  return { titulo: nonEmpty(cfg.titulo) ? cfg.titulo : def.titulo, fases: fases.map((f, i) => ({ titulo: nonEmpty(f && f.titulo) ? String(f.titulo) : def.fases[i].titulo, items: arr(f && f.items).map(String).filter(nonEmpty) })) };
+}
+function roadmap(pk) {
+  const { titulo, fases } = roadmapPhases(pk);
+  const s = new Slide(COL.fondo, 'Roadmap');
+  s.pic('logo-turquesa.png', 834, 32, 72, 72 * BRAND.logo.relacion, 'Jelou');
+  s.text(54, 80, 852, 42, [{ runs: runs(titulo, { size: 28, font: 'titulos', color: COL.roadmap_titulo }), align: 'ctr' }], { name: 'Título' });
+  const ox = 480 - ((RM.x0[0] + RM.x0[3] + RM.w) / 2) * RM.RX, oy = 169 - 6 * RM.RY; // cards centred on the slide; the top circles touch the frame, which starts on the content line (y 169)
+  const X = (px) => ox + px * RM.RX, Y = (py) => oy + py * RM.RY, R = (r) => r * RM.RR;
+  // dotted frame (reference: 616 x 185 pt on 720 x 405 -> 822 x 246)
+  const fw = 616.3 * 4 / 3, fh = 184.5 * 4 / 3;
+  s.shape(480 - fw / 2, 169 - 1.8, fw, fh, { adj: 7668, fill: COL.blanco, line: COL.roadmap_marco, lineW: 1, dash: 'sysDot', name: 'Marco punteado' });
+  const colors = [COL.turquesa, COL.roadmap_verde, COL.roadmap_petroleo, COL.roadmap_celeste];
+  const W = 150;
+  fases.forEach((f, k) => {
+    const A = k % 2 === 0, g = A ? RM.A : RM.B, x0 = RM.x0[k], xr = x0 + RM.w, t = RM.band, col = colors[k];
+    // white card (with soft shadow)
+    const ix = x0 + t, iw = RM.w - 2 * t, iy = A ? g.top : g.inTop, ih = (A ? g.inBottom : g.bottom) - iy;
+    s.shape(X(ix), Y(iy), iw * RM.RX, ih * RM.RY, { adj: radius(iw * RM.RX, ih * RM.RY, R(RM.ri)), fill: COL.blanco, shadow: true, name: `Tarjeta ${k + 1}` });
+    // coloured band (U with the interlocking diagonal ends)
+    const ro = RM.ro, ri = RM.ri, ko = KAPPA * ro, ki = KAPPA * ri, P = (x, y) => [X(x), Y(y)];
+    const c = [];
+    const M = (x, y) => c.push(['M', ...P(x, y)]), L = (x, y) => c.push(['L', ...P(x, y)]);
+    const C3 = (a, b, d, e, x, y) => c.push(['C', ...P(a, b), ...P(d, e), ...P(x, y)]);
+    if (A) {
+      const yb = g.bottom, yi = g.inBottom;
+      M(x0, g.ldy[0]); L(x0, yb - ro); C3(x0, yb - ro + ko, x0 + ro - ko, yb, x0 + ro, yb); L(xr - ro, yb); C3(xr - ro + ko, yb, xr, yb - ro + ko, xr, yb - ro);
+      L(xr, g.rdy[0]); L(xr - t, g.rdy[1]); L(xr - t, yi - ri); C3(xr - t, yi - ri + ki, xr - t - ri + ki, yi, xr - t - ri, yi); L(x0 + t + ri, yi); C3(x0 + t + ri - ki, yi, x0 + t, yi - ri + ki, x0 + t, yi - ri);
+      L(x0 + t, g.ldy[1]);
+    } else {
+      const yt = g.top, yi = g.inTop;
+      M(x0, g.ldy[0]); L(x0, yt + ro); C3(x0, yt + ro - ko, x0 + ro - ko, yt, x0 + ro, yt); L(xr - ro, yt); C3(xr - ro + ko, yt, xr, yt + ro - ko, xr, yt + ro);
+      L(xr, g.rdy[0]); L(xr - t, g.rdy[1]); L(xr - t, yi + ri); C3(xr - t, yi + ri - ki, xr - t - ri + ki, yi, xr - t - ri, yi); L(x0 + t + ri, yi); C3(x0 + t + ri - ki, yi, x0 + t, yi + ri - ki, x0 + t, yi + ri);
+      L(x0 + t, g.ldy[1]);
+    }
+    c.push(['Z']);
+    s.freeform(c, { fill: col, name: `Banda ${k + 1}` });
+    // numbered circle
+    const cx = x0 + RM.w / 2 + 0, cy = RM.circle.cy[A ? 0 : 1], rr = (RM.circle.R - RM.circle.ring / 2) * RM.RR, lw = RM.circle.ring * RM.RR;
+    s.shape(X(cx) - rr, Y(cy) - rr, 2 * rr, 2 * rr, { geom: 'ellipse', fill: COL.blanco, line: col, lineW: lw, shadow: { blur: 6, dist: 3, alpha: 0.28 }, name: `Círculo ${k + 1}` });
+    s.text(X(cx) - rr, Y(cy) - 29, 2 * rr, 58, [{ runs: runs(String(k + 1), { size: 38, font: 'titulos', color: COL.roadmap_numero }), align: 'ctr' }], { anchor: 'ctr', name: `Número ${k + 1}` });
+    // phase text: title + list, centred in the free area of the card (never under the circle); shrink, then truncate with a notice
+    const fy0 = A ? RM.circle.cy[0] + RM.circle.R : g.inTop, fy1 = A ? g.inBottom : RM.circle.cy[1] - RM.circle.R - 8;
+    const boxH = (fy1 - fy0) * RM.RY, avail = boxH - 6;
+    let ts = 16, tl = lineCount(plain(f.titulo), W, ts, 'titulos');
+    if (tl > 2) { ts = 14; tl = lineCount(plain(f.titulo), W, ts, 'titulos'); }
+    let ttl = f.titulo;
+    if (tl > 2) { ttl = trunc(plain(f.titulo), 30); tl = lineCount(ttl, W, ts, 'titulos'); warn('Roadmap', `phase ${k + 1}: title truncated`); }
+    let items = f.items.slice(0, 8);
+    const rest = () => avail - tl * ts * LH - 6;
+    const lh = (it, z) => lineCount(plain(it), W, z, 'texto') * z * LH;
+    const fits = (list, z) => list.reduce((a, it) => a + lh(it, z), 0) <= rest();
+    let size = [12, 11, 10, 9].find((z) => fits(items, z));
+    if (!size) {
+      size = 9; warn('Roadmap', `phase ${k + 1}: list too long for the card (truncated)`);
+      items = items.map((it) => trunc(plain(it), 36));
+      while (items.length && !fits(items, size)) items.pop();
+    }
+    const paras = [{ runs: runs(ttl, { size: ts, font: 'titulos', color: col }), align: 'ctr', after: 6 }, ...items.map((it) => ({ runs: runs(it, { size, color: COL.roadmap_texto }), align: 'ctr' }))];
+    s.text(X(ix) + (iw * RM.RX - W) / 2, Y(fy0), W, boxH, paras, { anchor: 'ctr', name: `Fase ${k + 1}` });
+  });
   return [s];
 }
 
@@ -341,33 +421,112 @@ function questionStages(sow, pk) {
   });
   return [...stages.values()].filter((st) => st.temas.size);
 }
+// Pattern "validacion-plan": the "Plan de Acción" design of the reference kickoff deck (slide 8). One row per topic: grey-blue number block
+// (soft shadow), steel-blue arrow band with the topic title, light grey panel with the questions as bullets. Up to 3 rows per slide,
+// the "Notas / respuesta del cliente" box always sits under the rows. Geometry as fractions of the row width: BRAND.plan_accion.
+//
+// Balanced layout (layoutPlan, pure): (1) a topic is never split while it has up to 4 questions and fits one row at 10.5 pt; a longer or
+// taller topic is split into equal halves (never leaving a lone question in a "(cont.)" row); (2) topics are spread over the fewest
+// slides, evenly (4 rows -> 2+2, 5 -> 3+2, never 3+1 unless nothing else fits); (3) one question size per slide, the largest of
+// 12 -> 11 -> 10.5 pt that fits; (4) row heights follow the content and stretch to use the free height (capped at 140 pt a row; the notes
+// box takes the rest).
+const PLAN = { MINROW: 78, MAXROW: 150, STRETCH: 140, MAXQ: 4, PER: 3, SIZES: [12, 11, 10.5], AFTER: 3, PADV: 10 };
+function layoutPlan(temas, textW, avail, gap) {
+  const P = PLAN, warnings = [];
+  const raw = (items, z) => bulletsHeight(items, textW, z, P.AFTER) + P.PADV;
+  const need = (items, z) => Math.max(P.MINROW, raw(items, z));
+  const zmin = P.SIZES[P.SIZES.length - 1];
+  // 1) pieces per topic
+  const rows = [];
+  temas.forEach(([tema, items], ti) => {
+    const n = items.length, kmin = Math.ceil(n / P.MAXQ), kmax = Math.max(kmin, n >= 2 ? Math.floor(n / 2) : 1);
+    let parts = [items];
+    for (let k = kmin; k <= kmax; k++) {
+      const per = Math.floor(n / k), extra = n % k; parts = []; let at = 0;
+      for (let i = 0; i < k; i++) { const c = per + (i < extra ? 1 : 0); parts.push(items.slice(at, at + c)); at += c; }
+      if (parts.every((pt) => raw(pt, zmin) <= P.MAXROW)) break;
+    }
+    parts.forEach((pt, k) => {
+      if (pt.length === 1 && raw(pt, zmin) > P.MAXROW) warnings.push(`a question of "${trunc(tema, 30)}" is too long for the row`);
+      rows.push({ n: ti + 1, tema: tema + (k ? ' (cont.)' : ''), items: pt });
+    });
+  });
+  // 2) even grouping on the fewest slides that fit
+  const total = (g, z) => g.reduce((a, r) => a + need(r.items, z), 0) + (g.length - 1) * gap;
+  const R = rows.length;
+  const groupings = (S) => { // counts per slide: the even split with the extra rows placed in every possible way (front first)
+    const base = Math.floor(R / S), rem = R % S, out = [];
+    const rec = (i, left, cur) => {
+      if (i === S) { if (!left) out.push(cur); return; }
+      if (left > 0) rec(i + 1, left - 1, cur.concat(base + 1));
+      if (S - i - 1 >= left) rec(i + 1, left, cur.concat(base));
+    };
+    rec(0, rem, []); return out;
+  };
+  let slides = null;
+  for (let S = Math.ceil(R / P.PER); S <= R && !slides; S++) {
+    for (const counts of groupings(S)) {
+      let at = 0; const gs = counts.map((c) => { const g = rows.slice(at, at + c); at += c; return g; });
+      if (gs.every((g) => g.length >= 1 && g.length <= P.PER && total(g, zmin) <= avail)) { slides = gs; break; }
+    }
+  }
+  if (!slides) slides = rows.map((r) => [r]);
+  // 3) size per slide, 4) heights
+  return { warnings, slides: slides.map((g) => {
+    const size = P.SIZES.find((z) => total(g, z) <= avail) || zmin;
+    const needs = g.map((r) => need(r.items, size)), sum = needs.reduce((a, b) => a + b, 0);
+    const T = Math.max(Math.min(avail, g.length * P.STRETCH + (g.length - 1) * gap), sum + (g.length - 1) * gap);
+    const extra = (T - (g.length - 1) * gap - sum) / g.length;
+    return { size, total: T, rows: g.map((r, i) => Object.assign({}, r, { h: needs[i] + extra })) };
+  }) };
+}
 function validationSlides(sow, pk) {
   const out = [];
+  const PA = BRAND.plan_accion, PS = PA.tamanos_pt, W = M.ancho_util, X0 = M.izq, GAP = PA.linea_blanca_pt;
   const stages = questionStages(sow, pk);
-  const icons = ['shield', 'id-card', 'gauge', 'link', 'face', 'building', 'chat', 'database', 'send', 'file'];
+  const bx = X0 + PA.texto_panel * W, bw = X0 + W - 14 - bx;           // bullets box (marL 14 pt: measured as bw - 14 + 11)
+  const textW = bw - 14 + 11;
   stages.forEach((st, si) => {
     const cfgStage = arr((pk.etapas || {}).items).find((e) => normQ(e.nombre) === normQ(st.nombre)) || {};
-    const temas = [...st.temas.entries()];
-    const cols = temas.length > 2 ? 3 : 2;
-    const cw = cols === 3 ? 270 : 415, bodyW = cw - 40, bodyH = cols === 3 ? 133 : 126, nh = cols === 3 ? 112 : 119;
-    // cards: shrink the text (12 -> 11 -> 10.5) before splitting; a theme that still does not fit becomes continuation cards
-    const sizeFor = (items) => [12, 11, 10.5].find((z) => paginate(items, bodyW, bodyH, z).length === 1) || 10.5;
-    let cards = [];
-    temas.forEach(([tema, items], ti) => { const z = sizeFor(items); paginate(items, bodyW, bodyH, z).forEach((pg, k) => cards.push({ tema: tema + (k ? ' (cont.)' : ''), items: pg, size: z, icon: icons[(si + ti) % icons.length] })); });
-    for (let p = 0; p * cols < cards.length; p++) {
-      const part = cards.slice(p * cols, p * cols + cols);
-      const { s, y0 } = newContent(`Validación ${st.nombre}`, `Validación · etapa ${si + 1}${p ? ' (cont.)' : ''}`, cfgStage.titulo_validacion || st.nombre);
-      const y = Math.max(y0, 169), ch = cols === 3 ? 205 : 198;
-      part.forEach((c, i) => {
-        const x = 54 + i * (cw + 21);
-        const b = card(s, x, y, cw, ch, { icon: c.icon, title: trunc(c.tema, cols === 3 ? 26 : 44) });
-        s.text(b.x, b.y, b.w, ch - 61 - 6, paragraphs(c.items, { size: c.size }), { name: 'Preguntas' });
+    const title = cfgStage.titulo_validacion || st.nombre;
+    // header: centred eyebrow + centred title (28 -> 24 pt, at most 2 lines), measured once per stage
+    let tsize = 28, tl = lineCount(plain(title), W, tsize, 'titulos');
+    if (tl > 1) { tsize = 24; tl = lineCount(plain(title), W, tsize, 'titulos'); }
+    let ttl = title;
+    if (tl > 2) { ttl = trunc(plain(title), 90); tl = 2; warn(`Validación ${st.nombre}`, 'title truncated'); }
+    const th = tl * tsize * LH, y0 = 72 + th + 10;
+    const lay = layoutPlan([...st.temas.entries()], textW, 428 - y0, GAP);
+    lay.warnings.forEach((w) => warn(`Validación ${st.nombre}`, w));
+    lay.slides.forEach((sl, p) => {
+      const sname = `Validación ${st.nombre}${p ? ' (cont.)' : ''}`;
+      const s = new Slide(COL.fondo, sname);
+      s.pic('logo-turquesa.png', 834, 32, 72, 72 * BRAND.logo.relacion, 'Jelou');
+      s.text(X0, 56, W, 16, [{ runs: runs(`ETAPA ${si + 1} · VALIDACIÓN${p ? ' (CONT.)' : ''}`, { size: 11, font: 'titulos', color: COL.turquesa, spc: 200 }), align: 'ctr' }], { name: 'Eyebrow' });
+      s.text(X0, 72, W, th, [{ runs: runs(ttl, { size: tsize, font: 'titulos', color: COL.plan_titulo }), align: 'ctr' }], { name: 'Título' });
+      const nw = PA.numero * W, xs = X0 + PA.hombro * W, xt = X0 + PA.punta * W;
+      let y = y0;
+      sl.rows.forEach((r, i) => {
+        const rh = r.h, band = COL.plan_bandas[i % COL.plan_bandas.length];
+        s.shape(X0 + PA.panel_desde * W, y, X0 + W - (X0 + PA.panel_desde * W), rh, { fill: COL.plan_panel, name: `Panel ${i + 1}` });
+        s.freeform([['M', X0 + nw, y], ['L', xs, y], ['L', xt, y + rh / 2], ['L', xs, y + rh], ['L', X0 + nw, y + rh], ['Z']], { fill: band, name: `Banda ${i + 1}` });
+        s.shape(X0, y, nw, rh, { fill: COL.plan_bloque, shadow: { blur: PA.sombra.blur_pt, dist: PA.sombra.dist_pt, alpha: PA.sombra.alpha }, name: `Bloque ${i + 1}` });
+        s.text(X0, y, nw, rh, [{ runs: runs(String(r.n).padStart(2, '0'), { size: PS.numero, font: 'ligera', color: COL.blanco }), align: 'ctr' }], { anchor: 'ctr', name: `Número ${i + 1}` });
+        // topic title inside the band (16 -> 14 pt, 2 lines, then truncated at 36 characters with a notice)
+        const bxw = (PA.texto_banda[1] - PA.texto_banda[0]) * W;
+        let zs = PS.tema, zl = lineCount(plain(r.tema), bxw, zs, 'titulos');
+        if (zl > 2) { zs = 14; zl = lineCount(plain(r.tema), bxw, zs, 'titulos'); }
+        let tema = r.tema;
+        if (zl > 2) { tema = trunc(plain(r.tema), 36); warn(sname, `topic title truncated: ${tema}`); }
+        s.text(X0 + PA.texto_banda[0] * W, y + 6, bxw, rh - 12, [{ runs: runs(tema, { size: zs, font: 'titulos', color: COL.blanco }) }], { anchor: 'ctr', name: `Tema ${i + 1}` });
+        s.text(bx, y + 5, bw, rh - 10, paragraphs(r.items, { size: sl.size, color: COL.plan_texto, after: PLAN.AFTER }).map((q) => Object.assign(q, { bullet: 14, buChar: '●', buColor: COL.plan_texto, buSz: 60 })), { anchor: 'ctr', name: `Preguntas ${i + 1}` });
+        y += rh + GAP;
       });
-      const ny = y + ch + 18;
-      s.shape(54, ny, 852, nh, { adj: radius(852, nh), fill: COL.menta, name: 'Notas' });
-      s.text(72, ny + 11, 816, nh - 20, [{ runs: runs('Notas / respuesta del cliente:', { size: 11, font: 'medio', color: COL.petroleo }) }], { name: 'Notas' });
+      const ry = y - GAP, ny = ry + 10, nh = 500 - ny;
+      s.shape(X0, ny, W, nh, { fill: COL.menta, name: 'Notas' });
+      s.shape(X0, ny, 4, nh, { fill: COL.plan_bandas[1], name: 'Notas marca' });
+      s.text(X0 + 20, ny + 9, W - 40, nh - 18, [{ runs: runs('Notas / respuesta del cliente:', { size: 11, font: 'medio', color: COL.petroleo }) }], { name: 'Notas' });
       out.push(s);
-    }
+    });
   });
   return out;
 }
@@ -505,6 +664,7 @@ function buildSlides(sow, opts = {}) {
   const slides = [];
   const add = (x) => (Array.isArray(x) ? x : [x]).filter(Boolean).forEach((s) => slides.push(s));
   add(cover(sow, pk));
+  add(roadmap(pk)); // ALWAYS slide 2: how we work (4 phases)
   add(agenda(pk, hasOut));
   add(teamSlide(sow, pk));
   add(compare(sow, pk));
@@ -572,7 +732,7 @@ function patternSow() {
     agentes: [{ id: 'F1', nombre: 'Flujo_1: Ejemplo', pasos: [{ id: 'P1', tipo: 'usuario', diagrama: 'Inicio', siguiente: [{ a: 'P2' }] }, { id: 'P2', tipo: 'fin', diagrama: 'Fin', siguiente: [] }], resumen_cliente: [{ id: 'E1', texto: 'El usuario inicia', tipo: 'usuario' }, { id: 'E2', texto: 'Proceso del negocio' }, { id: 'E3', texto: 'Resultado', tipo: 'fin' }] }],
     integraciones: [{ id: 'INT-1', nombre: 'Integración', proposito: 'Qué hace.', expone: 'Cliente', consume: 'Jelou', documentacion: 'pendiente', ambiente_pruebas: 'pendiente' }],
     alcance: { supuestos: [{ texto: 'Supuesto de ejemplo.', pregunta: 'Pregunta para cerrarlo.' }] },
-    preguntas_abiertas: [{ id: 'Q-1', pregunta: 'Pregunta de validación de ejemplo.', etapa: 'Etapa uno', tema: 'Tema', bloquea: true }, { id: 'Q-2', pregunta: 'Otra pregunta de ejemplo.', etapa: 'Etapa uno', tema: 'Otro tema' }],
+    preguntas_abiertas: [{ id: 'Q-1', pregunta: 'Pregunta de validación de ejemplo.', etapa: 'Etapa uno', tema: 'Tema', bloquea: true }, { id: 'Q-2', pregunta: 'Otra pregunta de ejemplo.', etapa: 'Etapa uno', tema: 'Otro tema' }, { id: 'Q-3', pregunta: 'Una tercera pregunta de ejemplo, algo más larga para ver cómo se ajusta en el panel.', etapa: 'Etapa uno', tema: 'Tercer tema' }],
     riesgos: [{ riesgo: 'Riesgo de ejemplo. Qué puede pasar.', mitigacion: 'Cómo se mitiga.' }],
   };
 }
@@ -600,4 +760,4 @@ if (require.main === module) {
     issues.forEach((i) => console.warn('  layout notice: ' + i));
   })().catch((e) => { console.error(e); process.exit(1); });
 }
-module.exports = { buildSlides, patternSow, issues };
+module.exports = { buildSlides, patternSow, issues, roadmapPhases, layoutPlan };

@@ -13,13 +13,16 @@
   "colores": {
     "tinta": "151C2A", "turquesa": "00B4C7", "petroleo": "206C83", "menta": "E6F2F4", "fondo": "FAFBFF", "blanco": "FFFFFF",
     "borde_tarjeta": "D3EAF3", "texto": "404040", "naranja": "FF6633", "fondo_alerta": "FFF4EE", "verde": "3DD88D", "celeste": "5FC5E3",
-    "linea_gris": "D9E1E8", "pendiente": "FF0000"
+    "linea_gris": "D9E1E8", "pendiente": "FF0000",
+    "roadmap_verde": "94E3A7", "roadmap_petroleo": "027582", "roadmap_celeste": "72C9DD", "roadmap_titulo": "0097A7", "roadmap_numero": "CFD6E4", "roadmap_texto": "3D4460", "roadmap_marco": "999999",
+    "plan_bloque": "78909C", "plan_bandas": ["6691A1", "5893A3", "5893A3"], "plan_panel": "EEEEEE", "plan_texto": "000000", "plan_titulo": "0097A7"
   },
   "tema": { "nombre": "Jelou", "dk1": "151C2A", "lt1": "FFFFFF", "dk2": "206C83", "lt2": "E6F2F4", "accent1": "00B4C7", "accent2": "3DD88D", "accent3": "5FC5E3", "accent4": "206C83", "accent5": "FF6633", "accent6": "E6F2F4" },
   "margen": { "izq": 54, "der": 54, "ancho_util": 852, "contenido_y": 169, "contenido_y_titulo2": 203, "pie_y": 504 },
   "logo": { "oscuro": "logo-blanco.png", "claro": "logo-turquesa.png", "esquina": { "x": 834, "y": 32, "w": 72 }, "portada": { "x": 54, "y": 144, "w": 144 }, "relacion": 0.258 },
   "patrones": {
     "portada": "Fondo tinta; logo blanco; título 45 SemiBold blanco; subtítulo 18 Medium menta; pastillas (CLIENTE / CANAL) con borde celeste; 'Fecha' turquesa abajo-izquierda; marca/lema abajo-derecha.",
+    "roadmap": "Diapositiva 2 SIEMPRE: título centrado (28 SemiBold turquesa-petróleo), marco punteado redondeado y 4 tarjetas blancas entrelazadas (formas libres con diagonales) que alternan círculo numerado arriba (1, 3) y abajo (2, 4); colores turquesa / verde claro / petróleo / celeste; cada tarjeta lleva el título de la fase (16 SemiBold) y su lista (12, se reduce hasta 9 y luego se trunca con aviso). Geometría decompilada de la diapositiva Roadmap del kickoff de referencia y convertida a 960 x 540.",
     "agenda": "6 tarjetas 3x2 (270x155, gap 21): círculo con icono, '0N · Título' 14 SemiBold, texto 12.",
     "divisor": "Fondo tinta; logo turquesa; eyebrow turquesa con línea; título 40 SemiBold blanco; subtítulo 14 Medium menta.",
     "equipo": "Dos tablas 2 columnas (cabecera tinta, texto blanco 10 SemiBold) y caja menta con los roles.",
@@ -29,10 +32,26 @@
     "flujo": "Diagrama E2E: cajas redondeadas (usuario/hito menta con borde turquesa, final tinta, asesor blanca con borde petróleo), flechas y etiquetas; nota 12 SemiBold.",
     "tabla": "Tabla con cabecera tinta, filas alternas blanco/menta, bordes D3EAF3.",
     "lista_filas": "Filas '01 Título | texto | pastilla de responsable' separadas por línea gris; caja de alerta naranja opcional.",
-    "preguntas": "Eyebrow 'VALIDACIÓN · ETAPA n', 2 o 3 tarjetas con viñetas y caja menta 'Notas / respuesta del cliente'.",
+    "validacion-plan": "Diseño 'Plan de Acción' del kickoff de referencia (diapositiva 8) en 960 x 540: eyebrow centrado 'ETAPA n · VALIDACIÓN', título de la etapa centrado (28 SemiBold 0097A7), hasta 3 filas apiladas separadas por líneas blancas finas (cada una: bloque gris-azul 78909C con número 01/02/03 Poppins Light 32 blanco y sombra suave; banda azul acero en forma de flecha con el tema en 16 SemiBold blanco; panel EEEEEE con las preguntas como viñetas negras que se reducen 12 -> 11 -> 10.5 -> 10 y luego pasan a diapositivas de continuación) y caja menta delgada 'Notas / respuesta del cliente' debajo (siempre presente).",
     "riesgos": "Tarjetas FFF4EE 415x96 con icono de alerta, texto 12 (título SemiBold).",
     "pendientes": "2 o 3 tarjetas altas con viñetas.",
     "cierre": "Fondo tinta; logo blanco; título 44; texto menta; pastilla turquesa; 'jelou.ai'."
+  },
+  "plan_accion": {
+    "_nota": "Geometry of the reference Plan de Acción row (slide 8: 720 x 405 pt, row group 563.8 x 74.7 pt) as fractions of the row width (852 pt here); heights come from the free space (max 100 pt, white 1.8 pt line between rows).",
+    "numero": 0.1158, "hombro": 0.4458, "punta": 0.4934, "panel_desde": 0.3584, "texto_banda": [0.1401, 0.43], "texto_panel": 0.503,
+    "linea_blanca_pt": 1.8, "fila_max_pt": 100, "filas_por_diapositiva": 3,
+    "tamanos_pt": { "numero": 32, "tema": 16, "preguntas": [12, 11, 10.5, 10] },
+    "sombra": { "blur_pt": 7, "dist_pt": 2.8, "alpha": 0.17 }
+  },
+  "como_trabajamos": {
+    "titulo": "Roadmap",
+    "fases": [
+      { "titulo": "Onboarding", "items": ["Análisis SOW & Servicios", "Flujo & UX Conversacional", "Aprobación de SOW", "Cronograma"] },
+      { "titulo": "Desarrollo", "items": ["Implementación del Bot", "Servicios"] },
+      { "titulo": "Pruebas", "items": ["Certificación Jelou", "Certificación Cliente"] },
+      { "titulo": "Producción & Soporte", "items": ["Pase a producción del Bot"] }
+    ]
   },
   "iconos": ["users", "target", "workflow", "comments", "plug", "calendar", "alert", "check-circle", "checklist", "link", "send", "phone", "database", "chart", "user", "bot", "gauge", "face", "building", "chat", "shield", "id-card", "file"]
 }

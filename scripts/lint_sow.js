@@ -89,6 +89,17 @@ needFull(arr(sow.versiones).length > 0, "VERS", "versiones", "Version control is
 if (prek && String(m.estado || "").toLowerCase() === "aprobado") err("VERS", "meta.estado", "A pre-kickoff document cannot be 'aprobado': approval belongs to the full SOW.");
 if (prek && !arr(sow.preguntas_abiertas).length) warn("PREK", "preguntas_abiertas", "A pre-kickoff needs the open questions (they feed the validation slides and the faltantes documents).");
 
+// The deck always opens with the 4-phase roadmap; an override must keep exactly 4 phases.
+const ct = (sow.prekickoff || {}).como_trabajamos;
+if (ct != null) {
+  const fases = ct.fases;
+  if (!Array.isArray(fases) || fases.length !== 4) err("ROAD", "prekickoff.como_trabajamos.fases", `The roadmap slide needs exactly 4 phases (found ${Array.isArray(fases) ? fases.length : 0}).`);
+  else fases.forEach((f, i) => {
+    if (!f || !String(f.titulo || "").trim()) err("ROAD", `prekickoff.como_trabajamos.fases[${i}].titulo`, "Every roadmap phase needs a titulo.");
+    if (!arr(f && f.items).length) warn("ROAD", `prekickoff.como_trabajamos.fases[${i}].items`, "A roadmap phase with no items leaves its card empty.");
+  });
+}
+
 // ---------- 3. operating parameters ----------
 const par = sow.parametros || {};
 for (const k of ["horario_bot", "horario_agentes", "fuera_de_horario", "idioma_tono", "reintentos", "retencion_datos", "identificacion_telefono", "datos_de_prueba"]) {
