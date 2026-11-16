@@ -1,8 +1,13 @@
 #!/usr/bin/env node
-// Builds the two "faltantes" Word documents of the pre-kickoff mode from sow.json (same Poppins/letterhead template as the SOW):
-//   <base>-faltantes-cliente.docx   business language: what the client must deliver or decide, owner and date.
+// Builds the "faltantes" Word documents of the pre-kickoff mode from sow.json (same Poppins/letterhead template as the SOW):
+//   <base>-faltantes-cliente.docx   business language: what the client must deliver or decide, owner and date. Only BUSINESS questions
+//                                   (preguntas_abiertas[].ambito = negocio): the first meeting is often without the client's technical expert.
+//   <base>-faltantes-tecnico.docx   for the client's TI team, sent after the meeting: technical requests and every TECHNICAL question,
+//                                   grouped by integration, plus the documentation / QA status of each integration. Only when there is
+//                                   something technical to ask or request.
 //   <base>-faltantes-interno.docx   for Jelou only: capability checks, presales doubts, assumptions, additionals for Comercial,
-//                                   changes versus presales, team data, the UAT clause pending Legal review.
+//                                   changes versus presales, team data, the UAT clause pending Legal review, and the split of the
+//                                   client questions by ámbito (inferred ones and mixed ones to fix).
 // Usage: node build_faltantes_docx.js sow.json out-dir base-name
 const fs = require("fs");
 const path = require("path");
@@ -19,6 +24,8 @@ const base = baseName || `SOW-${String(meta.cliente || "cliente").replace(/\W+/g
 const fechaDoc = (d) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? C.fmtShort(C.parseDate(d)) : val(d || "POR DEFINIR"));
 const qs = arr(sow.preguntas_abiertas);
 const audience = (q) => q.audiencia || "cliente";
+const techQs = C.preguntasCliente(sow, "tecnico");
+const techReqs = C.solicitudesTecnicas(sow);
 const yesNo = (b) => (b ? "Sí" : "No");
 const cover = (title, subtitle, extra) => [
   P(run(title), { style: "Title" }),
@@ -37,12 +44,16 @@ function clientDoc() {
   add(H1("Para qué sirve este documento"));
   add(text("Antes de emitir el documento de alcance (SOW) necesitamos cerrar algunos puntos con ustedes. Aquí está, en lenguaje de negocio, qué necesitamos, quién lo entrega y para cuándo. El alcance acordado en la propuesta inicial no cambia con este documento."));
 
-  const deps = arr(sow.dependencias_cliente);
+  // technical deliveries (tied to an integration or with technical wording) go to the TI document when it is generated
+  const esTec = (d) => d.tipo !== "uat" && (d.integracion || d.tipo === "tecnica" || C.esTecnicoTexto(d.item || ""));
+  const tecDoc = techQs.length || techReqs.length;
+  const deps = arr(sow.dependencias_cliente).filter((d) => !(tecDoc && esTec(d)));
   add(H1("Qué necesitamos que nos entreguen"));
   if (deps.length) add(table(["#", "Qué necesitamos", "Responsable", "Fecha"], deps.map((d, i) => [String(i + 1), d.item, val(d.responsable || "POR COMPLETAR"), fechaDoc(d.fecha_limite)]), [6, 56, 20, 18]));
   else add(text("Por ahora no hay entregables pendientes registrados."));
+  if (tecDoc && techReqs.length) add(text(`Los ${techReqs.length} entregables técnicos (accesos, ambientes y documentación de los servicios) están en el documento para su equipo de TI.`));
 
-  const cq = qs.filter((q) => audience(q) === "cliente" && q.tipo !== "equipo");
+  const cq = C.preguntasCliente(sow, "negocio");
   add(H1("Decisiones y respuestas que necesitamos"));
   if (cq.length) {
     const groups = new Map();
@@ -51,7 +62,8 @@ function clientDoc() {
       add(H2(k));
       add(table(["Pregunta", "¿Frena el SOW?", "Responsable", "Respuesta del cliente"], list.map((q) => [q.pregunta, yesNo(q.bloquea), val(q.responsable || meta.cliente), ""]), [52, 12, 16, 20]));
     }
-  } else add(text("No hay preguntas abiertas para el cliente."));
+  } else add(text("No hay preguntas abiertas de negocio para el cliente."));
+  if (techQs.length) add(text(`Las ${techQs.length} preguntas técnicas (servicios, accesos y ambientes) van en un documento aparte para su equipo de TI: «Preguntas para el equipo técnico».`));
 
   const team = arr(sow.equipo).filter((e) => !/jelou/i.test(e.organizacion || ""));
   add(H1("Datos del equipo del cliente"));
@@ -61,6 +73,39 @@ function clientDoc() {
   if (C.testMilestones(sow).uat.length || !arr((sow.cronograma || {}).hitos).length) {
     add(H1("Fechas de las pruebas del cliente (UAT)"));
     add(text(C.uatClauseWithDate(sow)));
+  }
+  return body;
+}
+
+// ---------- technical version (client's TI team) ----------
+const ints = arr(sow.integraciones);
+// integration a question belongs to: explicit q.integracion, or an INT-n / WS#n / integration name mentioned in the text
+function intOf(q) {
+  if (q.integracion) return ints.find((i) => i.id === q.integracion) || { id: q.integracion, nombre: q.integracion };
+  const t = C.normTxt(q.pregunta);
+  return ints.find((i) => (i.id && t.includes(C.normTxt(i.id))) || (i.nombre && t.includes(C.normTxt(i.nombre))) || (String(i.nombre || "").match(/ws#\d+/i) || []).some((w) => t.includes(C.normTxt(w))));
+}
+function techDoc() {
+  const body = [];
+  const add = (x) => (Array.isArray(x) ? x : [x]).forEach((y) => body.push(y));
+  add(cover("Preguntas para el equipo técnico", `Lo que necesitamos del equipo de TI de ${meta.cliente || "su organización"} para conectar los servicios`, [["Para", "Responsable técnico del cliente"]]));
+  add(H1("Para qué sirve este documento"));
+  add(text("En la reunión de pre-kickoff revisamos con su equipo de negocio cómo debe comportarse la solución. Los temas técnicos (servicios, accesos, ambientes, seguridad y formatos) los reunimos aquí para que su equipo de TI los responda. El alcance acordado en la propuesta inicial no cambia con este documento."));
+  add(H1("Qué necesitamos que nos entreguen"));
+  if (techReqs.length) add(table(["#", "Qué necesitamos", "Responsable", "Fecha"], techReqs.map((d, i) => [String(i + 1), d.item, val(d.responsable || "POR COMPLETAR"), fechaDoc(d.fecha)]), [6, 56, 20, 18]));
+  else add(text("Por ahora no hay entregables técnicos pendientes registrados."));
+  add(H1("Preguntas técnicas"));
+  if (techQs.length) {
+    const groups = new Map();
+    techQs.forEach((q) => { const it = intOf(q); const k = it ? [it.id, it.nombre].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(" · ") : q.etapa || "General"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(q); });
+    for (const [k, list] of groups) {
+      add(H2(k));
+      add(table(["Pregunta", "¿Frena el SOW?", "Respuesta del equipo técnico"], list.map((q) => [q.pregunta, yesNo(q.bloquea), ""]), [56, 12, 32]));
+    }
+  } else add(text("No hay preguntas técnicas abiertas."));
+  if (ints.length) {
+    add(H1("Estado de las integraciones"));
+    add(table(["Integración", "Responsable del cliente", "Documentación", "Ambiente de pruebas"], ints.map((i) => [[i.id, i.nombre].filter(Boolean).join(" · "), val(i.responsable_cliente || "POR COMPLETAR"), val(i.documentacion || "pendiente"), val(i.ambiente_pruebas || "pendiente")]), [36, 26, 19, 19]));
   }
   return body;
 }
@@ -86,6 +131,17 @@ function internalDoc() {
   add(preQ.length ? table(["Duda", "Responsable", "Bloquea"], preQ.map((q) => [q.pregunta, val(q.responsable || "POR COMPLETAR"), yesNo(q.bloquea)]), [64, 24, 12]) : text("Ninguna pendiente."));
   const otherQ = qs.filter((q) => audience(q) === "interna" && !["capacidad", "tecnica", "preventa", undefined].includes(q.tipo));
   if (otherQ.length) { add(H2("Otras preguntas internas")); add(table(["Pregunta", "Responsable"], otherQ.map((q) => [q.pregunta, val(q.responsable || "POR COMPLETAR")]), [76, 24])); }
+
+  add(H2("Preguntas al cliente: negocio y técnicas"));
+  {
+    const all = C.preguntasCliente(sow);
+    const neg = all.filter((q) => C.ambitoPregunta(q).ambito === "negocio");
+    add(text(`${neg.length} de negocio (van al deck y a los faltantes del cliente) y ${techQs.length} técnicas (van al documento para el equipo de TI; en el deck solo como solicitudes).`));
+    const inf = all.filter((q) => C.ambitoPregunta(q).inferido);
+    if (inf.length) { add(text("Ámbito deducido por palabras clave (confirmar en sow.json con «ambito»):")); add(table(["ID", "Pregunta", "Ámbito deducido"], inf.map((q) => [val(q.id), q.pregunta, C.ambitoPregunta(q).ambito === "tecnico" ? "Técnico" : "Negocio"]), [10, 70, 20])); }
+    const mix = all.filter((q) => C.preguntaMixta(q));
+    if (mix.length) { add(text("Preguntas que mezclan negocio y técnica (partirlas en dos para que cada parte llegue a quien la responde):")); mix.forEach((q) => add(bullet(`${q.id || ""} ${q.pregunta}`.trim()))); }
+  }
 
   add(H2("Supuestos de preventa por confirmar con el cliente"));
   const sup = arr((sow.alcance || {}).supuestos).filter((a) => !(typeof a === "object" && (a.confirmado_cliente === true || a.estado === "confirmado")));
@@ -130,7 +186,7 @@ function internalDoc() {
 
 (async () => {
   fs.mkdirSync(outDir, { recursive: true });
-  const jobs = [["cliente", clientDoc, "Faltantes (cliente)"], ["interno", internalDoc, "Faltantes (interno)"]];
+  const jobs = [["cliente", clientDoc, "Faltantes (cliente)"], ...(techQs.length || techReqs.length ? [["tecnico", techDoc, "Preguntas técnicas"]] : []), ["interno", internalDoc, "Faltantes (interno)"]];
   for (const [k, fn, label] of jobs) {
     K.figures.length = 0;
     const out = path.join(outDir, `${base}-faltantes-${k}.docx`);

@@ -630,6 +630,20 @@ if (!prek || arr(cr.hitos).length) {
     if (!q.pregunta) err("QUESTION", w, `${q.id || i}: empty question.`);
     if (q.audiencia && !["cliente", "interna", "comercial"].includes(q.audiencia)) err("QUESTION", w, `${q.id}: audiencia must be cliente | interna | comercial.`);
     if (q.ampliacion && !C.ampliaciones(sow).some((a) => a.id === q.ampliacion)) err("REF", w, `${q.id}: ampliacion "${q.ampliacion}" does not exist.`);
+    if (q.ambito && !["negocio", "tecnico", "tecnica"].includes(C.normTxt(q.ambito))) err("QUESTION", w, `${q.id}: ambito must be negocio | tecnico.`);
+  });
+  // ámbito of the client questions: business ones go to the deck and the client faltantes, technical ones to the TI document
+  const cq = C.preguntasCliente(sow);
+  const inferred = cq.filter((q) => C.ambitoPregunta(q).inferido);
+  if (inferred.length) {
+    const nT = inferred.filter((q) => C.ambitoPregunta(q).ambito === "tecnico").length;
+    warn("AMBITO", "preguntas_abiertas", `${inferred.length} client question(s) without ambito: deduced by keywords (${inferred.length - nT} negocio, ${nT} tecnico). Confirm with "ambito": "negocio" | "tecnico" (${inferred.slice(0, 8).map((q) => q.id || "?").join(", ")}${inferred.length > 8 ? "…" : ""}).`);
+  }
+  // mixed questions: warn when the technical half would reach the business meeting (ámbito negocio) or the business half would be hidden
+  // in the TI document (ámbito deduced as tecnico). An explicit "tecnico" is trusted.
+  cq.forEach((q) => {
+    const a = C.ambitoPregunta(q);
+    if (C.preguntaMixta(q) && (a.ambito === "negocio" || a.inferido)) warn("AMBITO", `preguntas_abiertas[${arr(sow.preguntas_abiertas).indexOf(q)}]`, `${q.id || "?"}: mixes a business and a technical question; split it in two (business part to the meeting, technical part to the TI document).`);
   });
 }
 

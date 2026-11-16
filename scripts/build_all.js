@@ -2,8 +2,9 @@
 // Generates every deliverable from sow.json.
 //
 //   Full SOW (default):   lint report, Word SOW, diagrams (PNG + SVG), HTML bot simulator.
-//   Pre-kickoff:          lint report (tolerant), diagrams, simulator, pre-kickoff deck (.pptx) and the two "faltantes" Word documents
-//                         (client + internal). Activated by `--modo prekickoff` or by meta.fase = "prekickoff".
+//   Pre-kickoff:          lint report (tolerant), diagrams, simulator, pre-kickoff deck (.pptx) and the "faltantes" Word documents
+//                         (client = business questions, tecnico = for the client's TI team when there is something technical, internal).
+//                         Activated by `--modo prekickoff` or by meta.fase = "prekickoff".
 //
 // Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--force]
 //   --force   build even if the linter reports errors (the Word file is marked "en revisión" unless meta.estado is "aprobado")
@@ -15,12 +16,14 @@ const C = require("./lib/common");
 const argv = process.argv.slice(2);
 const modoIdx = argv.indexOf("--modo");
 const modoArg = modoIdx >= 0 ? argv[modoIdx + 1] : (argv.find((a) => a.startsWith("--modo=")) || "").split("=")[1];
+const fmtIdx = argv.indexOf("--formato");
+const formatoDeck = fmtIdx >= 0 ? argv[fmtIdx + 1] : null;     // deck del pre-kickoff: kickoff (default) | completo
 const antIdx = argv.indexOf("--anterior");
 const anteriorFile = antIdx >= 0 ? argv[antIdx + 1] : null;   // sow.json del pre-kickoff: fase 2 explícita (qué cambió)
-const args = argv.filter((a, i) => !a.startsWith("--") && !(modoIdx >= 0 && i === modoIdx + 1) && !(antIdx >= 0 && i === antIdx + 1));
+const args = argv.filter((a, i) => !a.startsWith("--") && !(modoIdx >= 0 && i === modoIdx + 1) && !(antIdx >= 0 && i === antIdx + 1) && !(fmtIdx >= 0 && i === fmtIdx + 1));
 const force = argv.includes("--force");
 const [inFile, outDir] = args;
-if (!inFile || !outDir) { console.error("Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--anterior sow-prekickoff.json] [--force]"); process.exit(2); }
+if (!inFile || !outDir) { console.error("Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--anterior sow-prekickoff.json] [--formato kickoff|completo] [--force]"); process.exit(2); }
 const sow = JSON.parse(fs.readFileSync(inFile, "utf8"));
 const meta = sow.meta || {};
 if (modoArg && !["prekickoff", "completo"].includes(modoArg)) { console.error('--modo must be "prekickoff" or "completo".'); process.exit(2); }
@@ -39,7 +42,11 @@ if (lint.status !== 0 && !force) {
   console.error("\nThe linter reported errors. Fix them (or use --force to build anyway).");
   process.exit(1);
 }
-if (prek) console.log("\nModo pre-kickoff: se generan el deck, los dos documentos de faltantes, el simulador y los diagramas (no el SOW completo).");
+if (prek) {
+  const nNeg = C.preguntasCliente(sow, "negocio").length, nTec = C.preguntasCliente(sow, "tecnico").length;
+  console.log(`\nModo pre-kickoff: se generan el deck, los documentos de faltantes (cliente${nTec || C.solicitudesTecnicas(sow).length ? ", técnico" : ""} e interno), el simulador y los diagramas (no el SOW completo).`);
+  console.log(`Preguntas al cliente: ${nNeg} de negocio (deck y faltantes del cliente) · ${nTec} técnicas (documento para el equipo de TI; en el deck solo como solicitudes).`);
+}
 
 // 1b. Gantt (only when the SOW is approved and has cronograma.inicio): the construction is split into parallel lanes (lib/planificar.js),
 //     sow_a_paquete.py turns the hitos into tasks and cronograma.py draws the Gantt. The same planned SOW feeds the Word, so table and chart agree.
@@ -123,9 +130,9 @@ try {
 }
 
 if (prek) {
-  // 5. pre-kickoff deck + faltantes documents (client and internal)
+  // 5. pre-kickoff deck + faltantes documents (client, technical when needed, internal)
   const pptx = path.join(outDir, `${base}-prekickoff.pptx`);
-  const k = node("build_kickoff_pptx.js", [inFile, pptx, "--diagramas", path.join(outDir, "diagramas")]);
+  const k = node("build_kickoff_pptx.js", [inFile, pptx, "--diagramas", path.join(outDir, "diagramas"), ...(formatoDeck ? ["--formato", formatoDeck] : [])]);
   process.stdout.write(k.stdout); process.stderr.write(k.stderr);
   if (k.status !== 0) process.exit(k.status || 1);
   const f = node("build_faltantes_docx.js", [inFile, outDir, base]);

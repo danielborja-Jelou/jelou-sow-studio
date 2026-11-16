@@ -332,9 +332,16 @@ if (resp && (arr(resp.jelou).length || arr(resp.cliente).length || C.testMilesto
 add(H1("Supuestos y pendientes por confirmar"));
 if (arr(al.supuestos).length) { add(H2("Supuestos")); arr(al.supuestos).forEach((s) => add(bullet(typeof s === "string" ? s : [s.texto, s.confirmado_cliente === false ? " (pendiente de confirmación del cliente)" : ""].join("")))); }
 const qCliente = arr(sow.preguntas_abiertas).filter((q) => !q.audiencia || q.audiencia === "cliente");
-if (qCliente.length) {
-  add(H2("Pendientes que el cliente y Jelou deben cerrar antes de firmar"));
-  add(table(["Pendiente", "Responsable", "Bloquea"], qCliente.map((q) => [val(q.pregunta), val(q.responsable), q.bloquea ? "Sí" : "No"]), [64, 24, 12]));
+// split by ámbito: business pending items (decided by the client's business team) and technical ones (the client's TI team)
+const qNeg = qCliente.filter((q) => C.ambitoPregunta(q).ambito === "negocio"), qTec = qCliente.filter((q) => C.ambitoPregunta(q).ambito === "tecnico");
+const qRows = (list) => list.map((q) => [val(q.pregunta), val(q.responsable), q.bloquea ? "Sí" : "No"]);
+if (qNeg.length) {
+  add(H2(qTec.length ? "Pendientes de negocio que el cliente y Jelou deben cerrar antes de firmar" : "Pendientes que el cliente y Jelou deben cerrar antes de firmar"));
+  add(table(["Pendiente", "Responsable", "Bloquea"], qRows(qNeg), [64, 24, 12]));
+}
+if (qTec.length) {
+  add(H2("Pendientes técnicos (equipo de TI del cliente)"));
+  add(table(["Pendiente", "Responsable", "Bloquea"], qRows(qTec), [64, 24, 12]));
 }
 
 // Security and risks
