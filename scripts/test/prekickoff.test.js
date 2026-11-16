@@ -109,7 +109,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
       assert(/custGeom/.test(x) && /sysDot/.test(x), 'native free-form shapes and dotted frame');
       assert.deepStrictEqual(issues, [], label + ' notices: ' + issues.join('; '));
     }
-    assert.strictEqual(buildSlides(prek, CMP).length, 22, 'fixture deck: 21 -> 22 slides');
+    assert.strictEqual(buildSlides(prek, CMP).length, 22, 'fixture deck: 21 -> 22 slides (roadmap); then +1 equipo técnico and -1 validation (technical questions left the deck)');
     // the generated file has it as ppt/slides/slide2.xml
     const dir = path.join(OUT, 'build');
     const z = await JSZip.loadAsync(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find((x) => x.endsWith('prekickoff.pptx')))));
@@ -194,8 +194,10 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
       assert(!/prstGeom prst="roundRect"/.test(x), 'no old rounded question cards');
     });
     assert.deepStrictEqual(issues, []);
-    // the fixture's first stage has two topics, the second stage four: 3 rows + continuation
-    assert(val.some((s) => /\(cont\.\)/.test(s.name)), 'a stage with 4 topics continues on a second slide');
+    // with every question as business, the fixture's second stage has four topics: 3 rows + continuation
+    const allNeg = clone(prek); allNeg.preguntas_abiertas.forEach((q) => { q.ambito = 'negocio'; });
+    const valN = buildSlides(allNeg, CMP).filter((s) => /^Validación /.test(s.name) && s.name !== 'Validación');
+    assert(valN.some((s) => /\(cont\.\)/.test(s.name)), 'a stage with 4 topics continues on a second slide');
   });
   await t('validation rows: a topic with a very long list shrinks its font, then continues in more rows and slides; notes box on all of them', () => {
     const s = clone(prek);
@@ -255,7 +257,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     assert(issues.some((i) => /topic title truncated/.test(i)), 'notice: ' + issues.join(' | '));
     assert(all.some((x) => x.name === 'Validación' && x.xml().includes('Validación etapa por etapa')), 'block divider present');
   });
-  await t('formato kickoff (default): cover/closing with the photo, contents 2, roadmap 3, route without times, kickoff context, rows for assumptions and leveled risks, fewer slides', () => {
+  await t('formato kickoff (default): cover/closing with the photo, contents 2, no roadmap, team, route without times, methodology, kickoff context, rows for assumptions and leveled risks, fewer slides', () => {
     const { buildSlides, issues } = require('../build_kickoff_pptx');
     const txt = (sl) => sl.xml().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     const s = clone(prek);
@@ -265,31 +267,62 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     issues.length = 0;
     const sl = buildSlides(s);
     assert.deepStrictEqual(issues, [], 'notices: ' + issues.join('; '));
-    assert.deepStrictEqual(sl.slice(0, 5).map((x) => x.name), ['Portada', 'Contenido', 'Roadmap', 'Cronograma', 'Contexto']);
+    assert.deepStrictEqual(sl.slice(0, 6).map((x) => x.name), ['Portada', 'Contenido', 'Equipo', 'Cronograma', 'Metodología', 'Contexto']);
     assert.strictEqual(sl[sl.length - 1].name, 'Cierre');
     assert(sl.length < buildSlides(s, CMP).length, 'kickoff deck is shorter than the full one');
     [sl[0], sl[sl.length - 1]].forEach((x) => assert(x.images.includes('portada-persona.jpg'), x.name + ': photo'));
     assert(/PRE-KICKOFF/.test(txt(sl[0])) && /¿Tienes dudas\?/.test(txt(sl[sl.length - 1])) && /¡Conversemos!/.test(txt(sl[sl.length - 1])));
+    assert(!sl.some((x) => x.name === 'Roadmap'), 'kickoff format has no 4-phase roadmap (the route says it)');
+    const met = txt(sl[4]);
+    assert(/Reuniones/.test(met) && /Actas y acuerdos/.test(met) && met.includes("Semáforo de riesgos y bloqueos (ClickUp)") && !/Reporte semanal/.test(met), 'methodology rows');
     const ruta = txt(sl[3]);
     assert(!/d[ií]as? h[aá]bil|\b20\d\d-\d\d-\d\d\b/i.test(ruta.replace('los días hábiles y las fechas', '')), 'route has no times: ' + ruta);
     assert(/Tiempos por definir/.test(ruta) && /Construcción/.test(ruta));
-    const ctx = txt(sl[4]);
+    const ctx = txt(sl[5]);
     assert(/Brief/.test(ctx) && /Objetivos identificados/.test(ctx) && /Roles identificados/.test(ctx));
     assert(!sl.some((x) => /\bHOY\b/.test(txt(x)) && /CON JELOU/.test(txt(x))), 'no HOY vs CON JELOU');
-    ['Agenda', 'Equipo', 'Componentes', 'Actores', 'Flujo E2E', 'Detalle técnico', 'Integraciones', 'Pendientes', 'Próximos pasos', 'Validación'].forEach((n) => assert(!sl.some((x) => x.name === n), 'not in kickoff: ' + n));
+    ['Agenda', 'Componentes', 'Actores', 'Flujo E2E', 'Detalle técnico', 'Integraciones', 'Pendientes', 'Validación'].forEach((n) => assert(!sl.some((x) => x.name === n), 'not in kickoff: ' + n));
     const sup = sl.filter((x) => /^Supuestos/.test(x.name));
     assert(sup.length >= 1 && sup.every((x) => /<a:tbl>/.test(x.xml()) && !/name="Banda 1"/.test(x.xml())), 'assumptions keep the table design (no arrow rows)');
     const rks = sl.filter((x) => /^Riesgos/.test(x.name));
     assert(rks.length >= 1 && rks.every((x) => /name="Riesgo"/.test(x.xml()) && !/name="Banda 1"/.test(x.xml())), 'risks keep the card design (no arrow rows)');
     const rk = rks.map(txt).join(' ');
     assert(/\bALTO\b/.test(rk) && /\bMEDIO\b/.test(rk) && /name="Nivel"/.test(rks[0].xml()), 'level pill on the risk cards');
-    // validation grouped: one row per stage, short stages share a slide, every slide <= 3 rows with the notes box
-    const val = sl.filter((x) => /^Validación /.test(x.name));
-    const stages = new Set(s.preguntas_abiertas.filter((q) => (!q.audiencia || q.audiencia === 'cliente') && q.tipo !== 'equipo').map((q) => q.etapa)).size;
-    assert(val.length >= 1 && val.length <= stages, `grouped validation: ${val.length} slides for ${stages} stages`);
-    val.forEach((x) => { const n = (x.xml().match(/name="Bloque \d"/g) || []).length; assert(n >= 1 && n <= 3, x.name + ': rows ' + n); assert(/Notas \/ respuesta del cliente/.test(x.xml()) && /ETAPA/.test(txt(x))); });
-    // the arrow rows appear ONLY on validation slides
-    sl.filter((x) => !/^Validación /.test(x.name)).forEach((x) => assert(!/name="Banda 1"/.test(x.xml()) || x.name === 'Roadmap', x.name + ': arrow rows outside validation'));
+    // no validation-by-stage slides by default: one slide per flow with ALL its key business questions (continuation slides if needed)
+    assert(!sl.some((x) => /^Validación /.test(x.name)), 'validation by stage only with prekickoff.validacion = "etapas"');
+    const fl = sl.filter((x) => /^Flujo /.test(x.name) && !/\(cont\.\)/.test(x.name));
+    assert.strictEqual(fl.length, s.agentes.length, 'one slide per flow (plus continuations)');
+    fl.forEach((x) => assert(/Preguntas clave/.test(txt(x)) && /name="Paso 1"/.test(x.xml()), x.name + ': journey and key questions'));
+    const flAll = sl.filter((x) => /^Flujo /.test(x.name)).map(txt).join(' ');
+    C.preguntasCliente(s, 'negocio').forEach((q) => assert(flAll.includes(q.pregunta.slice(0, 30)), 'business question missing from the flow slides: ' + q.id));
+    // many questions continue on a «(cont.)» slide with the same title, nothing truncated
+    const mq = clone(s); for (let i = 0; i < 14; i++) mq.preguntas_abiertas.push({ id: `QX-${i}`, pregunta: `¿Pregunta de negocio adicional número ${i} sobre el comportamiento del flujo y sus reglas de atención?`, audiencia: 'cliente', ambito: 'negocio', agente: s.agentes[0].id });
+    issues.length = 0;
+    const mqs = buildSlides(mq).filter((x) => /^Flujo /.test(x.name));
+    assert(mqs.some((x) => /\(cont\.\)/.test(x.name)) && /Continúa en la siguiente diapositiva/.test(txt(mqs[0])), 'continuation slide');
+    const mqt = mqs.map(txt).join(' ');
+    for (let i = 0; i < 14; i++) assert(mqt.includes(`número ${i} sobre`), 'question QX-' + i + ' missing');
+    assert.deepStrictEqual(issues.filter((x) => /^Flujo/.test(x)), [], 'no flow notices');
+    // scope as Incluye / Fuera de alcance; team and escalation; next steps rows
+    const alc = sl.find((x) => x.name === 'Alcance');
+    assert(alc && /Incluye/.test(txt(alc)) && !/Fuera de alcance/.test(txt(alc)), 'scope slide: Incluye only');
+    const e2e = sl.filter((x) => /^Alcance E2E/.test(x.name));
+    { const ex = e2e.map(txt).join(' '), x0 = e2e[0] ? e2e[0].xml() : ''; assert(e2e.length >= 1 && x0.includes('name="Decisión"') && x0.includes('prst="diamond"') && ex.includes('Sí') && ex.includes('No'), 'end-to-end diagram with decision diamonds'); }
+    const tm = txt(sl[2]);
+    assert(/escalamiento/i.test(tm) && tm.includes(s.meta.cliente) && /Jelou/.test(tm) && !/<a:tbl>/.test(sl[2].xml()), 'team in two columns (client / Jelou)');
+    const ps = sl.filter((x) => /^Próximos pasos/.test(x.name));
+    assert(ps.length === 1 && /name="Banda 1"/.test(ps[0].xml()) && sl.indexOf(ps[0]) === sl.length - 2, 'next steps right before the closing');
+    // with a session date: cover date and short dates in the next steps (business days)
+    const sd = clone(s); sd.prekickoff.fecha_sesion = '2026-10-16';
+    const sdl = buildSlides(sd);
+    assert(/16\/10\/2026/.test(txt(sdl[0])), 'cover date');
+    const pst = txt(sdl.find((x) => /^Próximos pasos/.test(x.name)));
+    assert(/Hoy · 16\/10/.test(pst) && /Al 19\/10/.test(pst) && /Al 23\/10/.test(pst), 'next steps dates skip the weekend: ' + pst);
+    // the previous grouped validation is still available
+    const ve = clone(s); ve.prekickoff.validacion = 'etapas';
+    assert(buildSlides(ve).some((x) => /^Validación /.test(x.name)) && !buildSlides(ve).some((x) => /^Flujo /.test(x.name)));
+    // the arrow rows appear ONLY on next steps (and the roadmap's own shapes)
+    sl.filter((x) => !/^(Próximos pasos|Metodología)/.test(x.name)).forEach((x) => assert(!/name="Banda 1"/.test(x.xml()), x.name + ': arrow rows outside next steps / methodology'));
     // brand colours everywhere: no grey-blue from the reference deck, roadmap without the light green
     sl.forEach((x) => assert(!/78909C|5893A3|6691A1|94E3A7/.test(x.xml()), x.name + ': off-palette colour'));
     // a long context is reduced with notices, never overflows
@@ -315,6 +348,106 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     assert(!/Comercial|consulta al registro civil|borrador: pendiente de revisión por Legal/.test(cli), 'internal content leaked into the client document');
     assert(/Capacidades de la plataforma por verificar/.test(int) && /pendiente de revisión por Legal/.test(int) && /72 h/.test(int));
     assert(/MODO|pre-kickoff/i.test(int));
+  });
+
+  await t('end-to-end diagram: with two or more flows every diagram slide carries at least two flows (smaller size when needed)', () => {
+    const { buildKickoff, issues } = require('../build_kickoff_pptx');
+    const mk = (id, n) => {
+      const ag = clone(prek.agentes[0]); ag.id = id; ag.nombre = `Flujo_${n}: Flujo de prueba ${n}`; ag.entrada = 'inbound';
+      const p = id + '-';
+      ag.resumen_cliente = [
+        { id: p + '1', texto: 'La persona escribe por WhatsApp', tipo: 'usuario' },
+        { id: p + '2', texto: 'Se identifica con su documento', pregunta: '¿Está registrada?', salidas: [{ a: p + '3', si: 'Sí' }, { a: p + 'A', si: 'No' }] },
+        { id: p + '3', texto: 'Elige lo que necesita' },
+        { id: p + '4', texto: 'Completa el formulario', pregunta: '¿Datos válidos?', salidas: [{ a: p + '5', si: 'Sí' }, { a: p + 'A', si: 'No' }] },
+        { id: p + '5', texto: 'Recibe la confirmación' },
+        { id: p + '6', texto: 'Recibe el recordatorio', tipo: 'fin' },
+        { id: p + 'A', texto: 'Lo atiende un asesor', tipo: 'asesor' },
+      ];
+      return ag;
+    };
+    for (const nFlows of [2, 3, 4]) {
+      const s3 = clone(prek); s3.agentes = Array.from({ length: nFlows }, (_, i) => mk('G' + (i + 1), i + 1));
+      issues.length = 0;
+      const e2e = buildKickoff(s3).filter((x) => /^Alcance E2E/.test(x.name));
+      const flowsOn = e2e.map((x) => (x.xml().match(/name="Flujo"/g) || []).length);
+      flowsOn.forEach((n, i) => assert(n >= 2 || i === flowsOn.length - 1, `${nFlows} flows: slide ${i + 1} holds ${n} flow(s): ${flowsOn}`));
+      assert.strictEqual(e2e.length, Math.ceil(nFlows / 2), `${nFlows} flows -> ${Math.ceil(nFlows / 2)} diagram slides, got ${e2e.length}`);
+      assert(!issues.some((x) => /single flow|left out|too long/.test(x)), 'notices: ' + issues.join('; '));
+    }
+    // a forced size is respected
+    const sf = clone(prek); sf.agentes = [mk('G1', 1), mk('G2', 2)]; sf.prekickoff.e2e = Object.assign({}, sf.prekickoff.e2e, { densidad: 'normal' });
+    assert(buildKickoff(sf).filter((x) => /^Alcance E2E/.test(x.name)).length >= 1);
+  });
+
+  // ---------- client questions split by ámbito: negocio (first meeting) | tecnico (client's TI team) ----------
+  await t('ámbito: explicit field wins, then tipo, then keywords; mixed questions are detected (text after the last "?" is a note)', () => {
+    assert.strictEqual(C.ambitoPregunta({ pregunta: '¿Qué endpoints existen?', ambito: 'negocio' }).ambito, 'negocio');
+    assert.deepStrictEqual(C.ambitoPregunta({ pregunta: '¿Cuántos reintentos?', tipo: 'tecnica' }), { ambito: 'tecnico', inferido: false });
+    assert.deepStrictEqual(C.ambitoPregunta({ pregunta: '¿Hay VPN o lista blanca de IPs?' }), { ambito: 'tecnico', inferido: true });
+    assert.deepStrictEqual(C.ambitoPregunta({ pregunta: '¿Cómo se determina la agencia más cercana?' }), { ambito: 'negocio', inferido: true });
+    assert(C.preguntaMixta({ pregunta: '¿Se permite reagendar desde el chat? ¿Qué endpoints existen para ello?' }));
+    assert(!C.preguntaMixta({ pregunta: '¿Cuál es la estructura de la respuesta del motor? Como mínimo: decisión y entidad.' }));
+    assert(!C.preguntaMixta({ pregunta: '¿Qué datos pide el registro? ¿Hay un mensaje alterno?' }));
+  });
+  await t('ámbito: the deck asks only business questions; technical ones become requests on the "equipo técnico" slide (both formats)', () => {
+    const { buildSlides } = require('../build_kickoff_pptx');
+    const tq = C.preguntasCliente(prek, 'tecnico'), nq = C.preguntasCliente(prek, 'negocio');
+    assert(tq.length >= 3 && nq.length >= 3, 'fixture has both kinds');
+    for (const fmt of [{}, CMP]) {
+      const deck = buildSlides(prek, fmt);
+      const val = deck.filter((s) => /^(Validación|Flujo) /.test(s.name)).map((s) => s.xml()).join(' ');
+      const has = (q) => val.includes(q.pregunta.slice(0, 40).replace(/&/g, '&amp;'));
+      assert(nq.some(has), 'business questions are on the validation slides');
+      tq.forEach((q) => assert(!has(q), `technical question on a validation slide: ${q.id}`));
+      const tech = deck.filter((s) => /^Equipo técnico/.test(s.name));
+      assert.strictEqual(tech.length, 1, 'one equipo técnico slide');
+      const x = tech[0].xml();
+      assert(/contacto técnico/.test(x) && x.includes(`(${tq.length} preguntas)`) && /INT-1/.test(x), 'contact, TI document and integration requests');
+      tq.forEach((q) => assert(!x.includes(q.pregunta.slice(0, 40)), 'no technical question text on the requests slide'));
+    }
+    const kick = buildSlides(prek);
+    assert(kick.find((s) => s.name === 'Contenido').xml().includes('Equipo técnico'), 'agenda lists the section');
+    // many requests (real case: 7) stay on ONE slide, grouped by who delivers them
+    const many = clone(prek);
+    ['Registro como proveedor externo', 'Casos de prueba de la firma', 'Confirmación de la conciliación', 'Credenciales de la pasarela'].forEach((it, i) => many.dependencias_cliente.push({ item: `${it} (INT-${(i % 2) + 1})`, responsable: i % 2 ? 'Proveedor del sistema' : 'Responsable técnico del cliente', fecha_limite: 'POR DEFINIR', integracion: `INT-${(i % 2) + 1}` }));
+    assert(C.solicitudesTecnicas(many).length > 5, 'fixture with many requests');
+    const tm = buildSlides(many).filter((s) => /^Equipo técnico/.test(s.name));
+    assert.strictEqual(tm.length, 1, 'grouped requests fit one slide');
+    assert(tm[0].xml().includes('Proveedor del sistema') && tm[0].xml().includes(' · '), 'one row per owner, items joined');
+    // nothing technical to ask or request -> no slide
+    const none = clone(prek); none.preguntas_abiertas.forEach((q) => { q.ambito = 'negocio'; }); none.integraciones.forEach((i) => { i.documentacion = 'si'; i.ambiente_pruebas = 'si'; }); none.dependencias_cliente = [];
+    assert(!buildSlides(none).some((s) => /^Equipo técnico/.test(s.name)) && !buildSlides(none).find((s) => s.name === 'Contenido').xml().includes('Equipo técnico'));
+  });
+  await t('ámbito: faltantes-tecnico has every technical question grouped by integration; the client document only the business ones; internal has the split', async () => {
+    const dir = path.join(OUT, 'build');
+    const doc = (suf) => textOf(path.join(dir, fs.readdirSync(dir).find((x) => x.endsWith(suf))), /^word\/document\.xml$/);
+    const [cli, tec, int] = await Promise.all([doc('faltantes-cliente.docx'), doc('faltantes-tecnico.docx'), doc('faltantes-interno.docx')]);
+    const esc = (s) => s.slice(0, 40).replace(/&/g, '&amp;');
+    C.preguntasCliente(prek, 'tecnico').forEach((q) => { assert(tec.includes(esc(q.pregunta)), 'missing in tecnico: ' + q.id); assert(!cli.includes(esc(q.pregunta)), 'technical in client doc: ' + q.id); });
+    C.preguntasCliente(prek, 'negocio').forEach((q) => { assert(cli.includes(esc(q.pregunta)), 'missing in cliente: ' + q.id); assert(!tec.includes(esc(q.pregunta)), 'business in tecnico: ' + q.id); });
+    assert(/Preguntas para el equipo técnico/.test(tec) && /Estado de las integraciones/.test(tec) && /INT-1/.test(tec));
+    assert(!/Comercial|Legal/.test(tec), 'no internal content in the TI document');
+    assert(/documento aparte para su equipo de TI/.test(cli));
+    C.solicitudesTecnicas(prek).forEach((x) => assert(!cli.includes(esc(x.item)), 'technical delivery in the client doc: ' + x.item));
+    assert(/entregables técnicos/.test(cli), 'client doc points to the TI document for the deliveries');
+    assert(/Preguntas al cliente: negocio y técnicas/.test(int));
+  });
+  await t('ámbito: lint warns for deduced ámbito and mixed questions, errors on an invalid value; the SOW Word splits the pending table', async () => {
+    const s = clone(prek);
+    s.preguntas_abiertas.push({ id: 'Q-MIX', pregunta: '¿Se permite reagendar desde el chat? ¿Qué endpoints existen para ello?', bloquea: false });
+    s.preguntas_abiertas.push({ id: 'Q-BAD', pregunta: '¿Algo?', ambito: 'otro' });
+    const r = lint(s, 'amb', ['--modo', 'prekickoff']);
+    const all = JSON.stringify(r);
+    assert(/without ambito: deduced by keywords/.test(all) && /Q-MIX: mixes a business and a technical question/.test(all), 'warnings');
+    assert(/Q-BAD: ambito must be negocio \| tecnico/.test(all), 'invalid value is an error');
+    // full SOW Word: business and technical pending items in separate tables
+    const dir = path.join(OUT, 'amb-full'); fs.rmSync(dir, { recursive: true, force: true });
+    const f2 = clone(full); f2.preguntas_abiertas = [...(f2.preguntas_abiertas || []), { id: 'Q-TEC', pregunta: '¿Qué autenticación usa el API del motor?', ambito: 'tecnico', responsable: 'TI del cliente' }];
+    const ff = path.join(OUT, 'amb-full.json'); fs.writeFileSync(ff, JSON.stringify(f2));
+    node('build_all.js', [ff, dir, '--force']);
+    const w = await textOf(path.join(dir, fs.readdirSync(dir).find((x) => /\.docx$/.test(x))), /^word\/document\.xml$/);
+    assert(/Pendientes técnicos \(equipo de TI del cliente\)/.test(w) && w.indexOf('¿Qué autenticación usa el API del motor?') > w.indexOf('Pendientes técnicos'), 'technical pending table');
   });
 
   // ---------- full SOW with the scope lock ----------

@@ -409,7 +409,8 @@ function tableSlides(name, eyebrow, title, subtitle, cols, head, rows, opts = {}
 // ---------- validation by stage ----------
 function questionStages(sow, pk) {
   const order = stagesOf(sow, pk).map((e) => e.nombre);
-  const qs = arr(sow.preguntas_abiertas).filter((q) => (!q.audiencia || q.audiencia === 'cliente') && q.tipo !== 'equipo');
+  // business questions only: the technical ones go to the TI document (faltantes-tecnico) and, in the deck, only as requests (techSlide)
+  const qs = C.preguntasCliente(sow, 'negocio');
   const stages = new Map();
   order.forEach((n) => stages.set(normQ(n), { nombre: n, temas: new Map() }));
   qs.forEach((q) => {
@@ -754,7 +755,8 @@ function coverKickoff(sow, pk) {
     s.text(x, 312, w, 22, [{ runs: runs(pk.portada_etiqueta || 'PRE-KICKOFF', { size: 16, font: 'medio', color: COL.turquesa, spc: 100 }) }], { name: 'Etiqueta' });
     const sub = pk.subtitulo_corto || m.proyecto || '';
     if (sub) s.text(x, 342, w, 60, [{ runs: runs(trunc(sub, 90), { size: 12, color: COL.menta }) }], { name: 'Proyecto' });
-    s.text(x, 486, w, 18, [{ runs: runs(`Fecha: ${pk.fecha_sesion || '______'}`, { size: 11, color: COL.celeste }) }], { name: 'Fecha' });
+    const fd = /^\d{4}-\d{2}-\d{2}$/.test(pk.fecha_sesion || '') ? C.fmtShort(C.parseDate(pk.fecha_sesion)) : pk.fecha_sesion;
+    s.text(x, 486, w, 18, [{ runs: runs(`Fecha: ${fd || '______'}`, { size: 11, color: COL.celeste }) }], { name: 'Fecha' });
   })];
 }
 function closingKickoff(pk) {
@@ -858,6 +860,30 @@ function contextoKickoff(sow, pk) {
   });
   return [s];
 }
+// "Lo que necesitamos de tu equipo técnico": the client's technical expert is often absent from the first meeting, so the deck asks no
+// technical questions. It lists what the technical team must deliver (dependencies tied to integrations, missing documentation / QA),
+// asks who the technical contact is, and points to the TI document where the N technical questions are.
+function techSlide(sow, pk) {
+  const tq = C.preguntasCliente(sow, 'tecnico');
+  const sol = C.solicitudesTecnicas(sow);
+  if (!tq.length && !sol.length) return [];
+  const when = (f) => (/^\d{4}-\d{2}-\d{2}$/.test(f || '') ? C.fmtShort(C.parseDate(f)) : 'Por acordar');
+  const who = (r) => (nonEmpty(r) && !pending(r) ? r : 'Equipo técnico del cliente');
+  const rows = [['Nombrar al contacto técnico del proyecto y la fecha en que se suma', (sow.meta || {}).cliente || 'Cliente', 'En esta sesión']];
+  // one slide: with more than 5 requests they are grouped by who delivers them (one row per owner, items joined; earliest date)
+  if (sol.length > 5) {
+    const by = new Map();
+    sol.forEach((x) => { const k = who(x.responsable); if (!by.has(k)) by.set(k, []); by.get(k).push(x); });
+    for (const [k, list] of by) {
+      const fechas = list.map((x) => x.fecha).filter((f) => /^\d{4}-\d{2}-\d{2}$/.test(f || '')).sort();
+      rows.push([list.map((x) => plain(x.item).replace(/\s*\((?:INT-\d+(?:,\s*)?)+\)\s*$/, '')).join(' · '), k, when(fechas[0])]);
+    }
+  } else sol.forEach((x) => rows.push([trunc(x.item, 120), who(x.responsable), when(x.fecha)]));
+  if (tq.length) rows.push([`Responder el documento de preguntas técnicas (${tq.length} ${tq.length === 1 ? 'pregunta' : 'preguntas'})`, 'Equipo técnico del cliente', 'Por acordar']);
+  const t = pk.tecnico || {};
+  const note = t.nota || (tq.length ? `Las ${tq.length} preguntas técnicas no se tratan en esta sesión: van en un documento para su equipo de TI, que enviamos después de la reunión.` : 'El detalle técnico se coordina con el contacto técnico que se nombre hoy.');
+  return tableSlides('Equipo técnico', t.eyebrow || 'Equipo técnico', t.titulo || 'Lo que necesitamos de tu *equipo técnico*', '', [470, 222, 160], ['Qué necesitamos', 'Quién lo entrega', 'Para cuándo'], rows, { note, noteH: 60, boldFirst: false });
+}
 function assumptionTable(sow) {
   const asr = assumptionRows(sow);
   return asr.length ? tableSlides('Supuestos', 'Prioridad de la sesión', 'Supuestos del SOW a *confirmar o cerrar*', '', [260, 430, 162], ['Supuesto', 'Pregunta para cerrarlo', 'Decisión'], asr, { boldFirst: false }) : [];
@@ -867,31 +893,382 @@ function riskLevel(r) {
   const v = normQ(r.nivel || r.impacto || r.probabilidad || '');
   return NIVEL[v] || (v ? v.toUpperCase() : '');
 }
+// ---------- formato kickoff: blocks taken from the Jelou kickoff deck the client already knows ----------
+// (1) one slide per flow: the journey + up to 4 key BUSINESS questions (the rest stay in the faltantes document); (2) scope as
+// «Incluye» / «Fuera de alcance»; (3) next steps with short dates (commitments of the kickoff week, not the project schedule);
+// (4) team and escalation; (5) the session date on the cover (prekickoff.fecha_sesion, ISO or free text).
+const addBiz = (d, n) => { const x = new Date(d.getTime()); let k = 0; while (k < n) { x.setUTCDate(x.getUTCDate() + 1); const w = x.getUTCDay(); if (w !== 0 && w !== 6) k++; } return x; };
+const ddmm = (d) => `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+const sessionDate = (pk) => (/^\d{4}-\d{2}-\d{2}$/.test(pk.fecha_sesion || '') ? C.parseDate(pk.fecha_sesion) : null);
+// team in two columns like the Jelou kickoff: the client (and its partners) on the left, Jelou on the right; each person = name · role
+// (missing names in red, filled live) + responsibility; escalation note below (prekickoff.escalamiento)
+function teamKickoff(sow, pk) {
+  const eq = arr(sow.equipo);
+  if (!eq.length) return [];
+  const isJ = (e) => /jelou/i.test(e.organizacion || '');
+  const cli = (sow.meta || {}).cliente || 'Cliente';
+  const groups = [{ t: cli, icon: 'building', list: eq.filter((e) => !isJ(e)) }, { t: 'Jelou', icon: 'bot', list: eq.filter(isJ) }];
+  const { s, y0 } = newContent('Equipo', 'Equipo del proyecto', pk.equipo_titulo || 'Equipo del proyecto y *escalamiento*');
+  const top = Math.max(y0, 150), noteH = 44, h = 500 - top - noteH - 12, w = 415;
+  groups.forEach((g, i) => {
+    const b = card(s, 54 + i * (w + 22), top, w, h, { icon: g.icon, title: g.t, fill: i ? COL.menta : COL.blanco, line: i ? null : undefined });
+    const ppl = g.list.length ? g.list : [{ cargo: 'POR COMPLETAR' }];
+    const l1 = (e) => `${nonEmpty(e.nombre) && !pending(e.nombre) ? e.nombre : 'POR COMPLETAR'} · ${e.cargo || e.rol || 'Rol'}`;
+    const l2 = (e) => [e.responsabilidad, e.organizacion && C.normTxt(e.organizacion) !== C.normTxt(g.t) && !isJ(e) ? `(${e.organizacion})` : ''].filter(nonEmpty).join(' ');
+    const hOf = (z) => ppl.reduce((a, e) => a + lineCount(plain(l1(e)), b.w, z, 'titulos') * z * LH + (nonEmpty(l2(e)) ? lineCount(plain(l2(e)), b.w, z - 1, 'texto') * (z - 1) * LH : 0) + 8, 0);
+    const z = [12, 11, 10.5, 10, 9].find((x) => hOf(x) <= b.h) || 9;
+    if (hOf(z) > b.h) warn('Equipo', `${g.t}: team list too long`);
+    const paras = [];
+    ppl.forEach((e) => { paras.push({ runs: runs(l1(e), { size: z, font: 'titulos', color: COL.tinta }), after: 1 }); if (nonEmpty(l2(e))) paras.push({ runs: runs(l2(e), { size: z - 1, color: COL.texto }), after: 8 }); });
+    s.text(b.x, b.y, b.w, b.h, paras, { name: `Equipo ${g.t}` });
+  });
+  const note = pk.escalamiento || 'Escalamiento: 1) implementador ↔ responsable técnico del cliente · 2) PM de Jelou ↔ responsable del proyecto del cliente · 3) AM de Jelou ↔ sponsor.';
+  s.shape(54, 500 - noteH, 852, noteH, { adj: radius(852, noteH), fill: COL.fondo_alerta, name: 'Escalamiento' });
+  s.text(72, 500 - noteH, 816, noteH, [{ runs: runs(note, { size: 11, color: COL.texto }) }], { anchor: 'ctr', name: 'Nota escalamiento' });
+  return [s];
+}
+// methodology and follow-up ("Plan de Acción" rows, right after the project route): meetings, minutes, progress report. Participants:
+// the organizations of the team (client, partners, Jelou). prekickoff.metodologia [{titulo, items[]}] overrides.
+function metodologiaKickoff(sow, pk) {
+  const orgs = [];
+  arr(sow.equipo).forEach((e) => String(e.organizacion || '').split('/').map((x) => x.trim()).filter(Boolean).forEach((o) => { if (!orgs.some((x) => C.normTxt(x) === C.normTxt(o))) orgs.push(o); }));
+  const cli = (sow.meta || {}).cliente;
+  if (cli && !orgs.some((x) => C.normTxt(x) === C.normTxt(cli))) orgs.unshift(cli);
+  const who = [...orgs.filter((o) => !/jelou/i.test(o)), 'Jelou'].join(', ');
+  const groups = arr(pk.metodologia).length ? pk.metodologia.map((g) => [g.titulo, arr(g.items)]) : [
+    ['Reuniones', [`Seguimiento semanal de 30 a 60 min (${who})`, 'Canal asíncrono diario para bloqueos (grupo de WhatsApp)']],
+    ['Actas y acuerdos', ['Acta enviada dentro de las 24 h', 'Cada acuerdo con responsable y fecha', 'Bitácora de pendientes compartida']],
+    ['Reporte de avance', ['Semáforo de riesgos y bloqueos (ClickUp)', 'Hitos aprobados por escrito']],
+  ];
+  return planSlides(groups, { name: 'Metodología', eyebrow: 'Metodología', title: pk.metodologia_titulo || 'Metodología y seguimiento', notes: null });
+}
+// business questions of a flow: explicit q.agente, or q.etapa equal to a grupo / fase / etapa of its steps; questions that match no
+// flow go to the FIRST flow (never dropped from the deck); blockers first
+function flowQuestions(sow, ag) {
+  const ags = arr(sow.agentes);
+  const keysOf = (a) => { const k = new Set(); arr(a.pasos).forEach((p) => [p.grupo, p.fase, p.etapa].filter(Boolean).forEach((x) => k.add(normQ(x)))); return k; };
+  const owner = (q) => {
+    if (q.agente && ags.some((a) => a.id === q.agente)) return q.agente;
+    const hit = q.etapa && ags.find((a) => keysOf(a).has(normQ(q.etapa)));
+    return hit ? hit.id : ags[0].id;
+  };
+  const mine = C.preguntasCliente(sow, 'negocio').filter((q) => owner(q) === ag.id);
+  return mine.map((q, i) => ({ q, i })).sort((a, b) => (b.q.bloquea ? 1 : 0) - (a.q.bloquea ? 1 : 0) || a.i - b.i).map((x) => x.q);
+}
+function flowSlides(sow, pk) {
+  const ags = arr(sow.agentes);
+  if (!ags.length) return [];
+  const cols = COL.cronograma_fases || [COL.turquesa, COL.petroleo];
+  return ags.flatMap((ag, ai) => {
+    const cfg = (pk.flujos || {})[ag.id] || {};
+    const hitos = arr(ag.resumen_cliente).map((h) => (typeof h === 'string' ? { texto: h } : h || {}));
+    const main = hitos.filter((h) => h.tipo !== 'asesor'), exc = hitos.filter((h) => h.tipo === 'asesor').map((h) => h.texto).filter(nonEmpty);
+    let chev = arr(cfg.hitos).length ? cfg.hitos : main.map((h) => h.texto).filter(nonEmpty);
+    if (!chev.length) { const g = []; arr(ag.pasos).forEach((p) => { const k = p.grupo || p.fase; if (k && !g.includes(k)) g.push(k); }); chev = g; }
+    if (chev.length > 6) chev = [...chev.slice(0, 5), chev[chev.length - 1]];
+    // narrative journey (like the kickoff deck): prekickoff.flujos.<id>.recorrido > agentes[].descripcion; never just the arrows repeated
+    const recorrido = cfg.recorrido || ag.descripcion || (chev.length ? '' : main.map((h) => h.texto).join(' → '));
+    const qs = flowQuestions(sow, ag);
+    // ALL the key business questions of the flow are shown (they are closed in the session); prekickoff.preguntas_por_flujo caps them
+    const cap = pk.preguntas_por_flujo ? Math.min(pk.preguntas_por_flujo, qs.length) : qs.length;
+    const shown = qs.slice(0, cap).map((q) => q.pregunta), rest = qs.length - shown.length;
+    const nombre = String(ag.nombre || `Flujo ${ai + 1}`).replace(/^Flujo_(\d+):\s*/, 'Flujo $1 · ');
+    const { s, y0 } = newContent(`Flujo ${ag.id}`, cfg.eyebrow || 'Contexto del proyecto', cfg.titulo || nombre);
+    let y = Math.max(y0, 150);
+    if (nonEmpty(recorrido)) {
+      const rz = [12, 11, 10].find((z) => lineCount(plain(recorrido), 828, z, 'texto') <= 3) || 10;
+      const rl = Math.min(3, lineCount(plain(recorrido), 828, rz, 'texto')), rh = rl * rz * LH;
+      if (lineCount(plain(recorrido), 828, rz, 'texto') > 3) warn(s.name, 'journey text truncated (prekickoff.flujos.<id>.recorrido shortens it)');
+      s.shape(54, y, 4, rh + 10, { fill: COL.turquesa, name: 'Recorrido marca' });
+      s.text(68, y + 5, 838, rh, [{ runs: runs(rl < lineCount(plain(recorrido), 828, rz, 'texto') ? trunc(plain(recorrido), 300) : recorrido, { size: rz, color: COL.texto }) }], { name: 'Recorrido' });
+      y += rh + 22;
+    }
+    if (chev.length) {
+      const n = chev.length, gap = 4, d = 14, cw = (852 - gap * (n - 1)) / n, h = 58;
+      chev.forEach((t, i) => {
+        const x = 54 + i * (cw + gap), first = i === 0;
+        const c = [['M', x, y], ['L', x + cw - d, y], ['L', x + cw, y + h / 2], ['L', x + cw - d, y + h], ['L', x, y + h]];
+        if (!first) c.push(['L', x + d, y + h / 2]);
+        c.push(['Z']);
+        s.freeform(c, { fill: cols[Math.round(i * (cols.length - 1) / Math.max(1, n - 1))], name: `Paso ${i + 1}` });
+        const tx = x + (first ? 10 : d + 4), tw = cw - (first ? 10 : d + 4) - d;
+        let z = 11; while (z > 9 && lineCount(plain(t), tw, z, 'titulos') > 2) z -= 0.5;
+        while (z > 8.5 && lineCount(plain(t), tw, z, 'titulos') > 3) z -= 0.5;
+        const over = lineCount(plain(t), tw, z, 'titulos') > 3;
+        if (over) warn(s.name, `step ${i + 1} text truncated`);
+        s.text(tx, y + 3, tw, h - 6, [{ runs: runs(over ? trunc(plain(t), 36) : t, { size: z, font: 'titulos', color: COL.blanco }) }], { anchor: 'ctr', name: `Texto paso ${i + 1}` });
+      });
+      y += h + 8;
+    }
+    if (exc.length) { s.text(54, y, 852, 16, [{ runs: [...runs('Si algo falla: ', { size: 11, font: 'titulos', color: COL.petroleo }), ...runs(exc.join(' · '), { size: 11, color: COL.petroleo })] }], { name: 'Excepciones' }); y += 22; }
+    y += 6;
+    const foot = rest > 0 ? `+${rest} ${rest === 1 ? 'pregunta' : 'preguntas'} de este flujo en el documento de faltantes.` : '';
+    // panel: title, questions, optional footer. When they do not fit (12 -> 10.5 pt) they continue on «(cont.)» slides at 11 pt.
+    const panel = (sl, top, items, size, label, last) => {
+      const ph = 500 - top;
+      sl.shape(54, top, 852, ph, { adj: radius(852, ph), fill: COL.menta, name: 'Panel preguntas' });
+      sl.text(74, top + 10, 812, 20, [{ runs: runs(label, { size: 13, font: 'titulos', color: COL.tinta }) }], { name: 'Título preguntas' });
+      const qa = ph - 36 - (last && foot ? 24 : 8);
+      if (items.length) sl.text(74, top + 36, 812, qa, paragraphs(items, { size, after: 4 }), { name: 'Preguntas' });
+      else sl.text(74, top + 36, 812, 20, [{ runs: runs('Sin preguntas abiertas de negocio para este flujo.', { size: 12, color: COL.texto }) }], { name: 'Preguntas' });
+      if (!last) sl.text(74, 500 - 26, 812, 18, [{ runs: runs('Continúa en la siguiente diapositiva →', { size: 10, font: 'medio', color: COL.petroleo }), align: 'r' }], { name: 'Continúa' });
+      else if (foot) sl.text(74, 500 - 28, 812, 18, [{ runs: runs(foot, { size: 10, font: 'medio', color: COL.petroleo }) }], { name: 'Más preguntas' });
+    };
+    const qa1 = 500 - y - 36 - (foot ? 24 : 8);
+    const f = fitSize(shown, 812, qa1, [12, 11, 10.5], 4);
+    if (f.fits) { panel(s, y, shown, f.size, 'Preguntas clave', true); return [s]; }
+    const Z = 11, first = paginate(shown, 812, 500 - y - 36 - 26, Z)[0];
+    const out = [s];
+    let left = shown.slice(first.length);
+    const probe = newContent('probe', 'x', `${cfg.titulo || nombre} (cont.)`).y0, top2 = Math.max(probe, 150);
+    const pages = left.length ? paginate(left, 812, 500 - top2 - 36 - 26, Z) : [];
+    panel(s, y, first, Z, 'Preguntas clave', !pages.length);
+    pages.forEach((pg, i) => {
+      const c = newContent(`Flujo ${ag.id} (cont.)`, cfg.eyebrow || 'Contexto del proyecto', `${cfg.titulo || nombre} (cont.)`);
+      panel(c.s, Math.max(c.y0, 150), pg, Z, 'Preguntas clave (cont.)', i === pages.length - 1);
+      out.push(c.s);
+    });
+    return out;
+  });
+}
+// scope: «Incluye» (prekickoff.alcance.incluye > alcance.base > Jelou stages) in two columns, then the end-to-end diagram (e2eSlides)
+function alcanceKickoff(sow, pk) {
+  const al = sow.alcance || {}, cfg = pk.alcance || {};
+  const inc = arr(cfg.incluye).length ? cfg.incluye : arr(al.base).length ? al.base : stagesOf(sow, pk).filter((e) => e.jelou !== false).map((e) => `${e.nombre}${e.texto ? ': ' + e.texto : ''}`);
+  const out = [];
+  if (inc.length) {
+    const { s, y0 } = newContent('Alcance', cfg.eyebrow || 'Alcance', cfg.titulo || 'Lo que *incluye* el proyecto');
+    const y = Math.max(y0, 160), hMax = 500 - y;
+    const half = Math.ceil(inc.length / 2), cw = (852 - 40 - 30) / 2, colsI = [inc.slice(0, half), inc.slice(half)];
+    const z0 = [13, 12, 11, 10.5, 10, 9].find((x) => colsI.every((c) => bulletsHeight(c, cw, x, 6) <= hMax - 75)) || 9;
+    const h = Math.min(hMax, Math.max(...colsI.map((c) => bulletsHeight(c, cw, z0, 6))) + 75 + 16); // the card fits its content
+    const b = card(s, 54, y, 852, h, { icon: 'check-circle', title: 'Incluye', fill: COL.menta, line: null });
+    const z = z0;
+    if (!colsI.every((c) => bulletsHeight(c, cw, z, 6) <= b.h)) warn('Alcance', 'scope list too long (prekickoff.alcance.incluye shortens it)');
+    colsI.forEach((c, i) => { if (c.length) s.text(b.x + i * (cw + 30), b.y, cw, b.h, paragraphs(c, { size: z, after: 6 }), { name: `Incluye ${i + 1}` }); });
+    out.push(s);
+  }
+  return [...out, ...e2eSlides(sow, pk)];
+}
+// ---------- end-to-end diagram of the whole project (style of the Jelou kickoff flow slides) ----------
+// From the client-readable graph (agentes[].resumen_cliente, all flows, F.buildE2E): entry (dark), milestones (mint, petrol edge),
+// a decision diamond (light orange) after every milestone with 2+ exits («Sí / No», or the exit labels; the diamond text is the
+// milestone's `pregunta` or «¿<first exit>?»), advisor (white) and end (green edge). The main path runs left to right in bands of up
+// to 6 columns; branches sit in a lane under their source with orthogonal connectors; entry chains (outbound) sit under the node they
+// feed. Two bands per slide; a band or slide break is a numbered connector circle. More bands -> «(cont.)» slides.
+const capFirst = (t) => String(t || '').replace(/^./, (c) => c.toUpperCase());
+function e2eGraph(sow) {
+  const e2e = F.buildE2E(sow);
+  if (!e2e) return null;
+  const preg = new Map();
+  arr(sow.agentes).forEach((a) => arr(a.resumen_cliente).forEach((h) => { if (h && typeof h === 'object' && h.id && h.pregunta) preg.set(h.id, h.pregunta); }));
+  const out = [];
+  e2e.spec.pasos.forEach((p) => {
+    const n = { id: p.id, tipo: p.tipo, texto: p.diagrama, sig: arr(p.siguiente).map((e) => ({ a: e.a, si: e.si })) };
+    if (n.sig.length >= 2) {
+      const q = preg.get(n.id);
+      const d = { id: `D_${n.id}`, tipo: 'decision', texto: q || `¿${capFirst(n.sig[0].si || 'Continúa')}?`, sig: n.sig.map((e, i) => ({ a: e.a, si: !q && n.sig.length === 2 ? (i ? 'No' : 'Sí') : e.si })) };
+      n.sig = [{ a: d.id }];
+      out.push(n, d);
+    } else out.push(n);
+  });
+  return out;
+}
+function e2eSlides(sow, pk) {
+  const g = e2eGraph(sow);
+  if (!g || !g.length) return [];
+  const cfg = pk.e2e || {};
+  const by = new Map(g.map((n) => [n.id, n]));
+  const preds = new Map(g.map((n) => [n.id, []]));
+  g.forEach((n) => n.sig.forEach((e) => { if (by.has(e.a)) preds.get(e.a).push(n.id); }));
+  const agentOf = new Map();
+  arr(sow.agentes).forEach((a) => arr(a.resumen_cliente).forEach((h) => { if (h && typeof h === 'object' && h.id) agentOf.set(h.id, a); }));
+  // main paths: every entry (no predecessors) walks its first exit; a walk that reaches an existing main path is a feeder (outbound
+  // reminder that joins the inbound flow), otherwise it is a main path of its own (one per independent flow)
+  const mains = [], onMain = new Map(), feeders = [];
+  const entries = g.filter((n) => !preds.get(n.id).length);
+  for (const e of (entries.length ? entries : [g[0]])) {
+    const p = [], seen = new Set();
+    let cur = e, feeds = false;
+    while (cur && !seen.has(cur.id)) { if (onMain.has(cur.id)) { feeds = true; break; } p.push(cur.id); seen.add(cur.id); cur = cur.sig[0] && by.get(cur.sig[0].a); }
+    if (feeds && p.length) feeders.push(p);
+    else if (p.length) { const mi = mains.length; mains.push(p); p.forEach((id) => onMain.set(id, mi)); }
+  }
+  const LBL = mains.length > 1 ? 20 : 0, AVAIL = 350;
+  // Sizes, from the largest: «normal» (up to 6 columns, boxes 54 pt; a compact variant keeps the two bands of one flow on a slide),
+  // «denso» (up to 8 columns, smaller boxes and gaps) and «compacto» (one step smaller).
+  // RULE: with two or more flows, every diagram slide carries AT LEAST TWO FLOWS (only the last one may hold a single flow when the
+  // count is odd): the first size that achieves it wins. If none does (a very long flow), the size with fewer slides wins (tie: the
+  // larger). prekickoff.e2e.densidad = "normal" | "denso" | "compacto" forces one.
+  const PRESETS = {
+    normal: { C0: 6, BH: 54, LANE: 36, GAPB: 26, FONT: 11, PAD: 30, LBLZ: 10, compact: { BH: 44, LANE: 22, GAPB: 14 } },
+    denso: { C0: 8, BH: 44, LANE: 24, GAPB: 18, FONT: 10, PAD: 22, LBLZ: 9 },
+    compacto: { C0: 8, BH: 38, LANE: 18, GAPB: 12, FONT: 9.5, PAD: 18, LBLZ: 8.5 },
+  };
+  const plan = (P) => {
+    const bands = [];
+    mains.forEach((m, mi) => { const nb = Math.ceil(m.length / P.C0), cols = Math.ceil(m.length / nb); for (let b = 0; b < nb; b++) bands.push({ mi, ids: m.slice(b * cols, (b + 1) * cols), first: b === 0, last: b === nb - 1 }); });
+    const maxCols = Math.max(...bands.map((b) => b.ids.length));
+    const pos = new Map(), used = new Set(), dup = new Map(), lost = []; // key -> {band, lane, col}; key = id, or id@band for a duplicate
+    const put = (key, band, lane, col) => { pos.set(key, { band, lane, col }); used.add(`${band}:${lane}:${col}`); };
+    const freeCol = (band, lane, col) => { for (let k = 0; k < maxCols * 2 + 1; k++) { const c = col + (k % 2 ? Math.ceil(k / 2) : -Math.ceil(k / 2)); if (c >= 0 && c < maxCols && !used.has(`${band}:${lane}:${c}`)) return c; } return null; };
+    bands.forEach((b, bi) => b.ids.forEach((id, ci) => put(id, bi, 0, ci)));
+    // branches in the lane under their source (also the branches of a branch, one lane further down); a node already drawn in
+    // another band is repeated
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const [k, p] of [...pos.entries()]) {
+        if (dup.has(k)) continue;
+        by.get(k).sig.forEach((e, ei) => {
+          if (!by.has(e.a) || onMain.has(e.a) || (ei === 0 && p.lane === 0)) return;
+          const lane = p.lane === 0 ? 1 : ei === 0 ? p.lane : Math.min(2, p.lane + 1), pref = p.lane && ei === 0 ? p.col + 1 : p.col;
+          if (!pos.has(e.a)) { const fc = freeCol(p.band, lane, pref); if (fc != null) { put(e.a, p.band, lane, fc); changed = true; } return; }
+          const kk = `${e.a}@${p.band}`;
+          if (pos.get(e.a).band !== p.band && !pos.has(kk)) { const fc = freeCol(p.band, lane, pref); if (fc != null) { put(kk, p.band, lane, fc); dup.set(kk, e.a); changed = true; } }
+        });
+      }
+    }
+    // feeders: the node that joins sits right under its target, its predecessors to the left
+    feeders.forEach((fp) => {
+      const t = pos.get(by.get(fp[fp.length - 1]).sig[0].a);
+      let c = t.col;
+      for (let i = fp.length - 1; i >= 0; i--) { if (pos.has(fp[i])) continue; const fc = freeCol(t.band, 1, c); if (fc == null) break; put(fp[i], t.band, 1, fc); c = fc - 1; }
+    });
+    g.filter((n) => !pos.has(n.id)).forEach((n) => lost.push(n));
+    // geometry: a band is as tall as the lanes it uses; slides take bands while they fit (at most two)
+    const lanesOf = (bi) => Math.max(0, ...[...pos.values()].filter((p) => p.band === bi).map((p) => p.lane));
+    const bandH = (bi, k = P) => LBL + (lanesOf(bi) + 1) * k.BH + lanesOf(bi) * k.LANE;
+    const groupH = (grp, k) => grp.reduce((a, x) => a + bandH(x, k), 0) + (grp.length - 1) * k.GAPB;
+    const groups = [];
+    bands.forEach((b, bi) => {
+      const cur = groups[groups.length - 1];
+      if (cur && cur.length < 2 && groupH([...cur, bi], P) <= AVAIL) { cur.push(bi); return; }
+      if (P.compact && cur && cur.length < 2 && !b.first && bands[cur[cur.length - 1]].mi === b.mi && groupH([...cur, bi], P.compact) <= AVAIL) { cur.push(bi); cur.compact = true; return; }
+      groups.push([bi]);
+    });
+    return { P, bands, maxCols, pos, dup, lost, bandH, groupH, groups };
+  };
+  const want = cfg.densidad;
+  const twoFlows = (X) => mains.length < 2 || X.groups.every((gr, i, all) => new Set(gr.map((bi) => X.bands[bi].mi)).size >= 2 || i === all.length - 1);
+  const plans = ['normal', 'denso', 'compacto'].map((k) => plan(PRESETS[k]));
+  const L = want && PRESETS[want] ? plan(PRESETS[want]) : plans.find(twoFlows) || plans.reduce((a, b) => (b.groups.length < a.groups.length ? b : a));
+  if (!want && mains.length >= 2 && !twoFlows(L)) warn('Alcance E2E', 'a diagram slide holds a single flow even at the smallest size (a very long flow): shorten agentes[].resumen_cliente');
+  const { P, bands, maxCols, pos, dup, bandH, groupH, groups } = L;
+  L.lost.forEach((n) => warn('Alcance E2E', `"${trunc(n.texto, 30)}" left out of the diagram`));
+  const target = (id, band) => { const p = pos.get(id); if (!p) return null; if (p.band === band || onMain.has(id)) return id; const k = `${id}@${band}`; return pos.has(k) ? k : null; };
+  const multi = bands.some((b) => !(b.first && b.last)), xL = 54 + (multi ? 34 : 0), xR = 906 - (multi ? 34 : 0), colW = (xR - xL) / maxCols, bw = Math.min(156, colW - P.PAD);
+  const isNo = (t) => /^no\b/i.test(String(t || ''));
+  const slides = [];
+  let conn = 0;
+  groups.forEach((grp, gi) => {
+    const title = (cfg.titulo || 'Alcance: el flujo de *punta a punta*') + (gi ? ' (cont.)' : '');
+    const { s, y0 } = newContent(gi ? 'Alcance E2E (cont.)' : 'Alcance E2E', cfg.eyebrow || 'Alcance', title);
+    const K = grp.compact ? Object.assign({}, P, P.compact) : P, BH = K.BH, LANE = K.LANE, GAPB = K.GAPB;
+    const yT = Math.max(y0, 150), tot = groupH(grp, K), top0 = yT + Math.max(0, (505 - yT - tot) / 2) - 6;
+    const bandY = (bi) => top0 + grp.slice(0, grp.indexOf(bi)).reduce((a, x) => a + bandH(x, K) + GAPB, 0);
+    const box = (key) => { const p = pos.get(key); return { x: xL + p.col * colW + (colW - bw) / 2, y: bandY(p.band) + LBL + p.lane * (BH + LANE), w: bw, h: BH, lane: p.lane, band: p.band }; };
+    const here = [...pos.keys()].filter((k) => grp.includes(pos.get(k).band));
+    const labs = [];
+    const lbl = (x, y, t) => labs.push([x, y, t]);
+    const draw = (pts, t) => { for (let i = 0; i < pts.length - 1; i++) s.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], { arrow: i === pts.length - 2, color: isNo(t) ? COL.naranja : COL.petroleo, w: 1.5 }); };
+    // flow titles
+    if (LBL) grp.forEach((bi) => { const b = bands[bi], ag = agentOf.get(b.ids[0]); const nm = ag ? String(ag.nombre || '').replace(/^Flujo_(\d+):\s*/, 'Flujo $1 · ') : ''; if (nm) s.text(xL, bandY(bi), 600, 16, [{ runs: runs(nm + (b.first ? '' : ' (cont.)'), { size: 11, font: 'titulos', color: COL.petroleo }) }], { name: 'Flujo' }); });
+    // edges first (the shapes cover the ends)
+    here.forEach((k) => {
+      if (dup.has(k)) return;
+      const a = box(k);
+      by.get(k).sig.forEach((e) => {
+        if (onMain.has(k) && onMain.has(e.a) && pos.get(e.a) && pos.get(e.a).band !== pos.get(k).band) return; // band break: circles
+        const tk = target(e.a, pos.get(k).band);
+        if (!tk || !here.includes(tk)) return;
+        const b = box(tk), acx = a.x + a.w / 2, acy = a.y + a.h / 2, bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+        let pts;
+        if (a.lane === b.lane && a.band === b.band) pts = b.x > a.x ? [[a.x + a.w, acy], [b.x, bcy]] : [[acx, a.y + a.h], [acx, a.y + a.h + 10], [bcx, a.y + a.h + 10], [bcx, b.y + b.h]];
+        else if (b.y > a.y) pts = Math.abs(bcx - acx) < 1 ? [[acx, a.y + a.h], [bcx, b.y]] : [[acx, a.y + a.h], [acx, bcy], [b.x > a.x ? b.x : b.x + b.w, bcy]];
+        else pts = Math.abs(bcx - acx) < 1 ? [[acx, a.y], [bcx, b.y + b.h]] : [[b.x > a.x ? a.x + a.w : a.x, acy], [bcx, acy], [bcx, b.y + b.h]];
+        draw(pts, e.si);
+        if (e.si) { const [p0, p1] = pts; if (Math.abs(p0[0] - p1[0]) < 1) lbl(p0[0] + 5, p0[1] + 2, e.si); else lbl(Math.min(p0[0], p1[0]) + 4, p0[1] - P.LBLZ - 6, e.si); }
+      });
+    });
+    // band breaks inside a flow: numbered connector circles
+    const circ = (cx, cy, t) => s.shape(cx - 12, cy - 12, 24, 24, { geom: 'ellipse', fill: COL.petroleo, paras: [{ runs: runs(t, { size: 10, font: 'titulos', color: COL.blanco }), align: 'ctr' }], anchor: 'ctr', name: 'Conector' });
+    grp.forEach((bi) => {
+      const b = bands[bi];
+      if (!b.first) { const fb = box(b.ids[0]); circ(xL - 22, fb.y + fb.h / 2, String(b.conn)); s.line(xL - 10, fb.y + fb.h / 2, fb.x, fb.y + fb.h / 2, { arrow: true, color: COL.petroleo, w: 1.5 }); }
+      if (!b.last) {
+        b.connOut = ++conn; bands[bi + 1].conn = conn;
+        const last = b.ids[b.ids.length - 1], lb = box(last), ex = by.get(last).sig.find((e) => e.a === bands[bi + 1].ids[0]);
+        s.line(lb.x + lb.w, lb.y + lb.h / 2, xR + 10, lb.y + lb.h / 2, { arrow: true, color: COL.petroleo, w: 1.5 }); circ(xR + 22, lb.y + lb.h / 2, String(conn));
+        if (ex && ex.si) lbl(lb.x + lb.w + 4, lb.y + lb.h / 2 - P.LBLZ - 6, ex.si);
+      }
+    });
+    // nodes
+    const ST = { usuario: { fill: COL.tinta, line: null, color: COL.blanco }, decision: { fill: COL.fondo_alerta, line: COL.naranja, color: COL.tinta }, fin: { fill: COL.menta, line: COL.verde, color: COL.tinta }, asesor: { fill: COL.blanco, line: COL.petroleo, color: COL.tinta } };
+    here.forEach((k) => {
+      const n = by.get(dup.get(k) || k), p = box(k), st = ST[n.tipo] || { fill: COL.menta, line: COL.petroleo, color: COL.tinta };
+      const dia = n.tipo === 'decision', tw = dia ? p.w * 0.74 : p.w - 12, hy = dia ? p.y - 7 : p.y, hh = dia ? p.h + 14 : p.h;
+      let z = P.FONT; while (z > 8 && lineCount(plain(n.texto), tw, z, 'titulos') * z * LH > (dia ? hh * 0.66 : hh - 4)) z -= 0.5;
+      if (lineCount(plain(n.texto), tw, z, 'titulos') * z * LH > (dia ? hh * 0.78 : hh)) warn('Alcance E2E', `"${trunc(n.texto, 30)}" is too long for its box (shorten agentes[].resumen_cliente)`);
+      const o = { fill: st.fill, line: st.line, lineW: 1.5, name: dia ? 'Decisión' : n.tipo === 'fin' ? 'Fin' : 'Paso' };
+      if (dia) o.geom = 'diamond'; else o.adj = radius(p.w, hh, 10);
+      s.shape(p.x, hy, p.w, hh, o);
+      s.text(p.x + (p.w - tw) / 2, hy, tw, hh, [{ runs: runs(n.texto, { size: z, font: 'titulos', color: st.color }), align: 'ctr' }], { anchor: 'ctr', name: 'Texto' });
+    });
+    labs.forEach(([x, y, t]) => s.text(x, y, 110, P.LBLZ + 4, [{ runs: runs(trunc(t, 26), { size: P.LBLZ, font: 'titulos', color: isNo(t) ? COL.naranja : COL.turquesa }) }], { name: 'Etiqueta' }));
+    if (nonEmpty(cfg.nota) && gi === groups.length - 1) s.text(54, 486, 852, 18, [{ runs: runs(cfg.nota, { size: 11, color: COL.texto }) }], { name: 'Nota' });
+    slides.push(s);
+  });
+  return slides;
+}
+// next steps of the kickoff week as "Plan de Acción" rows: today, within 24 h, before the SOW (short dates when prekickoff.fecha_sesion
+// is an ISO date; prekickoff.proximos_pasos [{cuando, items[], responsable}] overrides). Not the project schedule: no days per phase.
+function nextStepsKickoff(sow, pk) {
+  const d0 = sessionDate(pk);
+  const lab = (n, txt) => (d0 ? (n ? `Al ${ddmm(addBiz(d0, n))}` : `Hoy · ${ddmm(d0)}`) : txt);
+  const tq = C.preguntasCliente(sow, 'tecnico').length;
+  const bl = arr(sow.preguntas_abiertas).filter((q) => q.bloquea && C.esPreguntaCliente(q)).length;
+  const teamPending = arr(sow.equipo).some((e) => !nonEmpty(e.nombre) || pending(e.nombre));
+  const groups = arr(pk.proximos_pasos).length ? pk.proximos_pasos.map((g) => [g.cuando, arr(g.items), g.responsable]) : [
+    [lab(0, 'Hoy · en esta sesión'), ['Validar los supuestos y las preguntas clave de cada flujo', 'Nombrar al contacto técnico del proyecto', ...(teamPending ? ['Completar el equipo del proyecto'] : [])], 'Jelou y cliente'],
+    [lab(1, 'Dentro de 24 h'), ['Acta de la sesión con acuerdos, responsables y fechas', 'Documento de faltantes para el cliente', ...(tq ? [`Documento de preguntas técnicas para el equipo de TI (${tq})`] : [])], 'Jelou'],
+    [lab(5, 'Antes del SOW'), [...(bl ? [`Respuestas a las ${bl} preguntas que frenan el SOW`] : []), ...(C.solicitudesTecnicas(sow).length ? ['Entregables técnicos: accesos, ambientes y documentación'] : []), 'SOW v1.0 para revisión y firma'], 'Cliente y Jelou'],
+  ];
+  return planSlides(groups.map(([c, items, who]) => [who ? `${c} · ${who}` : c, items]), { name: 'Próximos pasos', eyebrow: 'Próximos pasos', title: pk.proximos_titulo || 'Próximos pasos', notes: null });
+}
 function buildKickoff(sow, opts = {}) {
   const pk = sow.prekickoff || {};
+  const porEtapas = pk.validacion === 'etapas'; // the previous grouped validation slides, on request
   const parts = {
+    equipo: teamKickoff(sow, pk),
     cronograma: cronogramaRuta(sow, pk),
+    metodologia: metodologiaKickoff(sow, pk),
     contexto: contextoKickoff(sow, pk),
-    alcance: stagesSlide(sow, pk),
+    flujos: porEtapas ? [] : flowSlides(sow, pk),
+    alcance: alcanceKickoff(sow, pk),
     supuestos: assumptionTable(sow),
-    validacion: validationGrouped(sow, pk),
+    validacion: porEtapas ? validationGrouped(sow, pk) : [],
+    tecnico: techSlide(sow, pk),
     riesgos: riskSlides(sow),
+    proximos: nextStepsKickoff(sow, pk),
   };
   const idx = [
-    { k: 'roadmap', titulo: 'Cómo trabajamos', texto: 'Las cuatro fases de la implementación.' },
-    { k: 'cronograma', titulo: 'Cronograma', texto: 'La ruta del proyecto; los tiempos se definen con el SOW.' },
+    { k: 'equipo', titulo: 'Equipo del proyecto', texto: 'Quién participa y cómo escalamos.' },
+    { k: 'cronograma', titulo: 'Ruta del proyecto', texto: 'Las etapas y quién las lleva; los tiempos se definen con el SOW.' },
+    { k: 'metodologia', titulo: 'Metodología y seguimiento', texto: 'Reuniones, actas y reporte de avance.' },
     { k: 'contexto', titulo: 'Contexto del proyecto', texto: 'Brief, objetivos y roles identificados.' },
-    { k: 'alcance', titulo: 'Alcance', texto: 'Los flujos que construye Jelou.' },
+    { k: 'flujos', titulo: 'Flujos y preguntas clave', texto: 'Cómo funciona cada flujo y qué necesitamos decidir.' },
+    { k: 'alcance', titulo: 'Alcance', texto: 'Lo que incluye y el flujo de punta a punta.' },
     { k: 'supuestos', titulo: 'Supuestos', texto: 'Lo que asumimos de la preventa y se confirma hoy.' },
-    { k: 'validacion', titulo: 'Validación etapa por etapa', texto: 'Preguntas para cerrar en esta sesión.' },
+    { k: 'validacion', titulo: 'Validación etapa por etapa', texto: 'Preguntas de negocio para cerrar en esta sesión.' },
+    { k: 'tecnico', titulo: 'Equipo técnico', texto: 'Lo que necesitamos de su equipo de TI y quién es el contacto.' },
     { k: 'riesgos', titulo: 'Riesgos', texto: 'Lo que puede mover el cronograma y cómo se mitiga.' },
-  ].filter((i) => i.k === 'roadmap' || parts[i.k].length);
+    { k: 'proximos', titulo: 'Próximos pasos', texto: 'Compromisos de los próximos días.' },
+  ].filter((i) => parts[i.k].length);
   const slides = [];
   const add = (x) => (Array.isArray(x) ? x : [x]).filter(Boolean).forEach((s) => slides.push(s));
   add(coverKickoff(sow, pk));
-  add(contenidoSlide(pk.contenido || idx)); // kickoff: the contents open the deck, then the roadmap (always right after the contents)
-  add(roadmap(pk));
-  ['cronograma', 'contexto', 'alcance', 'supuestos', 'validacion', 'riesgos'].forEach((k) => add(parts[k]));
+  add(contenidoSlide(pk.contenido || idx)); // kickoff: no 4-phase roadmap (the project route already says it); the full format keeps it
+  ['equipo', 'cronograma', 'metodologia', 'contexto', 'flujos', 'alcance', 'supuestos', 'validacion', 'tecnico', 'riesgos', 'proximos'].forEach((k) => add(parts[k]));
   add(closingKickoff(pk));
   return slides;
 }
@@ -958,6 +1335,7 @@ function buildCompleto(sow, opts = {}) {
   if (val.length) { add(divider('Validación', 'Bloque 4', pk.validacion_titulo || 'Validación etapa por etapa', `Preguntas para cerrar con ${(sow.meta || {}).cliente || 'el cliente'} en la sesión`)); add(val); }
   const intRows = integrationRows(sow);
   if (intRows.length) add(tableSlides('Integraciones', 'Bloque 5', 'Integraciones: quién expone y quién consume', '', [150, 215, 120, 110, 257], ['Integración', 'Qué hace', 'Expone', 'Consume', 'Contacto · doc · QA'], intRows, { note: pk.integraciones_nota, noteH: pk.integraciones_nota ? 60 : 0, boldFirst: true }));
+  add(techSlide(sow, pk));
   const asr = assumptionRows(sow);
   if (asr.length) add(tableSlides('Supuestos', 'Prioridad de la sesión', 'Supuestos del SOW a *confirmar o cerrar*', '', [260, 430, 162], ['Supuesto', 'Pregunta para cerrarlo', 'Decisión'], asr, { boldFirst: false }));
   add(pendingSlides(sow, pk));

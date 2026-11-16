@@ -2,8 +2,9 @@
 // Generates every deliverable from sow.json.
 //
 //   Full SOW (default):   lint report, Word SOW, diagrams (PNG + SVG), HTML bot simulator.
-//   Pre-kickoff:          lint report (tolerant), diagrams, simulator, pre-kickoff deck (.pptx) and the two "faltantes" Word documents
-//                         (client + internal). Activated by `--modo prekickoff` or by meta.fase = "prekickoff".
+//   Pre-kickoff:          lint report (tolerant), diagrams, simulator, pre-kickoff deck (.pptx) and the "faltantes" Word documents
+//                         (client = business questions, tecnico = for the client's TI team when there is something technical, internal).
+//                         Activated by `--modo prekickoff` or by meta.fase = "prekickoff".
 //
 // Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--force]
 //   --force   build even if the linter reports errors (the Word file is marked "en revisión" unless meta.estado is "aprobado")
@@ -41,7 +42,11 @@ if (lint.status !== 0 && !force) {
   console.error("\nThe linter reported errors. Fix them (or use --force to build anyway).");
   process.exit(1);
 }
-if (prek) console.log("\nModo pre-kickoff: se generan el deck, los dos documentos de faltantes, el simulador y los diagramas (no el SOW completo).");
+if (prek) {
+  const nNeg = C.preguntasCliente(sow, "negocio").length, nTec = C.preguntasCliente(sow, "tecnico").length;
+  console.log(`\nModo pre-kickoff: se generan el deck, los documentos de faltantes (cliente${nTec || C.solicitudesTecnicas(sow).length ? ", técnico" : ""} e interno), el simulador y los diagramas (no el SOW completo).`);
+  console.log(`Preguntas al cliente: ${nNeg} de negocio (deck y faltantes del cliente) · ${nTec} técnicas (documento para el equipo de TI; en el deck solo como solicitudes).`);
+}
 
 // 1b. Gantt (only when the SOW is approved and has cronograma.inicio): the construction is split into parallel lanes (lib/planificar.js),
 //     sow_a_paquete.py turns the hitos into tasks and cronograma.py draws the Gantt. The same planned SOW feeds the Word, so table and chart agree.
@@ -125,7 +130,7 @@ try {
 }
 
 if (prek) {
-  // 5. pre-kickoff deck + faltantes documents (client and internal)
+  // 5. pre-kickoff deck + faltantes documents (client, technical when needed, internal)
   const pptx = path.join(outDir, `${base}-prekickoff.pptx`);
   const k = node("build_kickoff_pptx.js", [inFile, pptx, "--diagramas", path.join(outDir, "diagramas"), ...(formatoDeck ? ["--formato", formatoDeck] : [])]);
   process.stdout.write(k.stdout); process.stderr.write(k.stderr);

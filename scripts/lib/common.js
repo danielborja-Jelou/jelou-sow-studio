@@ -294,6 +294,52 @@ function estadoCronograma(sow, opts = {}) {
   const resumen = generado ? "Cronograma: generado (tabla con fechas, carriles en paralelo y Gantt)." : "Cronograma: PENDIENTE";
   return { generado, motivos, avisos, resumen };
 }
+// ---------- ámbito de las preguntas al cliente: negocio | tecnico ----------
+// En la primera reunión no siempre está el equipo técnico del cliente: el deck y los faltantes del cliente llevan solo las preguntas de
+// negocio (comportamiento del flujo, reglas, contenidos, operación); las técnicas (APIs, credenciales, ambientes, red, seguridad, formatos)
+// van al documento para TI y, en el deck, solo como solicitudes. Fuente: preguntas_abiertas[].ambito; si falta, tipo "tecnica" / "negocio";
+// si tampoco, se deduce por palabras clave (y el linter lo avisa para confirmarlo).
+const AMBITOS = ["negocio", "tecnico"];
+const TECH_Q_RE = /\b(apis?|endpoints?|webhooks?|credencial(?:es)?|tokens?|autenticacion|oauth|jwt|vpn|ips?|lista blanca|whitelist|firewall|ambientes?|staging|sandbox|qa|sla|rate ?limit|limites? de (?:peticiones|solicitudes|llamadas)|timeouts?|latencia|json|xml|payload|swagger|openapi|postman|base de datos|bd|sql|servidor(?:es)?|certificados?|ssl|tls|sftp|ftp|middleware|servicios? web|soap|rest|ws#\d+|int-\d+|documentacion tecnica|estructura de la respuesta|codigos? de error|cifrado|encriptacion|hosting|cron)\b/;
+const esTecnicoTexto = (t) => TECH_Q_RE.test(normTxt(t).replace(/[¿?¡!]/g, " "));
+function ambitoPregunta(q) {
+  const a = normTxt((q && q.ambito) || "");
+  if (a === "tecnico" || a === "tecnica") return { ambito: "tecnico", inferido: false };
+  if (a === "negocio") return { ambito: "negocio", inferido: false };
+  const t = normTxt((q && q.tipo) || "");
+  if (t === "tecnica" || t === "tecnico") return { ambito: "tecnico", inferido: false };
+  if (t === "negocio") return { ambito: "negocio", inferido: false };
+  return { ambito: esTecnicoTexto((q && q.pregunta) || "") ? "tecnico" : "negocio", inferido: true };
+}
+// A question that asks two things, one of business and one technical ("¿Se permite reagendar? ¿Qué endpoints existen?"): split it in two.
+function preguntaMixta(q) {
+  const partes = String((q && q.pregunta) || "").split("?").slice(0, -1).map((s) => s.trim()).filter((s) => s.replace(/[¿\s.]/g, "").length > 3); // only real questions (text after the last "?" is a note)
+  if (partes.length < 2) return false;
+  const tec = partes.map(esTecnicoTexto);
+  return tec.some(Boolean) && tec.some((x) => !x);
+}
+const esPreguntaCliente = (q) => (!q.audiencia || q.audiencia === "cliente") && q.tipo !== "equipo";
+const preguntasCliente = (sow, ambito) => arr(sow && sow.preguntas_abiertas).filter((q) => esPreguntaCliente(q) && (!ambito || ambitoPregunta(q).ambito === ambito));
+// What the deck asks of the client's technical team WITHOUT technical questions: deliveries (dependencies tied to an integration or with
+// technical wording) and the documentation / QA environment each integration still lacks. [{ item, responsable, fecha }]
+function solicitudesTecnicas(sow) {
+  const out = []; const seen = new Set();
+  const push = (item, responsable, fecha) => { const k = normTxt(item); if (!seen.has(k)) { seen.add(k); out.push({ item, responsable: responsable || "", fecha: fecha || "" }); } };
+  arr(sow && sow.dependencias_cliente).forEach((d) => {
+    if (d.tipo === "uat") return;
+    if (d.integracion || d.tipo === "tecnica" || esTecnicoTexto(d.item || "")) push(d.item, d.responsable, d.fecha_limite);
+  });
+  arr(sow && sow.integraciones).forEach((it) => {
+    if (/jelou/i.test(`${it.expone || ""} ${it.sistema || ""}`) || it.conexion === "middleware_jelou") return; // Jelou builds it: nothing to ask the client's TI team
+    const falta = [normTxt(it.documentacion) !== "si" ? "documentación" : "", normTxt(it.ambiente_pruebas) !== "si" ? "ambiente de pruebas con credenciales" : ""].filter(Boolean);
+    if (!falta.length) return;
+    const nombre = it.nombre || it.id || "la integración";
+    const ya = out.some((o) => normTxt(o.item).includes(normTxt(nombre)) || (it.id && normTxt(o.item).includes(normTxt(it.id))));
+    if (!ya) push(`${falta.join(" y ").replace(/^./, (c) => c.toUpperCase())} de ${nombre}`, it.responsable_cliente, "");
+  });
+  return out;
+}
+
 const textoEstadoCronograma = (e) => [e.resumen, ...e.motivos.map((x) => `  • ${x.motivo} → Desbloquea: ${x.desbloquea}`), ...e.avisos.map((a) => `  · Aviso: ${a}`)].join("\n");
 
-module.exports = { laneTasks, laneDates, loadRates, TOPE_DIAS_DEFECTO, estadoCronograma, textoEstadoCronograma, isPrekickoff, milestoneKind, testMilestones, uatWindow, UAT_CLAUSE, UAT_CLAUSE_LEGAL, uatClauseWithDate, AMP_ESTADOS, ampliaciones, AMP_QUESTION, prekickoffThreshold, TOPE_HORAS_DEFECTO, topeHoras, normTxt, canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };
+module.exports = { AMBITOS, ambitoPregunta, preguntaMixta, esPreguntaCliente, preguntasCliente, solicitudesTecnicas, esTecnicoTexto, laneTasks, laneDates, loadRates, TOPE_DIAS_DEFECTO, estadoCronograma, textoEstadoCronograma, isPrekickoff, milestoneKind, testMilestones, uatWindow, UAT_CLAUSE, UAT_CLAUSE_LEGAL, uatClauseWithDate, AMP_ESTADOS, ampliaciones, AMP_QUESTION, prekickoffThreshold, TOPE_HORAS_DEFECTO, topeHoras, normTxt, canonType, FORM_TOOLS, FORM_TOOL_LABEL, formOf, formTool, mainPathCounts, describeCounts, dependencyPlan, dateOk, ESTADOS, estadoOf, isDraft, arr, PENDING_RE, hasPending, parseDate, fmtIso, fmtLong, fmtShort, makeCalendar, scheduleDates, totalBusinessDays, getAgents, nodeById, mainPath, botMessagesOnMainPath, loadRates, computeEffort };

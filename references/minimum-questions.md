@@ -4,6 +4,8 @@ Compare `sow.json` against this list. Whatever Sales material does not answer go
 
 Write the client-facing questions in Spanish, in business language, one per line, without Jelou technical terms. (They are shown here in English for the maintainers.)
 
+Give every client question an `ambito`: `negocio` (behaviour of the flow, rules, contents, operation: asked in the first meeting) or `tecnico` (APIs, credentials, environments, network, authentication, formats: the client's TI team answers them in the technical document). Do not mix both in one question. The **Integrations** and access items below are usually `tecnico`; most of the others are `negocio`.
+
 ## Operation
 - **On which channel(s) will the bot run** (WhatsApp, Instagram, Messenger, website widget, X, Teams, Slack, email, voice)? Is it the same flow on all of them? Who owns each account (Meta Business Manager, Facebook page, website)? Which features does the client expect that exist only on WhatsApp (forms, templates, lists, carousel, location)?
 - What hours does the bot serve and what hours do human agents work (per day, including Saturdays and Sundays)? Which holidays apply?
