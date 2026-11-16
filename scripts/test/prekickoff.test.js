@@ -7,6 +7,7 @@ const path = require('path');
 const assert = require('assert');
 const { spawnSync } = require('child_process');
 const JSZip = require('jszip');
+const CMP = { formato: 'completo' }; // the original 22-slide deck; the default deck (formato kickoff) has its own tests at the end
 
 const ROOT = path.join(__dirname, '..', '..');
 const S = path.join(ROOT, 'scripts');
@@ -63,7 +64,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
   await t('build_all --modo prekickoff builds the deck, both faltantes documents and the diagrams (no full SOW)', async () => {
     const dir = path.join(OUT, 'build'); fs.rmSync(dir, { recursive: true, force: true });
     const f = path.join(OUT, 'prek-build.json'); fs.writeFileSync(f, JSON.stringify(prek));
-    const r = node('build_all.js', [f, dir, '--modo', 'prekickoff']);
+    const r = node('build_all.js', [f, dir, '--modo', 'prekickoff', '--formato', 'completo']);
     assert.strictEqual(r.status, 0, r.stdout.slice(-400) + r.stderr);
     const files = fs.readdirSync(dir);
     ['prekickoff.pptx', 'faltantes-cliente.docx', 'faltantes-interno.docx', 'lint.txt'].forEach((s) => assert(files.some((x) => x.endsWith(s)), 'missing ' + s + ' in ' + files));
@@ -89,7 +90,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     assert(/<p:sldSz cx="12192000" cy="6858000"\/>/.test(pres) && /embeddedFontLst/.test(pres));
     assert(Object.keys(z.files).filter((x) => x.startsWith('ppt/fonts/')).length === 5);
     const { buildSlides, issues } = require('../build_kickoff_pptx');
-    issues.length = 0; buildSlides(prek);
+    issues.length = 0; buildSlides(prek, CMP);
     assert.deepStrictEqual(issues, [], 'layout notices: ' + issues.join('; '));
   });
   await t('roadmap: slide 2 of every pre-kickoff deck (fixture, minimal sow, pattern data), 4 numbered phases, agenda moves to slide 3', async () => {
@@ -97,7 +98,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     const txt = (s) => s.xml().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     for (const [label, sow] of [['fixture', prek], ['minimal', { meta: { cliente: 'X', proyecto: 'Y' } }], ['patterns', patternSow()]]) {
       issues.length = 0;
-      const sl = buildSlides(sow);
+      const sl = buildSlides(sow, CMP);
       assert.strictEqual(sl[1].name, 'Roadmap', label + ': slide 2 must be the roadmap, got ' + sl[1].name);
       assert.strictEqual(sl[0].name, 'Portada'); assert.strictEqual(sl[2].name, 'Agenda', label + ': agenda is slide 3');
       assert.strictEqual(sl.filter((s) => s.name === 'Roadmap').length, 1);
@@ -108,7 +109,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
       assert(/custGeom/.test(x) && /sysDot/.test(x), 'native free-form shapes and dotted frame');
       assert.deepStrictEqual(issues, [], label + ' notices: ' + issues.join('; '));
     }
-    assert.strictEqual(buildSlides(prek).length, 22, 'fixture deck: 21 -> 22 slides');
+    assert.strictEqual(buildSlides(prek, CMP).length, 22, 'fixture deck: 21 -> 22 slides');
     // the generated file has it as ppt/slides/slide2.xml
     const dir = path.join(OUT, 'build');
     const z = await JSZip.loadAsync(fs.readFileSync(path.join(dir, fs.readdirSync(dir).find((x) => x.endsWith('prekickoff.pptx')))));
@@ -125,21 +126,21 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
       { titulo: 'Validación', items: ['Pruebas internas', 'UAT del cliente'] },
       { titulo: 'Salida a producción', items: ['Go-live', 'Acompañamiento'] }] };
     issues.length = 0;
-    let x = buildSlides(s)[1].xml();
+    let x = buildSlides(s, CMP)[1].xml();
     ['Cómo trabajamos', 'Descubrimiento', 'Taller con el equipo', 'Integraciones', 'Go-live'].forEach((w) => assert(x.includes(w), 'override text ' + w));
     assert(!x.includes('Onboarding') && !/Roadmap/.test(x.replace(/name="[^"]*"/g, '')), 'defaults are replaced');
     assert.deepStrictEqual(issues, []);
     // a heavy list shrinks the font before anything is cut
     s.prekickoff.como_trabajamos.fases[0].items = ['Análisis del documento de alcance y los servicios', 'Diseño del flujo y la experiencia conversacional', 'Aprobación formal del SOW', 'Cronograma'];
-    issues.length = 0; x = buildSlides(s)[1].xml();
+    issues.length = 0; x = buildSlides(s, CMP)[1].xml();
     assert(/sz="(1100|1000|900)"/.test(x), 'font shrinks'); assert.deepStrictEqual(issues, []);
     // an absurd list is truncated with a layout notice and never grows the card
     s.prekickoff.como_trabajamos.fases[0].items = Array.from({ length: 8 }, (_, i) => 'Elemento larguísimo número ' + i + ' que no cabe de ninguna manera dentro de la tarjeta del roadmap');
-    issues.length = 0; x = buildSlides(s)[1].xml();
+    issues.length = 0; x = buildSlides(s, CMP)[1].xml();
     assert(issues.some((i) => /^Roadmap: phase 1/.test(i)), 'notice: ' + issues.join('; '));
     // wrong phase count never breaks the builder (falls back to the defaults); the linter reports it
     s.prekickoff.como_trabajamos.fases.pop(); issues.length = 0;
-    assert(buildSlides(s)[1].xml().includes('Onboarding'));
+    assert(buildSlides(s, CMP)[1].xml().includes('Onboarding'));
   });
   await t('lint: como_trabajamos with a number of phases other than 4 is an ERROR; a valid override passes', () => {
     const s = clone(prek);
@@ -170,14 +171,14 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     for (let i = 6; i < 31; i++) s.integraciones.push(Object.assign({}, s.integraciones[0], { id: 'INT-' + i, nombre: 'Integración de prueba ' + i }));
     const { buildSlides, issues } = require('../build_kickoff_pptx');
     issues.length = 0;
-    const base = buildSlides(prek).length, big = buildSlides(s).length;
+    const base = buildSlides(prek, CMP).length, big = buildSlides(s, CMP).length;
     assert(big > base + 10, `expected many continuation slides: ${base} -> ${big}`);
     assert.deepStrictEqual(issues, []);
   });
   await t('validation slides use the "Plan de Acción" rows (validacion-plan): at most 3 rows, number blocks 01-03, arrow bands, grey panels and the notes box on every slide', () => {
     const { buildSlides, issues } = require('../build_kickoff_pptx');
     issues.length = 0;
-    const val = buildSlides(prek).filter((s) => /^Validación /.test(s.name) && s.name !== 'Validación');
+    const val = buildSlides(prek, CMP).filter((s) => /^Validación /.test(s.name) && s.name !== 'Validación');
     assert(val.length >= 3, 'fixture has validation slides: ' + val.length);
     const cnt = (xml, name) => (xml.match(new RegExp('name="' + name + ' [0-9]"', 'g')) || []).length;
     val.forEach((s) => {
@@ -187,7 +188,9 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
       ['Panel', 'Banda', 'Número', 'Tema', 'Preguntas'].forEach((k) => assert.strictEqual(cnt(x, k), rows, `${s.name}: ${k}`));
       assert(/<a:t>01<\/a:t>/.test(x) || /<a:t>0\d<\/a:t>/.test(x), 'row number');
       assert(x.includes('Notas / respuesta del cliente'), `${s.name}: notes box missing`);
-      assert(x.includes('78909C') && x.includes('EEEEEE') && x.includes('5893A3') && x.includes('<a:buChar char="●"/>'), 'Plan de Acción colours and bullets');
+      const B = require('../../assets/kickoff-brand.json').colores;
+      assert(x.includes(B.plan_bloque) && x.includes(B.plan_panel) && x.includes(B.plan_bandas[1]) && x.includes('<a:buChar char="●"/>'), 'Plan de Acción colours (deck palette) and bullets');
+      assert(!/78909C|EEEEEE|5893A3/.test(x), 'no grey-blue colours of the reference deck');
       assert(!/prstGeom prst="roundRect"/.test(x), 'no old rounded question cards');
     });
     assert.deepStrictEqual(issues, []);
@@ -200,7 +203,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     for (let i = 0; i < 14; i++) s.preguntas_abiertas.push({ id: 'Q-L' + i, pregunta: 'Pregunta larga número ' + i + ' para comprobar que la lista de un solo tema se reduce y después continúa en otra fila sin desbordar el panel gris.', etapa: 'Solicitud', tema: 'Tema único', bloquea: false, audiencia: 'cliente' });
     const { buildSlides, issues } = require('../build_kickoff_pptx');
     issues.length = 0;
-    const val = buildSlides(s).filter((x) => /^Validación Solicitud/.test(x.name));
+    const val = buildSlides(s, CMP).filter((x) => /^Validación Solicitud/.test(x.name));
     assert(val.length >= 2, 'continuation slides: ' + val.length);
     val.forEach((x) => { const xml = x.xml(); assert(xml.includes('Notas / respuesta del cliente')); assert((xml.match(/name="Bloque \d"/g) || []).length <= 3); });
     assert(/Tema único \(cont\.\)/.test(val.map((x) => x.xml()).join('')), 'continuation row titled (cont.)');
@@ -238,7 +241,7 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     }));
     // rendered: every row of a slide carries the same font size
     const { buildSlides } = require('../build_kickoff_pptx');
-    buildSlides(prek).filter((x) => /^Validación /.test(x.name) && x.name !== 'Validación').forEach((x) => {
+    buildSlides(prek, CMP).filter((x) => /^Validación /.test(x.name) && x.name !== 'Validación').forEach((x) => {
       const sizes = new Set((x.xml().match(/name="Preguntas \d".*?<\/p:sp>/g) || []).map((b) => (b.match(/sz="(\d+)"/) || [])[1]));
       assert.strictEqual(sizes.size, 1, x.name + ' mixes sizes: ' + [...sizes]);
     });
@@ -248,13 +251,54 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     s.preguntas_abiertas = [{ id: 'Q-T1', pregunta: 'Pregunta de prueba.', etapa: 'Solicitud', tema: 'Un tema con un título larguísimo que no cabe en la banda de la fila de validación', bloquea: false, audiencia: 'cliente' }];
     const { buildSlides, issues } = require('../build_kickoff_pptx');
     issues.length = 0;
-    const all = buildSlides(s);
+    const all = buildSlides(s, CMP);
     assert(issues.some((i) => /topic title truncated/.test(i)), 'notice: ' + issues.join(' | '));
     assert(all.some((x) => x.name === 'Validación' && x.xml().includes('Validación etapa por etapa')), 'block divider present');
   });
+  await t('formato kickoff (default): cover/closing with the photo, contents 2, roadmap 3, route without times, kickoff context, rows for assumptions and leveled risks, fewer slides', () => {
+    const { buildSlides, issues } = require('../build_kickoff_pptx');
+    const txt = (sl) => sl.xml().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const s = clone(prek);
+    s.prekickoff.contexto = Object.assign({}, s.prekickoff.contexto, { brief: ['Brief corto del proyecto.'], objetivos: ['Objetivo uno.', 'Objetivo dos.'], roles: ['Ciudadano: inicia la conversación.', 'Jelou: canal y orquestador.'] });
+    s.alcance.supuestos = s.alcance.supuestos.map((a, i) => Object.assign({}, a, { tema: i % 2 ? 'Flujos esperados' : 'Servicios e integraciones' }));
+    s.riesgos = s.riesgos.map((r, i) => Object.assign({}, r, { impacto: i ? 'Medio' : 'Alto' }));
+    issues.length = 0;
+    const sl = buildSlides(s);
+    assert.deepStrictEqual(issues, [], 'notices: ' + issues.join('; '));
+    assert.deepStrictEqual(sl.slice(0, 5).map((x) => x.name), ['Portada', 'Contenido', 'Roadmap', 'Cronograma', 'Contexto']);
+    assert.strictEqual(sl[sl.length - 1].name, 'Cierre');
+    assert(sl.length < buildSlides(s, CMP).length, 'kickoff deck is shorter than the full one');
+    [sl[0], sl[sl.length - 1]].forEach((x) => assert(x.images.includes('portada-persona.jpg'), x.name + ': photo'));
+    assert(/PRE-KICKOFF/.test(txt(sl[0])) && /¿Tienes dudas\?/.test(txt(sl[sl.length - 1])) && /¡Conversemos!/.test(txt(sl[sl.length - 1])));
+    const ruta = txt(sl[3]);
+    assert(!/d[ií]as? h[aá]bil|\b20\d\d-\d\d-\d\d\b/i.test(ruta.replace('los días hábiles y las fechas', '')), 'route has no times: ' + ruta);
+    assert(/Tiempos por definir/.test(ruta) && /Construcción/.test(ruta));
+    const ctx = txt(sl[4]);
+    assert(/Brief/.test(ctx) && /Objetivos identificados/.test(ctx) && /Roles identificados/.test(ctx));
+    assert(!sl.some((x) => /\bHOY\b/.test(txt(x)) && /CON JELOU/.test(txt(x))), 'no HOY vs CON JELOU');
+    ['Agenda', 'Equipo', 'Componentes', 'Actores', 'Flujo E2E', 'Detalle técnico', 'Integraciones', 'Pendientes', 'Próximos pasos', 'Validación'].forEach((n) => assert(!sl.some((x) => x.name === n), 'not in kickoff: ' + n));
+    const sup = sl.filter((x) => /^Supuestos/.test(x.name));
+    assert(sup.length >= 1 && sup.every((x) => /<a:tbl>/.test(x.xml()) && !/name="Banda 1"/.test(x.xml())), 'assumptions keep the table design (no arrow rows)');
+    const rks = sl.filter((x) => /^Riesgos/.test(x.name));
+    assert(rks.length >= 1 && rks.every((x) => /name="Riesgo"/.test(x.xml()) && !/name="Banda 1"/.test(x.xml())), 'risks keep the card design (no arrow rows)');
+    const rk = rks.map(txt).join(' ');
+    assert(/\bALTO\b/.test(rk) && /\bMEDIO\b/.test(rk) && /name="Nivel"/.test(rks[0].xml()), 'level pill on the risk cards');
+    // validation grouped: one row per stage, short stages share a slide, every slide <= 3 rows with the notes box
+    const val = sl.filter((x) => /^Validación /.test(x.name));
+    const stages = new Set(s.preguntas_abiertas.filter((q) => (!q.audiencia || q.audiencia === 'cliente') && q.tipo !== 'equipo').map((q) => q.etapa)).size;
+    assert(val.length >= 1 && val.length <= stages, `grouped validation: ${val.length} slides for ${stages} stages`);
+    val.forEach((x) => { const n = (x.xml().match(/name="Bloque \d"/g) || []).length; assert(n >= 1 && n <= 3, x.name + ': rows ' + n); assert(/Notas \/ respuesta del cliente/.test(x.xml()) && /ETAPA/.test(txt(x))); });
+    // the arrow rows appear ONLY on validation slides
+    sl.filter((x) => !/^Validación /.test(x.name)).forEach((x) => assert(!/name="Banda 1"/.test(x.xml()) || x.name === 'Roadmap', x.name + ': arrow rows outside validation'));
+    // brand colours everywhere: no grey-blue from the reference deck, roadmap without the light green
+    sl.forEach((x) => assert(!/78909C|5893A3|6691A1|94E3A7/.test(x.xml()), x.name + ': off-palette colour'));
+    // a long context is reduced with notices, never overflows
+    issues.length = 0; buildSlides(prek);
+    assert(issues.every((i) => /^Contexto:/.test(i)), 'only context notices: ' + issues.join('; '));
+  });
   await t('patterns: --patrones data produces a validacion-plan slide with 3 rows; brand tokens exist', () => {
     const { buildSlides, patternSow } = require('../build_kickoff_pptx');
-    const v = buildSlides(patternSow()).filter((x) => /^Validación Etapa uno/.test(x.name));
+    const v = buildSlides(patternSow(), CMP).filter((x) => /^Validación Etapa uno/.test(x.name));
     assert.strictEqual(v.length, 1);
     assert.strictEqual((v[0].xml().match(/name="Bloque \d"/g) || []).length, 3);
     const B = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'kickoff-brand.json'), 'utf8'));

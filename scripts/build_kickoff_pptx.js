@@ -3,7 +3,7 @@
 // generated slides into assets/kickoff-template.pptx (theme, master, layouts, embedded Poppins, logos, icons decompiled from the
 // Jelou kickoff deck). Slide patterns and tokens: assets/kickoff-brand.json, references/prekickoff.md.
 //
-// Usage: node build_kickoff_pptx.js sow.json out.pptx [--diagramas dir]
+// Usage: node build_kickoff_pptx.js sow.json out.pptx [--diagramas dir] [--formato kickoff|completo]   (default kickoff; prekickoff.formato in sow.json too)
 //        node build_kickoff_pptx.js --patrones assets/kickoff-template.pptx     (re-creates the placeholder pattern slides, incl. validacion-plan)
 //
 // Long lists never overflow: every card/table is measured with the Poppins metrics and split into continuation slides.
@@ -131,7 +131,7 @@ function roadmap(pk) {
   // dotted frame (reference: 616 x 185 pt on 720 x 405 -> 822 x 246)
   const fw = 616.3 * 4 / 3, fh = 184.5 * 4 / 3;
   s.shape(480 - fw / 2, 169 - 1.8, fw, fh, { adj: 7668, fill: COL.blanco, line: COL.roadmap_marco, lineW: 1, dash: 'sysDot', name: 'Marco punteado' });
-  const colors = [COL.turquesa, COL.roadmap_verde, COL.roadmap_petroleo, COL.roadmap_celeste];
+  const colors = arr(COL.roadmap_fases).length === 4 ? COL.roadmap_fases : [COL.turquesa, COL.roadmap_verde, COL.roadmap_petroleo, COL.roadmap_celeste];
   const W = 150;
   fases.forEach((f, k) => {
     const A = k % 2 === 0, g = A ? RM.A : RM.B, x0 = RM.x0[k], xr = x0 + RM.w, t = RM.band, col = colors[k];
@@ -438,7 +438,7 @@ function layoutPlan(temas, textW, avail, gap) {
   const zmin = P.SIZES[P.SIZES.length - 1];
   // 1) pieces per topic
   const rows = [];
-  temas.forEach(([tema, items], ti) => {
+  temas.forEach(([tema, items, meta], ti) => {
     const n = items.length, kmin = Math.ceil(n / P.MAXQ), kmax = Math.max(kmin, n >= 2 ? Math.floor(n / 2) : 1);
     let parts = [items];
     for (let k = kmin; k <= kmax; k++) {
@@ -448,7 +448,7 @@ function layoutPlan(temas, textW, avail, gap) {
     }
     parts.forEach((pt, k) => {
       if (pt.length === 1 && raw(pt, zmin) > P.MAXROW) warnings.push(`a question of "${trunc(tema, 30)}" is too long for the row`);
-      rows.push({ n: ti + 1, tema: tema + (k ? ' (cont.)' : ''), items: pt });
+      rows.push({ n: ti + 1, tema: tema + (k ? ' (cont.)' : ''), items: pt, meta });
     });
   });
   // 2) even grouping on the fewest slides that fit
@@ -480,53 +480,63 @@ function layoutPlan(temas, textW, avail, gap) {
     return { size, total: T, rows: g.map((r, i) => Object.assign({}, r, { h: needs[i] + extra })) };
   }) };
 }
-function validationSlides(sow, pk) {
+// Generic "Plan de Acción" slides: groups = [[tema, items, meta?]]; one row per tema (number block, arrow band, panel with bullets).
+// o: { name, eyebrow(p) , title, notes: label | null, block: (row) => small label under the number (e.g. "RIESGO ALTO") }
+function planSlides(groups, o) {
   const out = [];
   const PA = BRAND.plan_accion, PS = PA.tamanos_pt, W = M.ancho_util, X0 = M.izq, GAP = PA.linea_blanca_pt;
-  const stages = questionStages(sow, pk);
   const bx = X0 + PA.texto_panel * W, bw = X0 + W - 14 - bx;           // bullets box (marL 14 pt: measured as bw - 14 + 11)
   const textW = bw - 14 + 11;
-  stages.forEach((st, si) => {
-    const cfgStage = arr((pk.etapas || {}).items).find((e) => normQ(e.nombre) === normQ(st.nombre)) || {};
-    const title = cfgStage.titulo_validacion || st.nombre;
-    // header: centred eyebrow + centred title (28 -> 24 pt, at most 2 lines), measured once per stage
-    let tsize = 28, tl = lineCount(plain(title), W, tsize, 'titulos');
-    if (tl > 1) { tsize = 24; tl = lineCount(plain(title), W, tsize, 'titulos'); }
-    let ttl = title;
-    if (tl > 2) { ttl = trunc(plain(title), 90); tl = 2; warn(`Validación ${st.nombre}`, 'title truncated'); }
-    const th = tl * tsize * LH, y0 = 72 + th + 10;
-    const lay = layoutPlan([...st.temas.entries()], textW, 428 - y0, GAP);
-    lay.warnings.forEach((w) => warn(`Validación ${st.nombre}`, w));
-    lay.slides.forEach((sl, p) => {
-      const sname = `Validación ${st.nombre}${p ? ' (cont.)' : ''}`;
-      const s = new Slide(COL.fondo, sname);
-      s.pic('logo-turquesa.png', 834, 32, 72, 72 * BRAND.logo.relacion, 'Jelou');
-      s.text(X0, 56, W, 16, [{ runs: runs(`ETAPA ${si + 1} · VALIDACIÓN${p ? ' (CONT.)' : ''}`, { size: 11, font: 'titulos', color: COL.turquesa, spc: 200 }), align: 'ctr' }], { name: 'Eyebrow' });
-      s.text(X0, 72, W, th, [{ runs: runs(ttl, { size: tsize, font: 'titulos', color: COL.plan_titulo }), align: 'ctr' }], { name: 'Título' });
-      const nw = PA.numero * W, xs = X0 + PA.hombro * W, xt = X0 + PA.punta * W;
-      let y = y0;
-      sl.rows.forEach((r, i) => {
-        const rh = r.h, band = COL.plan_bandas[i % COL.plan_bandas.length];
-        s.shape(X0 + PA.panel_desde * W, y, X0 + W - (X0 + PA.panel_desde * W), rh, { fill: COL.plan_panel, name: `Panel ${i + 1}` });
-        s.freeform([['M', X0 + nw, y], ['L', xs, y], ['L', xt, y + rh / 2], ['L', xs, y + rh], ['L', X0 + nw, y + rh], ['Z']], { fill: band, name: `Banda ${i + 1}` });
-        s.shape(X0, y, nw, rh, { fill: COL.plan_bloque, shadow: { blur: PA.sombra.blur_pt, dist: PA.sombra.dist_pt, alpha: PA.sombra.alpha }, name: `Bloque ${i + 1}` });
-        s.text(X0, y, nw, rh, [{ runs: runs(String(r.n).padStart(2, '0'), { size: PS.numero, font: 'ligera', color: COL.blanco }), align: 'ctr' }], { anchor: 'ctr', name: `Número ${i + 1}` });
-        // topic title inside the band (16 -> 14 pt, 2 lines, then truncated at 36 characters with a notice)
-        const bxw = (PA.texto_banda[1] - PA.texto_banda[0]) * W;
-        let zs = PS.tema, zl = lineCount(plain(r.tema), bxw, zs, 'titulos');
-        if (zl > 2) { zs = 14; zl = lineCount(plain(r.tema), bxw, zs, 'titulos'); }
-        let tema = r.tema;
-        if (zl > 2) { tema = trunc(plain(r.tema), 36); warn(sname, `topic title truncated: ${tema}`); }
-        s.text(X0 + PA.texto_banda[0] * W, y + 6, bxw, rh - 12, [{ runs: runs(tema, { size: zs, font: 'titulos', color: COL.blanco }) }], { anchor: 'ctr', name: `Tema ${i + 1}` });
-        s.text(bx, y + 5, bw, rh - 10, paragraphs(r.items, { size: sl.size, color: COL.plan_texto, after: PLAN.AFTER }).map((q) => Object.assign(q, { bullet: 14, buChar: '●', buColor: COL.plan_texto, buSz: 60 })), { anchor: 'ctr', name: `Preguntas ${i + 1}` });
-        y += rh + GAP;
-      });
-      const ry = y - GAP, ny = ry + 10, nh = 500 - ny;
-      s.shape(X0, ny, W, nh, { fill: COL.menta, name: 'Notas' });
-      s.shape(X0, ny, 4, nh, { fill: COL.plan_bandas[1], name: 'Notas marca' });
-      s.text(X0 + 20, ny + 9, W - 40, nh - 18, [{ runs: runs('Notas / respuesta del cliente:', { size: 11, font: 'medio', color: COL.petroleo }) }], { name: 'Notas' });
-      out.push(s);
+  // header: centred eyebrow + centred title (28 -> 24 pt, at most 2 lines), measured once
+  let tsize = 28, tl = lineCount(plain(o.title), W, tsize, 'titulos');
+  if (tl > 1) { tsize = 24; tl = lineCount(plain(o.title), W, tsize, 'titulos'); }
+  let ttl = o.title;
+  if (tl > 2) { ttl = trunc(plain(o.title), 90); tl = 2; warn(o.name, 'title truncated'); }
+  const th = tl * tsize * LH, y0 = 72 + th + 10;
+  const lay = layoutPlan(groups, textW, (o.notes ? 428 : 500) - y0, GAP);
+  lay.warnings.forEach((w) => warn(o.name, w));
+  lay.slides.forEach((sl, p) => {
+    const sname = `${o.name}${p ? ' (cont.)' : ''}`;
+    const s = new Slide(COL.fondo, sname);
+    s.pic('logo-turquesa.png', 834, 32, 72, 72 * BRAND.logo.relacion, 'Jelou');
+    s.text(X0, 56, W, 16, [{ runs: runs(`${o.eyebrow}${p ? ' (CONT.)' : ''}`.toUpperCase(), { size: 11, font: 'titulos', color: COL.turquesa, spc: 200 }), align: 'ctr' }], { name: 'Eyebrow' });
+    s.text(X0, 72, W, th, [{ runs: runs(ttl, { size: tsize, font: 'titulos', color: COL.plan_titulo }), align: 'ctr' }], { name: 'Título' });
+    const nw = PA.numero * W, xs = X0 + PA.hombro * W, xt = X0 + PA.punta * W;
+    let y = y0;
+    sl.rows.forEach((r, i) => {
+      const rh = r.h, band = COL.plan_bandas[i % COL.plan_bandas.length];
+      s.shape(X0 + PA.panel_desde * W, y, X0 + W - (X0 + PA.panel_desde * W), rh, { fill: COL.plan_panel, name: `Panel ${i + 1}` });
+      s.freeform([['M', X0 + nw, y], ['L', xs, y], ['L', xt, y + rh / 2], ['L', xs, y + rh], ['L', X0 + nw, y + rh], ['Z']], { fill: band, name: `Banda ${i + 1}` });
+      s.shape(X0, y, nw, rh, { fill: COL.plan_bloque, shadow: { blur: PA.sombra.blur_pt, dist: PA.sombra.dist_pt, alpha: PA.sombra.alpha }, name: `Bloque ${i + 1}` });
+      const lab = o.block ? o.block(r) : '';
+      const num = [{ runs: runs(String(r.n).padStart(2, '0'), { size: lab ? 26 : PS.numero, font: 'ligera', color: COL.blanco }), align: 'ctr' }];
+      if (lab) num.push({ runs: runs(lab, { size: 9, font: 'titulos', color: COL.blanco, spc: 50 }), align: 'ctr' });
+      s.text(X0, y, nw, rh, num, { anchor: 'ctr', name: `Número ${i + 1}` });
+      // topic title inside the band (16 -> 14 pt, 2 lines, then truncated at 36 characters with a notice)
+      const bxw = (PA.texto_banda[1] - PA.texto_banda[0]) * W;
+      let zs = PS.tema, zl = lineCount(plain(r.tema), bxw, zs, 'titulos');
+      if (zl > 2) { zs = 14; zl = lineCount(plain(r.tema), bxw, zs, 'titulos'); }
+      let tema = r.tema;
+      if (zl > 2) { tema = trunc(plain(r.tema), 36); warn(sname, `topic title truncated: ${tema}`); }
+      s.text(X0 + PA.texto_banda[0] * W, y + 6, bxw, rh - 12, [{ runs: runs(tema, { size: zs, font: 'titulos', color: COL.blanco }) }], { anchor: 'ctr', name: `Tema ${i + 1}` });
+      s.text(bx, y + 5, bw, rh - 10, paragraphs(r.items, { size: sl.size, color: COL.plan_texto, after: PLAN.AFTER }).map((q) => Object.assign(q, { bullet: 14, buChar: '●', buColor: COL.plan_bandas[1], buSz: 60 })), { anchor: 'ctr', name: `Preguntas ${i + 1}` });
+      y += rh + GAP;
     });
+    if (o.notes) {
+      const ry = y - GAP, ny = ry + 10, nh = 500 - ny;
+      s.shape(X0, ny, W, nh, { fill: COL.blanco, line: COL.plan_notas_borde || COL.borde_tarjeta, lineW: 0.75, name: 'Notas' });
+      s.shape(X0, ny, 4, nh, { fill: COL.turquesa, name: 'Notas marca' });
+      s.text(X0 + 20, ny + 9, W - 40, nh - 18, [{ runs: runs(o.notes, { size: 11, font: 'medio', color: COL.petroleo }) }], { name: 'Notas' });
+    }
+    out.push(s);
+  });
+  return out;
+}
+function validationSlides(sow, pk) {
+  const out = [];
+  questionStages(sow, pk).forEach((st, si) => {
+    const cfgStage = arr((pk.etapas || {}).items).find((e) => normQ(e.nombre) === normQ(st.nombre)) || {};
+    out.push(...planSlides([...st.temas.entries()], { name: `Validación ${st.nombre}`, eyebrow: `Etapa ${si + 1} · Validación`, title: cfgStage.titulo_validacion || st.nombre, notes: 'Notas / respuesta del cliente:' }));
   });
   return out;
 }
@@ -573,6 +583,8 @@ function riskSlides(sow) {
       const x = 54 + (i % 2) * 437, y = Math.max(y0, 169) + Math.floor(i / 2) * 118;
       s.shape(x, y, 415, 96, { adj: radius(415, 96), fill: COL.fondo_alerta, name: 'Riesgo' });
       s.pic(ICON('alert'), x + 18, y + 16, 22, 22, 'alerta');
+      const lvl = riskLevel(r); // optional level pill under the icon (nivel | impacto | probabilidad)
+      if (lvl) s.shape(x + 6, y + 46, 38, 14, { adj: 50000, fill: /ALTO|CRÍTICO/.test(lvl) ? COL.naranja : /MEDIO/.test(lvl) ? COL.turquesa : COL.celeste, paras: [{ runs: runs(lvl, { size: 7, font: 'titulos', color: COL.blanco }), align: 'ctr' }], name: 'Nivel' });
       const m = /^(.+?[.:])\s+(.*)$/.exec(String(r.riesgo || ''));
       const lead = m ? m[1] : String(r.riesgo || ''), rest = [m ? m[2] : '', r.mitigacion ? `Mitigación: ${r.mitigacion}` : ''].filter(Boolean).join(' ');
       let size = 12; const w = 347;
@@ -637,6 +649,253 @@ function closing(pk) {
   return [s];
 }
 
+// Validation grouped by stage (formato kickoff): ONE row per stage (number block, arrow band with the stage name, panel with its
+// questions under small topic headings); stages are packed on the same slide while they fit (at most 3 rows), so short stages share a
+// slide. A stage longer than a slide continues in "(cont.)" rows. One question size per slide (12 -> 11 -> 10.5 -> 10 pt).
+const VPACK = { PER: 3, SIZES: [12, 11, 10.5, 10], MINROW: 70, PADV: 12, AFTER: 2, HEAD_AFTER: 1, NOTES_TOP: 452 };
+function validationGrouped(sow, pk) {
+  const PA = BRAND.plan_accion, PS = PA.tamanos_pt, W = M.ancho_util, X0 = M.izq, GAP = PA.linea_blanca_pt;
+  const bx = X0 + PA.texto_panel * W, bw = X0 + W - 14 - bx, textW = bw - 14 + 11;
+  const zmin = VPACK.SIZES[VPACK.SIZES.length - 1];
+  const stages = questionStages(sow, pk);
+  if (!stages.length) return [];
+  const title = pk.validacion_titulo || 'Validación etapa por etapa';
+  const th = lineCount(plain(title), W, 28, 'titulos') * 28 * LH, y0 = 72 + th + 10, avail = VPACK.NOTES_TOP - 10 - y0;
+  // height of a chunk [{tema, qs}] at size z
+  const hChunk = (ch, z) => VPACK.PADV + ch.reduce((a, g) => a + lineCount(plain(g.tema), textW, z - 1, 'titulos') * (z - 1) * LH + VPACK.HEAD_AFTER
+    + g.qs.reduce((b, q) => b + lineCount(plain(q), textW - 11, z, 'texto') * z * LH + VPACK.AFTER, 0), 0);
+  const need = (ch, z) => Math.max(VPACK.MINROW, hChunk(ch, z));
+  // 1) rows: one per stage, split into (cont.) rows only when a stage does not fit a whole slide
+  const rows = [];
+  stages.forEach((st, si) => {
+    const cfg = arr((pk.etapas || {}).items).find((e) => normQ(e.nombre) === normQ(st.nombre)) || {};
+    const name = cfg.titulo_validacion || st.nombre;
+    let cur = [], k = 0;
+    const flush = () => { if (cur.length) { rows.push({ si, name: name + (k ? ' (cont.)' : ''), chunk: cur }); k++; cur = []; } };
+    for (const [tema, qs] of st.temas.entries()) {
+      for (const q of qs) {
+        const trial = cur.map((g) => ({ tema: g.tema, qs: g.qs.slice() }));
+        const last = trial[trial.length - 1];
+        if (last && last.tema === tema) last.qs.push(q); else trial.push({ tema, qs: [q] });
+        if (cur.length && hChunk(trial, zmin) > avail) { flush(); cur = [{ tema, qs: [q] }]; } else cur = trial;
+      }
+    }
+    flush();
+  });
+  // 2) pack consecutive rows on slides while they fit (never more than PER rows)
+  const slides = []; let page = [];
+  const total = (g, z) => g.reduce((a, r) => a + need(r.chunk, z), 0) + (g.length - 1) * GAP;
+  rows.forEach((r) => { if (page.length && (page.length >= VPACK.PER || total(page.concat(r), zmin) > avail)) { slides.push(page); page = []; } page.push(r); });
+  if (page.length) slides.push(page);
+  // 3) draw
+  return slides.map((g) => {
+    const size = VPACK.SIZES.find((z) => total(g, z) <= avail) || zmin;
+    const needs = g.map((r) => need(r.chunk, size)), sum = needs.reduce((a, b) => a + b, 0);
+    const extra = Math.max(0, Math.min(avail - sum - (g.length - 1) * GAP, g.length * 40)) / g.length;
+    const nums = [...new Set(g.map((r) => r.si + 1))];
+    const eyebrow = nums.length > 1 ? `Etapas ${nums[0]}–${nums[nums.length - 1]} · Validación` : `Etapa ${nums[0]} · Validación`;
+    const s = new Slide(COL.fondo, `Validación ${g.map((r) => r.name).join(' + ')}`);
+    s.pic('logo-turquesa.png', 834, 32, 72, 72 * BRAND.logo.relacion, 'Jelou');
+    s.text(X0, 56, W, 16, [{ runs: runs(eyebrow.toUpperCase(), { size: 11, font: 'titulos', color: COL.turquesa, spc: 200 }), align: 'ctr' }], { name: 'Eyebrow' });
+    s.text(X0, 72, W, th, [{ runs: runs(title, { size: 28, font: 'titulos', color: COL.plan_titulo }), align: 'ctr' }], { name: 'Título' });
+    const nw = PA.numero * W, xs = X0 + PA.hombro * W, xt = X0 + PA.punta * W, bxw = (PA.texto_banda[1] - PA.texto_banda[0]) * W;
+    let y = y0;
+    g.forEach((r, i) => {
+      const rh = needs[i] + extra, band = COL.plan_bandas[i % COL.plan_bandas.length];
+      s.shape(X0 + PA.panel_desde * W, y, X0 + W - (X0 + PA.panel_desde * W), rh, { fill: COL.plan_panel, name: `Panel ${i + 1}` });
+      s.freeform([['M', X0 + nw, y], ['L', xs, y], ['L', xt, y + rh / 2], ['L', xs, y + rh], ['L', X0 + nw, y + rh], ['Z']], { fill: band, name: `Banda ${i + 1}` });
+      s.shape(X0, y, nw, rh, { fill: COL.plan_bloque, shadow: { blur: PA.sombra.blur_pt, dist: PA.sombra.dist_pt, alpha: PA.sombra.alpha }, name: `Bloque ${i + 1}` });
+      s.text(X0, y, nw, rh, [{ runs: runs(String(r.si + 1).padStart(2, '0'), { size: PS.numero, font: 'ligera', color: COL.blanco }), align: 'ctr' }, { runs: runs('ETAPA', { size: 9, font: 'titulos', color: COL.blanco, spc: 100 }), align: 'ctr' }], { anchor: 'ctr', name: `Número ${i + 1}` });
+      let zs = PS.tema, zl = lineCount(plain(r.name), bxw, zs, 'titulos');
+      if (zl > 2) { zs = 14; zl = lineCount(plain(r.name), bxw, zs, 'titulos'); }
+      let nm = r.name;
+      if (zl > 2) { nm = trunc(plain(r.name), 36); warn(s.name, `stage name truncated: ${nm}`); }
+      s.text(X0 + PA.texto_banda[0] * W, y + 6, bxw, rh - 12, [{ runs: runs(nm, { size: zs, font: 'titulos', color: COL.blanco }) }], { anchor: 'ctr', name: `Tema ${i + 1}` });
+      const paras = [];
+      r.chunk.forEach((grp) => {
+        paras.push({ runs: runs(grp.tema, { size: size - 1, font: 'titulos', color: COL.petroleo }), after: VPACK.HEAD_AFTER });
+        grp.qs.forEach((q) => paras.push({ runs: runs(q, { size, color: COL.plan_texto }), bullet: 14, buChar: '●', buColor: COL.plan_bandas[1], buSz: 60, after: VPACK.AFTER }));
+      });
+      s.text(bx, y + 6, bw, rh - 12, paras, { anchor: 'ctr', name: `Preguntas ${i + 1}` });
+      if (hChunk(r.chunk, size) > rh + 0.5) warn(s.name, `stage "${trunc(r.name, 30)}" overflows its row`);
+      y += rh + GAP;
+    });
+    const ny = y - GAP + 10, nh = 500 - ny;
+    s.shape(X0, ny, W, nh, { fill: COL.blanco, line: COL.plan_notas_borde || COL.borde_tarjeta, lineW: 0.75, name: 'Notas' });
+    s.shape(X0, ny, 4, nh, { fill: COL.turquesa, name: 'Notas marca' });
+    s.text(X0 + 20, ny + 8, W - 40, nh - 14, [{ runs: runs('Notas / respuesta del cliente:', { size: 11, font: 'medio', color: COL.petroleo }) }], { name: 'Notas' });
+    return s;
+  });
+}
+
+// ---------- formato "kickoff" (default): closer to the Jelou kickoff deck ----------
+// Cover and closing with the person photo (assets: portada-persona.jpg in the template), "Contenido" index, roadmap (always slide 2),
+// project route without times, context in three arrow boxes (brief / objectives / roles), scope by flows, assumptions and risks as
+// "Plan de Acción" rows (risks carry their level), validation by stage, "¿Tienes dudas?" closing.
+const PHOTO = { file: 'portada-persona.jpg', x: 374, w: 586, h: 540 }; // photo cropped like the reference cover (39 % dark panel on the left)
+function photoSlide(name, draw) {
+  const s = new Slide(COL.tinta, name);
+  // two faint circles on the dark panel, as in the reference background (drawn first: the photo covers whatever passes its edge)
+  s.shape(-120, -150, 300, 300, { geom: 'ellipse', fill: '1B2333', name: 'Círculo fondo' });
+  s.shape(40, 330, 300, 300, { geom: 'ellipse', fill: '1B2333', name: 'Círculo fondo' });
+  s.pic(PHOTO.file, PHOTO.x, 0, PHOTO.w, PHOTO.h, 'Persona saludando con un teléfono');
+  s.pic('logo-blanco.png', 54, 40, 96, 96 * BRAND.logo.relacion, 'Jelou');
+  draw(s, 54, 290); // text column: x, width
+  return s;
+}
+function coverKickoff(sow, pk) {
+  const m = sow.meta || {};
+  return [photoSlide('Portada', (s, x, w) => {
+    const name = String(pk.portada_cliente || m.cliente || 'Cliente').toUpperCase();
+    let size = 32, lines = lineCount(name, w, size, 'titulos');
+    while (lines > 3 && size > 22) { size -= 2; lines = lineCount(name, w, size, 'titulos'); }
+    const th = lines * size * LH, y = 300 - th;
+    s.text(x, y, w, th, [{ runs: runs(name, { size, font: 'titulos', color: COL.blanco }) }], { anchor: 'b', name: 'Cliente' });
+    s.text(x, 312, w, 22, [{ runs: runs(pk.portada_etiqueta || 'PRE-KICKOFF', { size: 16, font: 'medio', color: COL.turquesa, spc: 100 }) }], { name: 'Etiqueta' });
+    const sub = pk.subtitulo_corto || m.proyecto || '';
+    if (sub) s.text(x, 342, w, 60, [{ runs: runs(trunc(sub, 90), { size: 12, color: COL.menta }) }], { name: 'Proyecto' });
+    s.text(x, 486, w, 18, [{ runs: runs(`Fecha: ${pk.fecha_sesion || '______'}`, { size: 11, color: COL.celeste }) }], { name: 'Fecha' });
+  })];
+}
+function closingKickoff(pk) {
+  return [photoSlide('Cierre', (s, x, w) => {
+    const t = pk.cierre_titulo || '¿Tienes dudas?';
+    const size = lineCount(t, w, 34, 'titulos') > 2 ? 28 : 34, lines = lineCount(t, w, size, 'titulos'), th = lines * size * LH;
+    s.text(x, 300 - th, w, th, [{ runs: runs(t, { size, font: 'titulos', color: COL.blanco }) }], { anchor: 'b', name: 'Título' });
+    s.text(x, 314, w, 26, [{ runs: runs(pk.cierre_texto || '¡Conversemos!', { size: 18, font: 'medio', color: COL.turquesa }) }], { name: 'Texto' });
+    s.text(x, 486, w, 18, [{ runs: runs(pk.lema || 'jelou.ai', { size: 11, color: COL.celeste }) }], { name: 'Marca' });
+  })];
+}
+function contenidoSlide(items) {
+  const { s, y0 } = newContent('Contenido', 'Agenda', 'Contenido');
+  const top = Math.max(y0, 169) - 6, rh = Math.min(44, (500 - top) / items.length);
+  items.forEach((it, i) => {
+    const y = top + i * rh;
+    if (i) s.line(54, y, 906, y, { color: COL.linea_gris, w: 0.75 });
+    s.text(54, y, 40, rh, [{ runs: runs(String(i + 1).padStart(2, '0'), { size: 16, font: 'ligera', color: COL.turquesa }) }], { anchor: 'ctr', name: 'Número' });
+    s.text(104, y, 300, rh, [{ runs: runs(it.titulo, { size: 14, font: 'titulos', color: COL.tinta }) }], { anchor: 'ctr', name: 'Sección' });
+    s.text(410, y, 496, rh, [{ runs: runs(it.texto || '', { size: 12, color: COL.texto }) }], { anchor: 'ctr', name: 'Descripción' });
+  });
+  return [s];
+}
+// project route from cronograma.hitos WITHOUT days or dates (they are confirmed with the signed SOW)
+function cronogramaRuta(sow, pk) {
+  const hs0 = arr((sow.cronograma || {}).hitos);
+  const def = [
+    { nombre: 'Planificación y definiciones', descripcion: 'Cerrar supuestos y emitir el SOW para firma.', responsable: 'Jelou + cliente' },
+    { nombre: 'Construcción', descripcion: 'Flujos, integraciones y componentes del alcance.', responsable: 'Jelou' },
+    { nombre: 'Pruebas internas', descripcion: 'Test plan a partir de los criterios de aceptación.', responsable: 'Jelou' },
+    { nombre: 'UAT del cliente', descripcion: 'El cliente prueba en el ambiente acordado.', responsable: 'Cliente' },
+    { nombre: 'Producción y estabilización', descripcion: 'Primeros usuarios y acta de cierre.', responsable: 'Jelou + cliente' },
+  ];
+  const noTime = (t) => String(t || '').replace(/\s*[·(-]?\s*\d+(?:[.,]\d+)?\s*(?:d[ií]as?(?:\s+h[aá]biles?)?|h(?:oras)?)\b\)?/gi, '').replace(/\s{2,}/g, ' ').trim();
+  const hs = (hs0.length ? hs0 : def).map((h) => {
+    const k = C.milestoneKind(h);
+    return { nombre: noTime(h.nombre), descripcion: noTime(h.descripcion || ''), entregable: noTime(h.entregable || ''), who: h.responsable || (k === 'uat' ? 'Cliente' : 'Jelou') };
+  });
+  const out = [], PER = 6, cols = COL.cronograma_fases || [COL.turquesa, COL.petroleo];
+  for (let p = 0; p * PER < hs.length; p++) {
+    const page = hs.slice(p * PER, p * PER + PER), n = page.length;
+    const { s, y0 } = newContent('Cronograma', 'Cronograma', (pk.cronograma_titulo || 'La ruta del proyecto') + (p ? ' (cont.)' : ''), 'Los tiempos se definen al firmar el SOW: aquí solo el orden de las etapas y quién las lleva.');
+    const gap = 4, d = 16, cw = (852 - gap * (n - 1)) / n, y = Math.max(y0, 203), h = 62;
+    page.forEach((hh, i) => {
+      const x = 54 + i * (cw + gap), col = cols[Math.round(i * (cols.length - 1) / Math.max(1, n - 1))], first = i === 0 && p === 0;
+      const c = [['M', x, y], ['L', x + cw - d, y], ['L', x + cw, y + h / 2], ['L', x + cw - d, y + h], ['L', x, y + h]];
+      if (!first) c.push(['L', x + d, y + h / 2]);
+      c.push(['Z']);
+      s.freeform(c, { fill: col, name: `Etapa ${i + 1}` });
+      const tx = x + (first ? 12 : d + 6), tw = cw - (first ? 12 : d + 6) - d - 2;
+      let z = 12; while (z > 9 && lineCount(plain(hh.nombre), tw, z, 'titulos') > 2) z--;
+      s.text(tx, y + 4, tw, h - 8, [{ runs: runs(String(p * PER + i + 1).padStart(2, '0'), { size: 10, font: 'ligera', color: COL.blanco }), after: 0 }, { runs: runs(hh.nombre, { size: z, font: 'titulos', color: COL.blanco }) }], { anchor: 'ctr', name: `Nombre ${i + 1}` });
+      const body = [hh.descripcion, hh.entregable ? `Entregable: ${hh.entregable}` : ''].filter(nonEmpty);
+      const bw = cw - 14, by = y + h + 16, bh = 400 - by;
+      const f = fitSize(body, bw, bh, [12, 11, 10, 9], 6);
+      if (!f.fits) warn('Cronograma', `stage ${i + 1}: text too long`);
+      s.text(x + 4, by, bw, bh, body.map((t, j) => ({ runs: runs(t, { size: f.size, font: j ? 'medio' : 'texto', color: j ? COL.petroleo : COL.texto }), after: 6 })), { name: `Descripción ${i + 1}` });
+      const pw = Math.min(cw - 8, Math.ceil(D.textWidth(hh.who, 10, true)) + 24);
+      s.shape(x + 4, 410, pw, 23, { adj: 50000, line: COL.turquesa, lineW: 1, paras: [{ runs: runs(trunc(hh.who, 22), { size: 10, font: 'titulos', color: COL.petroleo }), align: 'ctr' }], name: `Responsable ${i + 1}` });
+    });
+    s.shape(54, 452, 852, 44, { adj: radius(852, 44), fill: COL.menta, name: 'Nota tiempos' });
+    s.text(72, 452, 816, 44, [{ runs: [...runs('Tiempos por definir: ', { size: 11, font: 'titulos', color: COL.tinta }), ...runs(pk.cronograma_nota || 'los días hábiles y las fechas de cada etapa se confirman en el SOW, una vez cerradas las validaciones de esta sesión.', { size: 11, color: COL.texto })] }], { anchor: 'ctr', name: 'Nota' });
+    out.push(s);
+  }
+  return out;
+}
+// context like the reference kickoff: three outlined arrow boxes (Brief / Objetivos identificados / Roles identificados)
+function contextoKickoff(sow, pk) {
+  const cx = pk.contexto || {};
+  const brief = arr(cx.brief).length ? cx.brief : arr(sow.brief).length ? sow.brief : (nonEmpty(cx.brief) ? [cx.brief] : ['POR COMPLETAR: situación actual del cliente.']);
+  const ob = sow.objetivos || {};
+  const objs = arr(cx.objetivos).length ? cx.objetivos : [ob.general, ...arr(ob.especificos)].filter(nonEmpty);
+  const roles = arr(cx.roles).length ? cx.roles : arr((pk.actores || {}).items).map((a) => `${a.nombre}: ${a.texto || ''}`);
+  const boxes = [
+    { t: 'Brief', items: [arr(brief).join(' ')], bullet: false },
+    { t: 'Objetivos identificados', items: objs.length ? objs : ['POR COMPLETAR'], bullet: objs.length > 1 },
+    { t: 'Roles identificados', items: roles.length ? roles : ['POR COMPLETAR: quién interviene (cliente, asesores, sistemas).'], bullet: roles.length > 1 },
+  ];
+  const { s, y0 } = newContent('Contexto', 'Contexto', cx.titulo_kickoff || 'Contexto del proyecto'); // cx.titulo belongs to the HOY vs CON JELOU slide (formato completo)
+  const top = Math.max(y0, 169) - 10, gap = 12, d = 30, W = 852, tw = W - d - 40, avail = 504 - top - gap * 2;
+  const hOf = (b, z) => 18 + 6 + b.items.reduce((a, t) => a + lineCount(plain(t), tw - (b.bullet ? 11 : 0), z, 'texto') * z * LH + 3, 0) + 14;
+  const fitZ = () => [12, 11, 10.5, 10, 9].find((z) => boxes.reduce((a, b) => a + hOf(b, z), 0) <= avail);
+  let size = fitZ();
+  // too long: first brief paragraph, then at most 4 objectives / roles (a notice says what was left out; the rest stays in the SOW)
+  if (!size && arr(brief).length > 1) { boxes[0].items = [String(arr(brief)[0])]; size = fitZ(); warn('Contexto', 'only the first brief paragraph fits (prekickoff.contexto.brief shortens it)'); }
+  [[1, 'objectives'], [2, 'roles']].forEach(([k, what]) => {
+    if (!size && boxes[k].items.length > 4) { warn('Contexto', `${boxes[k].items.length} ${what}, only 4 shown (prekickoff.contexto.${k === 1 ? 'objetivos' : 'roles'} chooses them)`); boxes[k].items = boxes[k].items.slice(0, 4); size = fitZ(); }
+  });
+  if (!size) {
+    size = 9; warn('Contexto', 'context text too long (brief truncated)');
+    while (boxes.reduce((a, b) => a + hOf(b, size), 0) > avail && boxes[0].items[0].length > 120) boxes[0].items[0] = trunc(boxes[0].items[0], boxes[0].items[0].length - 40);
+  }
+  const need = boxes.map((b) => hOf(b, size)), extra = (avail - need.reduce((a, b) => a + b, 0)) / 3;
+  let y = top;
+  boxes.forEach((b, i) => {
+    const h = need[i] + extra;
+    s.freeform([['M', 54, y], ['L', 54 + W - d, y], ['L', 54 + W, y + h / 2], ['L', 54 + W - d, y + h], ['L', 54, y + h], ['Z']], { fill: COL.blanco, line: COL.turquesa, lineW: 1, name: `Caja ${b.t}` });
+    s.text(70, y + 10, tw, 18, [{ runs: runs(b.t, { size: 12, font: 'titulos', color: COL.turquesa }) }], { name: `Etiqueta ${b.t}` });
+    s.text(70, y + 30, tw, h - 38, paragraphs(b.items, { size, bullet: b.bullet, after: 3 }), { name: b.t });
+    y += h + gap;
+  });
+  return [s];
+}
+function assumptionTable(sow) {
+  const asr = assumptionRows(sow);
+  return asr.length ? tableSlides('Supuestos', 'Prioridad de la sesión', 'Supuestos del SOW a *confirmar o cerrar*', '', [260, 430, 162], ['Supuesto', 'Pregunta para cerrarlo', 'Decisión'], asr, { boldFirst: false }) : [];
+}
+const NIVEL = { alto: 'ALTO', alta: 'ALTO', critico: 'CRÍTICO', crítico: 'CRÍTICO', medio: 'MEDIO', media: 'MEDIO', bajo: 'BAJO', baja: 'BAJO' };
+function riskLevel(r) {
+  const v = normQ(r.nivel || r.impacto || r.probabilidad || '');
+  return NIVEL[v] || (v ? v.toUpperCase() : '');
+}
+function buildKickoff(sow, opts = {}) {
+  const pk = sow.prekickoff || {};
+  const parts = {
+    cronograma: cronogramaRuta(sow, pk),
+    contexto: contextoKickoff(sow, pk),
+    alcance: stagesSlide(sow, pk),
+    supuestos: assumptionTable(sow),
+    validacion: validationGrouped(sow, pk),
+    riesgos: riskSlides(sow),
+  };
+  const idx = [
+    { k: 'roadmap', titulo: 'Cómo trabajamos', texto: 'Las cuatro fases de la implementación.' },
+    { k: 'cronograma', titulo: 'Cronograma', texto: 'La ruta del proyecto; los tiempos se definen con el SOW.' },
+    { k: 'contexto', titulo: 'Contexto del proyecto', texto: 'Brief, objetivos y roles identificados.' },
+    { k: 'alcance', titulo: 'Alcance', texto: 'Los flujos que construye Jelou.' },
+    { k: 'supuestos', titulo: 'Supuestos', texto: 'Lo que asumimos de la preventa y se confirma hoy.' },
+    { k: 'validacion', titulo: 'Validación etapa por etapa', texto: 'Preguntas para cerrar en esta sesión.' },
+    { k: 'riesgos', titulo: 'Riesgos', texto: 'Lo que puede mover el cronograma y cómo se mitiga.' },
+  ].filter((i) => i.k === 'roadmap' || parts[i.k].length);
+  const slides = [];
+  const add = (x) => (Array.isArray(x) ? x : [x]).filter(Boolean).forEach((s) => slides.push(s));
+  add(coverKickoff(sow, pk));
+  add(contenidoSlide(pk.contenido || idx)); // kickoff: the contents open the deck, then the roadmap (always right after the contents)
+  add(roadmap(pk));
+  ['cronograma', 'contexto', 'alcance', 'supuestos', 'validacion', 'riesgos'].forEach((k) => add(parts[k]));
+  add(closingKickoff(pk));
+  return slides;
+}
+
 // ---------- the deck ----------
 function integrationRows(sow) {
   const who = (v) => (/jelou/i.test(v || '') ? 'Jelou' : v || 'POR DEFINIR');
@@ -658,7 +917,12 @@ function llamadasRows(sow, pk) {
   return arr(sow.integraciones).map((it, i) => [String(i + 1), `${it.expone || 'Sistema'} → ${it.consume || 'Jelou'}`, trunc(it.proposito || '', 100), it.nombre]);
 }
 
+// formato: "kickoff" (default, closer to the Jelou kickoff deck) | "completo" (every block: team, components, actors, E2E, tables, pending…)
 function buildSlides(sow, opts = {}) {
+  const formato = opts.formato || (sow.prekickoff || {}).formato || 'kickoff';
+  return formato === 'completo' ? buildCompleto(sow, opts) : buildKickoff(sow, opts);
+}
+function buildCompleto(sow, opts = {}) {
   const pk = sow.prekickoff || {};
   const hasOut = arr(sow.agentes).some((a) => /outbound|saliente|prospecci/i.test(`${a.nombre} ${a.entrada || ''}`)) || !!pk.outbound;
   const slides = [];
@@ -742,22 +1006,25 @@ if (require.main === module) {
     const argv = process.argv.slice(2);
     const di = argv.indexOf('--diagramas');
     const diagDir = di >= 0 ? argv[di + 1] : null;
+    const fi = argv.indexOf('--formato');
+    const formato = fi >= 0 ? argv[fi + 1] : undefined;
+    if (formato && !['kickoff', 'completo'].includes(formato)) { console.error('--formato must be "kickoff" or "completo".'); process.exit(2); }
     if (argv[0] === '--patrones') {
       const tpl = argv[1] || TEMPLATE;
-      const all = [...buildSlides(patternSow()), iconGallery()];
+      const all = [...buildSlides(patternSow(), { formato: 'completo' }), ...buildKickoff(patternSow()).filter((x) => ['Portada', 'Cronograma', 'Contexto', 'Supuestos', 'Riesgos', 'Cierre', 'Contenido'].includes(x.name)), iconGallery()];
       const slides = all.map((s) => ({ xml: s.xml(), images: s.images }));
       const size = await K.packageDeck(tpl, slides, tpl, { title: 'Plantilla de kickoff Jelou (diapositivas patrón)', prune: false });
       console.log(`Pattern slides written into ${tpl}: ${slides.length} slides (${size} bytes)`);
       return;
     }
-    const args = argv.filter((a, i) => !a.startsWith('--') && !(di >= 0 && i === di + 1));
+    const args = argv.filter((a, i) => !a.startsWith('--') && !(di >= 0 && i === di + 1) && !(fi >= 0 && i === fi + 1));
     const [inFile, outFile] = args;
-    if (!inFile || !outFile) { console.error('Usage: node build_kickoff_pptx.js sow.json out.pptx [--diagramas dir]'); process.exit(2); }
+    if (!inFile || !outFile) { console.error('Usage: node build_kickoff_pptx.js sow.json out.pptx [--diagramas dir] [--formato kickoff|completo]'); process.exit(2); }
     const sow = JSON.parse(fs.readFileSync(inFile, 'utf8'));
-    const slides = buildSlides(sow, { diagDir });
+    const slides = buildSlides(sow, { diagDir, formato });
     const size = await K.packageDeck(TEMPLATE, slides.map((s) => ({ xml: s.xml(), images: s.images })), outFile, { title: `Pre-kickoff · ${(sow.meta || {}).cliente || ''} · ${(sow.meta || {}).proyecto || ''}` });
     console.log(`Pre-kickoff deck: ${path.resolve(outFile)} (${slides.length} slides, ${size} bytes)`);
     issues.forEach((i) => console.warn('  layout notice: ' + i));
   })().catch((e) => { console.error(e); process.exit(1); });
 }
-module.exports = { buildSlides, patternSow, issues, roadmapPhases, layoutPlan };
+module.exports = { buildSlides, buildKickoff, buildCompleto, patternSow, issues, roadmapPhases, layoutPlan };

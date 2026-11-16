@@ -15,12 +15,14 @@ const C = require("./lib/common");
 const argv = process.argv.slice(2);
 const modoIdx = argv.indexOf("--modo");
 const modoArg = modoIdx >= 0 ? argv[modoIdx + 1] : (argv.find((a) => a.startsWith("--modo=")) || "").split("=")[1];
+const fmtIdx = argv.indexOf("--formato");
+const formatoDeck = fmtIdx >= 0 ? argv[fmtIdx + 1] : null;     // deck del pre-kickoff: kickoff (default) | completo
 const antIdx = argv.indexOf("--anterior");
 const anteriorFile = antIdx >= 0 ? argv[antIdx + 1] : null;   // sow.json del pre-kickoff: fase 2 explícita (qué cambió)
-const args = argv.filter((a, i) => !a.startsWith("--") && !(modoIdx >= 0 && i === modoIdx + 1) && !(antIdx >= 0 && i === antIdx + 1));
+const args = argv.filter((a, i) => !a.startsWith("--") && !(modoIdx >= 0 && i === modoIdx + 1) && !(antIdx >= 0 && i === antIdx + 1) && !(fmtIdx >= 0 && i === fmtIdx + 1));
 const force = argv.includes("--force");
 const [inFile, outDir] = args;
-if (!inFile || !outDir) { console.error("Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--anterior sow-prekickoff.json] [--force]"); process.exit(2); }
+if (!inFile || !outDir) { console.error("Usage: node build_all.js sow.json out-dir [--modo prekickoff|completo] [--anterior sow-prekickoff.json] [--formato kickoff|completo] [--force]"); process.exit(2); }
 const sow = JSON.parse(fs.readFileSync(inFile, "utf8"));
 const meta = sow.meta || {};
 if (modoArg && !["prekickoff", "completo"].includes(modoArg)) { console.error('--modo must be "prekickoff" or "completo".'); process.exit(2); }
@@ -125,7 +127,7 @@ try {
 if (prek) {
   // 5. pre-kickoff deck + faltantes documents (client and internal)
   const pptx = path.join(outDir, `${base}-prekickoff.pptx`);
-  const k = node("build_kickoff_pptx.js", [inFile, pptx, "--diagramas", path.join(outDir, "diagramas")]);
+  const k = node("build_kickoff_pptx.js", [inFile, pptx, "--diagramas", path.join(outDir, "diagramas"), ...(formatoDeck ? ["--formato", formatoDeck] : [])]);
   process.stdout.write(k.stdout); process.stderr.write(k.stderr);
   if (k.status !== 0) process.exit(k.status || 1);
   const f = node("build_faltantes_docx.js", [inFile, outDir, base]);
