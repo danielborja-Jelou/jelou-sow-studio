@@ -4,7 +4,7 @@ Feedback: Comercial sometimes shares its own offer (PDF, partner annex) and the 
 - **Linter `COMERCIAL`** (warnings only, the presales SOW stays the base): a term the offer excludes appears in flows, stories, solution or effort without a `cambios_respecto_preventa` row and its question; a price copied into `entrada_comercial`; an empty section, an offer without documento, a meeting without fecha.
 - **Internal faltantes**: section «Entrada de Comercial» (offer, meeting, other accounts ignored, what the offer excludes, the insumos clause as an objective follow-up date) and «Oportunidades comerciales (no son alcance)». Nothing of it reaches the deck or the client documents.
 - Docs: SKILL.md (mode 0), references/prekickoff.md («Optional input from Comercial» table), references/sow-json-format.md. Test: 1 new in prekickoff.test.js (28 pass).
-- Local change, not uploaded to the library.
+- Published to the library: revision e80b52c7 (2026-11-19).
 
 # Review round: kickoff format, second pass (feedback on the Malecón 2000 deck)
 - **No 4-phase roadmap in `kickoff`** (the project route covers it; `completo` keeps it as slide 2).
