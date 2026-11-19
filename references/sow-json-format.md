@@ -52,6 +52,11 @@ The **keys are Spanish** (they mirror the sections of the Spanish SOW) and **all
   "ampliaciones_solicitadas": [ … ],        // scope lock, see "Scope lock"
   "cambios_respecto_preventa": [ … ],       // later statements that contradict presales assumptions (questions, not decisions)
   "alertas_internas": [ "…" ],              // internal-only notes (they appear only in the internal faltantes document)
+  "entrada_comercial": {                    // OPTIONAL: Comercial's offer + the Diio of Comercial's meeting (internal faltantes only; never prices)
+    "oferta": { "documento": "Oferta_Cliente.pdf", "fecha": "2026-10-23", "partner": "…", "no_incluye": [ { "texto": "Agentes de IA", "terminos": ["agente de ia"] } ], "plazo_insumos_dias": 15 },
+    "diio_comercial": { "titulo": "Handoff - Alineación", "fecha": "2026-11-18", "otras_cuentas": ["…"] },
+    "oportunidades": [ { "descripcion": "Catálogo en Shop más adelante", "origen": "Diio de Comercial 18/11" } ]   // upselling ideas, never scope
+  },
   "prekickoff": { … },                      // deck-specific content, see references/prekickoff.md
   "firmas": { "jelou": { "nombre": "…", "cargo": "…" }, "cliente": { "nombre": "POR COMPLETAR", "cargo": "POR COMPLETAR" } }
 }

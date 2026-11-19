@@ -350,6 +350,33 @@ const textOf = async (file, parts) => { const z = await JSZip.loadAsync(fs.readF
     assert(/MODO|pre-kickoff/i.test(int));
   });
 
+  await t('entrada comercial (optional): lint flags what the offer excludes and prices; internal faltantes only', async () => {
+    const ec = {
+      oferta: { documento: 'Oferta_Partner.pdf', fecha: '2026-10-23', partner: 'Partner X', no_incluye: [{ texto: 'Agentes de IA', terminos: ['inteligencia artificial'] }], plazo_insumos_dias: 15 },
+      diio_comercial: { titulo: 'Handoff - Alineación', fecha: '2026-11-18', otras_cuentas: ['A', 'B', 'C', 'D'] },
+      oportunidades: [{ descripcion: 'Catálogo en Shop más adelante', origen: 'Diio de Comercial 18/11' }],
+    };
+    const none = lint(prek, 'ec-none'); assert(!none.findings.some((f) => f.code === 'COMERCIAL'), 'no section, no findings (optional step)');
+    let s = clone(prek); s.entrada_comercial = clone(ec);
+    s.agentes[0].pasos[1].mensaje = 'Te atiende nuestro asistente con inteligencia artificial.';
+    let r = lint(s, 'ec-excl');
+    assert(r.findings.some((f) => f.code === 'COMERCIAL' && /excludes "inteligencia artificial"/.test(f.msg)), 'excluded term in the flow');
+    assert.strictEqual(r.errors, lint(prek, 'ec-base').errors, 'warnings only: the presales SOW stays the base');
+    s.preguntas_abiertas.push({ id: 'Q-CP-IA', pregunta: '¿El flujo usa IA aunque la oferta la excluye?', audiencia: 'comercial' });
+    s.cambios_respecto_preventa = [{ id: 'CP-IA', tema: 'Inteligencia artificial', preventa: 'Asistente con IA', diio: 'La oferta excluye agentes de IA', origen: 'Oferta', pregunta: 'Q-CP-IA' }];
+    r = lint(s, 'ec-covered'); assert(!r.findings.some((f) => f.code === 'COMERCIAL' && /excludes/.test(f.msg)), 'covered by a change versus presales');
+    s.entrada_comercial.oferta.nota = 'Implementación USD 250';
+    assert(lint(s, 'ec-price').findings.some((f) => f.code === 'COMERCIAL' && /Prices/.test(f.msg)), 'prices are not copied');
+    delete s.entrada_comercial.oferta.nota;
+    const dir = path.join(OUT, 'ec'); fs.rmSync(dir, { recursive: true, force: true });
+    const f = path.join(OUT, 'ec.json'); fs.writeFileSync(f, JSON.stringify(s));
+    const b = node('build_faltantes_docx.js', [f, dir, 'ec']); assert.strictEqual(b.status, 0, b.stderr);
+    const int = await textOf(path.join(dir, 'ec-faltantes-interno.docx'), /^word\/document\.xml$/);
+    const cli = await textOf(path.join(dir, 'ec-faltantes-cliente.docx'), /^word\/document\.xml$/);
+    assert(/Entrada de Comercial/.test(int) && /Oportunidades comerciales/.test(int) && /15 días calendario/.test(int) && /otras 4 cuenta/.test(int));
+    assert(!/Entrada de Comercial|Oportunidades comerciales|Shop/.test(cli), 'commercial input never reaches the client document');
+  });
+
   await t('end-to-end diagram: with two or more flows every diagram slide carries at least two flows (smaller size when needed)', () => {
     const { buildKickoff, issues } = require('../build_kickoff_pptx');
     const mk = (id, n) => {
