@@ -1,3 +1,11 @@
+# Review round: optional input from Comercial in the pre-kickoff
+Feedback: Comercial sometimes shares its own offer (PDF, partner annex) and the Diio of its alignment meeting with Deployment (different from the presales handoff, usually several accounts in one meeting). Not always received, so it is an optional step that improves the pre-kickoff.
+- **New optional section `entrada_comercial`** {oferta {documento, fecha, partner, no_incluye[{texto, terminos}], plazo_insumos_dias}, diio_comercial {titulo, fecha, otras_cuentas}, oportunidades[{descripcion, origen}]}. The rest of what these sources say goes to the existing fields: requirements → `dependencias_cliente`, contradictions → `cambios_respecto_preventa`, requests beyond presales → `ampliaciones_solicitadas` (scope lock), alerts → `alertas_internas`, client business doubts → `preguntas_abiertas`.
+- **Linter `COMERCIAL`** (warnings only, the presales SOW stays the base): a term the offer excludes appears in flows, stories, solution or effort without a `cambios_respecto_preventa` row and its question; a price copied into `entrada_comercial`; an empty section, an offer without documento, a meeting without fecha.
+- **Internal faltantes**: section «Entrada de Comercial» (offer, meeting, other accounts ignored, what the offer excludes, the insumos clause as an objective follow-up date) and «Oportunidades comerciales (no son alcance)». Nothing of it reaches the deck or the client documents.
+- Docs: SKILL.md (mode 0), references/prekickoff.md («Optional input from Comercial» table), references/sow-json-format.md. Test: 1 new in prekickoff.test.js (28 pass).
+- Published to the library: revision e80b52c7 (2026-11-19).
+
 # Review round: kickoff format, second pass (feedback on the Malecón 2000 deck)
 - **No 4-phase roadmap in `kickoff`** (the project route covers it; `completo` keeps it as slide 2).
 - **Team in two columns** like the Suzuki kickoff: client and partners / Jelou, «Nombre · Cargo» + responsibility, escalation note.

@@ -621,6 +621,34 @@ if (!prek || arr(cr.hitos).length) {
   });
 }
 
+// ---------- 18b. optional commercial input (entrada_comercial: Comercial's offer + Comercial's Diio) ----------
+// Not always received. The presales SOW stays the base (scope lock): what the offer excludes and the flows still contain,
+// or what Comercial's meeting adds, is a question (cambios_respecto_preventa / ampliaciones), never a silent change.
+{
+  const ec = sow.entrada_comercial;
+  if (ec && typeof ec === "object") {
+    const of = ec.oferta || null, dc = ec.diio_comercial || null;
+    if (!of && !dc) warn("COMERCIAL", "entrada_comercial", "entrada_comercial has neither oferta nor diio_comercial: remove it or say which source was used.");
+    if (of && !of.documento) warn("COMERCIAL", "entrada_comercial.oferta", "Missing documento (file name of the commercial offer).");
+    if (dc && !dc.fecha) warn("COMERCIAL", "entrada_comercial.diio_comercial", "Missing fecha of Comercial's meeting.");
+    // prices of the offer are never copied into sow.json (they would leak into the client documents)
+    walk(ec, "entrada_comercial", (s, path) => { if (/(?:US?\$|USD)\s?\d|\$\s?\d/.test(s)) warn("COMERCIAL", path, `Prices from the offer are not copied into sow.json: "${s.slice(0, 60)}".`); });
+    const qIds = new Set(arr(sow.preguntas_abiertas).map((q) => q.id));
+    const covered = (t) => arr(sow.cambios_respecto_preventa).some((c) => norm(`${c.tema} ${c.preventa} ${c.diio}`).includes(t) && qIds.has(c.pregunta));
+    if (of) arr(of.no_incluye).forEach((x, i) => {
+      const terms = arr(typeof x === "object" ? x.terminos : [x]).map(norm).filter(Boolean);
+      for (const t of terms) for (const { s: txt, path } of includedText) {
+        if (!norm(txt).includes(t)) continue;
+        if (/no incluye|fuera de alcance|no aplica|sin |sujeto a evaluaci/i.test(txt)) continue;
+        if (covered(t)) continue;
+        warn("COMERCIAL", path, `The commercial offer excludes "${t}" (entrada_comercial.oferta.no_incluye[${i}]) but it appears in: "${txt.slice(0, 90)}…". Confirm it: add a cambios_respecto_preventa row with its question (the presales SOW stays the base until it is answered).`);
+        break;
+      }
+    });
+    arr(ec.oportunidades).forEach((o, i) => { if (!o || !o.descripcion) warn("COMERCIAL", `entrada_comercial.oportunidades[${i}]`, "Opportunity without descripcion."); });
+  }
+}
+
 // ---------- 19. open questions ----------
 {
   const seenQ = new Set();

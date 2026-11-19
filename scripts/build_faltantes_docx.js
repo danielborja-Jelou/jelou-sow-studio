@@ -7,7 +7,8 @@
 //                                   something technical to ask or request.
 //   <base>-faltantes-interno.docx   for Jelou only: capability checks, presales doubts, assumptions, additionals for Comercial,
 //                                   changes versus presales, team data, the UAT clause pending Legal review, and the split of the
-//                                   client questions by ámbito (inferred ones and mixed ones to fix).
+//                                   client questions by ámbito (inferred ones and mixed ones to fix), and the optional input from
+//                                   Comercial (entrada_comercial: offer, Comercial's meeting, opportunities that are not scope).
 // Usage: node build_faltantes_docx.js sow.json out-dir base-name
 const fs = require("fs");
 const path = require("path");
@@ -160,6 +161,21 @@ function internalDoc() {
 
   const alerts = arr(sow.alertas_internas);
   if (alerts.length) { add(H1("Alertas internas")); alerts.forEach((a) => add(bullet(a))); }
+
+  const ec = sow.entrada_comercial;
+  if (ec && (ec.oferta || ec.diio_comercial || arr(ec.oportunidades).length)) {
+    add(H1("Entrada de Comercial (oferta y reunión de Comercial)"));
+    add(text("Fuente opcional: no siempre llega. El alcance sigue siendo el SOW de preventa; lo que aquí difiere ya está como cambio respecto a preventa o como adicional para Comercial."));
+    const of = ec.oferta, dc = ec.diio_comercial;
+    if (of) {
+      add(bullet(`Oferta comercial: ${val(of.documento)}${of.fecha ? ` (${of.fecha})` : ""}${of.partner ? ` · Partner: ${of.partner}` : ""}.`));
+      if (arr(of.no_incluye).length) add(bullet(`La oferta excluye: ${arr(of.no_incluye).map((x) => (typeof x === "object" ? x.texto || arr(x.terminos).join(", ") : x)).join("; ")}.`));
+      if (of.plazo_insumos_dias) add(bullet(`Cláusula de insumos: si el cliente tarda más de ${of.plazo_insumos_dias} días calendario en entregarlos, Jelou puede re-estimar tiempos y valores. Usarla como fecha objetiva de seguimiento.`));
+    }
+    if (dc) add(bullet(`Reunión de Comercial: ${val(dc.titulo || "Diio de Comercial")}${dc.fecha ? ` (${dc.fecha})` : ""}${arr(dc.otras_cuentas).length ? ` · también trató otras ${arr(dc.otras_cuentas).length} cuenta(s), ignoradas aquí` : ""}.`));
+    const ops = arr(ec.oportunidades);
+    if (ops.length) { add(H2("Oportunidades comerciales (no son alcance)")); add(table(["Oportunidad", "Origen"], ops.map((o) => [o.descripcion, val(o.origen)]), [70, 30])); }
+  }
 
   add(H1("Integraciones: estado de documentación y ambiente"));
   add(arr(sow.integraciones).length ? table(["Integración", "Responsable del cliente", "Documentación", "Ambiente de pruebas"], arr(sow.integraciones).map((i) => [i.nombre, val(i.responsable_cliente || "POR COMPLETAR"), val(i.documentacion), val(i.ambiente_pruebas)]), [34, 26, 20, 20]) : text("Sin integraciones."));
